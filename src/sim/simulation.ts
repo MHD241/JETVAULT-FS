@@ -63,16 +63,19 @@ export class Simulation {
   spawn(s: SpawnKind) {
     const ap = this.world.airport;
     const ac = this.aircraft;
+    const P = this.def.profile;
     this.autopilot.disengage();
+    ac.gearExt = 1; ac.spoiler = 0;
     ac.maxLoadFactor = 1; ac.minLoadFactor = 1;
     ac.flap = 0; ac.elevator = 0; ac.aileronL = 0; ac.aileronR = 0; ac.rudder = 0;
     if (s.kind === 'stand') {
-      const [x, y, hdgDeg] = ap.stands[s.index % ap.stands.length];
+      const list = this.def.profile.standClearance > 12 && ap.standsJet?.length ? ap.standsJet : ap.stands;
+      const [x, y, hdgDeg] = list[s.index % list.length];
       const hdg = hdgDeg * DEG;
-      this.controls = s.coldAndDark ? defaultControls() : readyControls();
+      this.controls = s.coldAndDark ? defaultControls() : readyControls(this.def.profile.takeoffTrim, this.def.profile.takeoffFlapLever);
       this.controls.parkingBrake = true;
       this.controls.kollsman = this.weather.qnh;
-      if (s.coldAndDark) { ac.engine.rpm = 0; ac.engine.running = false; } else ac.engine.warmUp(800, ac.air);
+      for (const e of ac.engines) { if (s.coldAndDark) { e.rpm = 0; e.running = false; } else e.warmUp(P.idleRpm, ac.air); }
       ac.placeOnGround(x, y, hdg, this.env);
       this.systems = new C172Systems(ac, !s.coldAndDark);
     } else if (s.kind === 'runway') {
@@ -81,14 +84,16 @@ export class Simulation {
       const L = Math.hypot(other.x - end.x, other.y - end.y);
       const t = (end.displaced + 15) / L;
       const x = end.x + (other.x - end.x) * t, y = end.y + (other.y - end.y) * t;
-      this.controls = readyControls();
+      this.controls = readyControls(this.def.profile.takeoffTrim, this.def.profile.takeoffFlapLever);
       this.controls.kollsman = this.weather.qnh;
       this.controls.parkingBrake = false;
       this.controls.brakeLeft = 0; this.controls.brakeRight = 0;
       this.controls.landingLight = true; this.controls.taxiLight = false;
-      ac.engine.warmUp(800, ac.air);
+      for (const e of ac.engines) e.warmUp(P.idleRpm, ac.air);
+      ac.flap = this.def.controls.flapDetents[P.takeoffFlapLever];
       ac.placeOnGround(x, y, hdg, this.env);
       this.systems = new C172Systems(ac, true);
+      this.bugToHeading();
     } else {
       const { end, other } = runwayEnd(ap, s.ident);
       const hdg = Math.atan2(other.x - end.x, other.y - end.y);
@@ -98,34 +103,45 @@ export class Simulation {
       const tdx = end.x + ux * (end.displaced + 300), tdy = end.y + uy * (end.displaced + 300);
       const x = tdx - ux * d, y = tdy - uy * d;
       const alt = end.elev + Math.tan(3 * DEG) * d;
-      this.controls = readyControls();
+      this.controls = readyControls(this.def.profile.takeoffTrim, this.def.profile.takeoffFlapLever);
       this.controls.kollsman = this.weather.qnh;
-      this.controls.throttle = 0.48;
-      this.controls.flapLever = 1;
-      this.controls.trim = 0.25;
+      this.controls.throttle = P.approachThrottle;
+      this.controls.flapLever = P.approachFlapLever;
+      this.controls.trim = P.approachTrim;
       this.controls.landingLight = true;
-      ac.engine.warmUp(2100, ac.air);
-      ac.flap = 10 * DEG;
-      ac.placeInFlight(x, y, alt, hdg, 75 * KT, -1 * DEG);
+      for (const e of ac.engines) e.warmUp(P.approachRpm, ac.air);
+      ac.flap = this.def.controls.flapDetents[P.approachFlapLever];
+      ac.gearExt = 1;
+      ac.placeInFlight(x, y, alt, hdg, P.approachKias * KT, P.approachPitchDeg * DEG);
       // glide path descent rate
-      ac.vel = ac.vel.add(new Vec3(0, 0, Math.tan(3 * DEG) * 75 * KT));
+      ac.vel = ac.vel.add(new Vec3(0, 0, Math.tan(3 * DEG) * P.approachKias * KT));
       this.systems = new C172Systems(ac, true);
+      this.bugToHeading();
     }
   }
 
   /** Airborne start at local east/north, altitude (ft MSL) and true heading (rad). */
   spawnAir(east: number, north: number, altFt: number, heading: number) {
     const ac = this.aircraft;
+    const P = this.def.profile;
     this.autopilot.disengage();
-    this.controls = readyControls();
+    this.controls = readyControls(this.def.profile.takeoffTrim, this.def.profile.takeoffFlapLever);
     this.controls.kollsman = this.weather.qnh;
-    this.controls.throttle = 0.65;
+    this.controls.throttle = P.cruiseThrottle;
+    this.controls.gearDown = !this.def.retractableGear;
+    ac.gearExt = this.def.retractableGear ? 0 : 1;
+    this.controls.trim = 0;
     this.controls.headingBug = Math.round(((heading * 180) / Math.PI + 360) % 360);
-    ac.engine.warmUp(2350, ac.air);
+    for (const e of ac.engines) e.warmUp(P.cruiseRpm, ac.air);
     ac.flap = 0;
     const alt = Math.max(altFt * 0.3048, this.world.heightAt(east, north) + 300);
-    ac.placeInFlight(east, north, alt, heading, 100 * KT, 0);
+    ac.placeInFlight(east, north, alt, heading, P.cruiseKias * KT, 0);
     this.systems = new C172Systems(ac, true);
+  }
+
+  /** Point the heading bug at the current heading (magnetic, ~1 deg W variation). */
+  private bugToHeading() {
+    this.controls.headingBug = Math.round(((this.aircraft.euler[2] * 180) / Math.PI + 1 + 360) % 360);
   }
 
   /** One fixed physics step. */

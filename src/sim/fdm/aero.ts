@@ -36,6 +36,11 @@ export interface ControlParams {
   cdPerRad2: number;
   /** Section pitching moment change per radian of deflection (negative = nose down). */
   cmPerRad: number;
+  /**
+   * Fowler flap: most of the lift gain comes from aft travel in the first few degrees.
+   * Deflection is mapped as maxDefl * (d / maxDefl)^exponent before use.
+   */
+  fowler?: { exponent: number; maxDefl: number };
 }
 
 export interface SurfaceDef {
@@ -79,15 +84,17 @@ export class SectionModel {
   constructor(private s: SurfaceDef) {}
 
   /** Returns [cl, cd_profile, cm, stallBlend] for effective AoA alpha (rad) and control deflection (rad). */
-  coeffs(alpha: number, defl: number): [number, number, number, number] {
+  coeffs(alpha: number, deflIn: number, extraClMax = 0): [number, number, number, number] {
     const af = this.s.airfoil;
     const ar = this.s.aspectRatio;
     const ctl = this.s.control;
     // 3D lift slope (Helmbold for low AR, reduces to lifting line at high AR)
     const k = af.a0 / (Math.PI * ar);
     const a = af.a0 / (Math.sqrt(1 + k * k) + k);
+    const fw = ctl?.fowler;
+    const defl = fw && deflIn > 0 ? fw.maxDefl * Math.pow(Math.min(deflIn / fw.maxDefl, 1), fw.exponent) : deflIn;
     const dAlpha = ctl ? ctl.effectiveness * defl : 0;
-    const clMax = af.clMax + (ctl ? Math.max(0, ctl.dClMaxPerRad * defl) : 0);
+    const clMax = af.clMax + extraClMax + (ctl ? Math.max(0, ctl.dClMaxPerRad * defl) : 0);
     const clMin = af.clMin + (ctl ? Math.min(0, ctl.dClMaxPerRad * defl) : 0);
     const ae = alpha - af.alpha0 + dAlpha; // effective angle from zero lift
     // Attached flow is linear up to (clMax - 0.15); a parabolic knee of width 0.3/a then

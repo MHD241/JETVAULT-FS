@@ -39,6 +39,7 @@
   "Copernicus DEM GLO-30: (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA",
   "ESA WorldCover 10 m 2021 v200, (c) ESA WorldCover project, CC BY 4.0",
   "Airport and building geometry: Overture Maps Foundation, derived from OpenStreetMap (c) OpenStreetMap contributors, ODbL",
-  "Runway thresholds: OurAirports (public domain)"
+  "Runway thresholds: OurAirports (public domain)",
+  "Contains modified Copernicus Sentinel data 2025 (Sentinel-2 L2A, tiles 30UVG/30VVH, 16 May 2025), processed by ESA"
  ]
 }

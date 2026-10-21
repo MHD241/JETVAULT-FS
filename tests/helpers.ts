@@ -6,6 +6,7 @@ import { AirportData } from '../src/world/airport';
 import { ObstacleIndex } from '../src/world/obstacles';
 import { Simulation, PHYSICS_DT } from '../src/sim/simulation';
 import { C172 } from '../src/sim/aircraft/c172';
+import { AircraftDef } from '../src/sim/fdm/aircraft';
 import { DEFAULT_WEATHER, WeatherSettings } from '../src/sim/weather';
 import { KT, FT, DEG, clamp } from '../src/core/math';
 
@@ -37,8 +38,8 @@ export const CALM_ISA: WeatherSettings = {
   ...DEFAULT_WEATHER, windSpeed: 0, gustSpeed: 0, turbulence: 0, temperatureC: 15, qnh: 1013.25,
 };
 
-export function newSim(world: World, weather: WeatherSettings = CALM_ISA) {
-  const sim = new Simulation(world, C172, { ...weather });
+export function newSim(world: World, weather: WeatherSettings = CALM_ISA, def: AircraftDef = C172) {
+  const sim = new Simulation(world, def, { ...weather });
   sim.setWeather({ ...weather });
   return sim;
 }
@@ -59,7 +60,6 @@ export function run(sim: Simulation, seconds: number, pilot?: (t: number) => boo
  * calibrated airspeed via pitch, and wings level / heading via roll.
  */
 export class TestPilot {
-  private iasI = 0;
   private bankI = 0;
   constructor(public sim: Simulation) {}
 
@@ -85,12 +85,15 @@ export class TestPilot {
 
   holdAltitudeWithPitch(targetAltM: number, dt = PHYSICS_DT) {
     const ac = this.sim.aircraft;
-    const c = this.sim.controls;
+    if (this.thetaCmd === null) this.thetaCmd = ac.euler[1];
     const vs = -ac.vel.z;
-    const vsCmd = clamp((targetAltM - ac.altitude) * 0.15, -3, 3);
+    const vsCmd = clamp((targetAltM - ac.altitude) * 0.12, -4, 4);
     const err = vsCmd - vs;
-    this.iasI = clamp(this.iasI + err * dt * 0.05, -0.8, 0.8);
-    c.pitch = clamp(this.iasI + 0.15 * err - 0.9 * ac.omega.y, -1, 1);
+    // vertical speed -> pitch attitude (integrating), then the attitude loop moves the stick
+    // flight-path gain scales with 1/V (1 deg of pitch changes VS more at higher speed)
+    const k = 45 / Math.max(ac.tas, 45);
+    this.thetaCmd = clamp(this.thetaCmd + err * DEG * dt * k, -10 * DEG, 20 * DEG);
+    this.pitchTo(clamp(this.thetaCmd + err * 0.6 * DEG * k, -12 * DEG, 22 * DEG), dt);
   }
 
   wingsLevel(targetHeading?: number, dt = PHYSICS_DT) {
@@ -123,10 +126,16 @@ export class LandingPilot {
   touchdown: { x: number; y: number; sinkFpm: number; kias: number; pitchDeg: number } | null = null;
   stop: { x: number; y: number } | null = null;
   private thrI = 0.35;
+  private flareTheta: number | null = null;
+  private flareStick = 0;
   private gsI = 0;
   constructor(
     public sim: Simulation, public x0: number, public y0: number, public hdg: number,
     public fieldElev: number, public vApp = 65, public aim = 300, public brake = true,
+    /** wheel height of the datum at rest (gear length), flare height, use reversers */
+    public wheelH = 1.0, public flareH = 5, public reversers = false, public flareSink = 0.25,
+    /** jet technique: raise the nose by this much and hold the attitude (deg); 0 = sink-rate flare */
+    public flarePitchUp = 0,
   ) {}
 
   /** Along-track distance past the threshold and cross-track (right positive), m. */
@@ -142,7 +151,7 @@ export class LandingPilot {
     const [phi, th, psi] = ac.euler;
     const ias = ac.cas / KT;
     const { along, cross } = this.track();
-    const hgt = ac.altitude - this.fieldElev - 1.0; // wheel height approx
+    const hgt = ac.altitude - this.fieldElev - this.wheelH; // wheel height approx
     let hdgErr = this.hdg - psi; hdgErr = Math.atan2(Math.sin(hdgErr), Math.cos(hdgErr));
     // lateral: track the centreline
     const trackCmd = clamp(-cross * 0.004, -0.25, 0.25);
@@ -157,18 +166,21 @@ export class LandingPilot {
       const gs = ac.vel.len();
       const vsCmd = -Math.tan(3 * DEG) * gs + clamp((gpH - hgt) * 0.12, -2, 2);
       const vs = -ac.vel.z;
-      this.gsI = clamp(this.gsI + (vsCmd - vs) * dt * 0.01, -0.1, 0.1);
+      this.gsI = clamp(this.gsI + (vsCmd - vs) * dt * 0.02, -0.3, 0.3);
       const thetaCmd = clamp(th + (vsCmd - vs) * 0.03 + this.gsI, -10 * DEG, 12 * DEG);
       c.pitch = clamp(c.pitch + (3 * (thetaCmd - th) - 1.2 * ac.omega.y - c.pitch) * 0.05, -1, 1);
       this.thrI = clamp(this.thrI + (this.vApp - ias) * dt * 0.01, 0, 1);
       c.throttle = clamp(this.thrI + (this.vApp - ias) * 0.03, 0, 1);
-      if (hgt < 5) this.phase = 'flare';
+      if (hgt < this.flareH) this.phase = 'flare';
     } else if (this.phase === 'flare') {
       c.throttle = 0;
       const vs = -ac.vel.z;
-      const vsCmd = -clamp(hgt * 0.5, 0.25, 3);
-      const thetaCmd = clamp(th + (vsCmd - vs) * 0.04, -2 * DEG, 11 * DEG);
-      c.pitch = clamp(4 * (thetaCmd - th) - 1.2 * ac.omega.y, -1, 1);
+      const vsCmd = -clamp(hgt * 0.5, this.flareSink, 3);
+      if (this.flarePitchUp > 0 && this.flareTheta === null) { this.flareTheta = th + this.flarePitchUp * DEG; this.flareStick = c.pitch; }
+      const thetaCmd = this.flareTheta !== null ? this.flareTheta : clamp(th + (vsCmd - vs) * 0.04, -2 * DEG, 11 * DEG);
+      c.pitch = this.flareTheta !== null
+        ? clamp(this.flareStick + 1.2 * (thetaCmd - th) / DEG * 0.05 - 1.5 * ac.omega.y, -1, 1)
+        : clamp(4 * (thetaCmd - th) - 1.2 * ac.omega.y, -1, 1);
       if (ac.gearStates[1].contact || ac.gearStates[2].contact) {
         this.phase = 'rollout';
         this.touchdown = {
@@ -183,6 +195,7 @@ export class LandingPilot {
       c.yaw = clamp(hdgErr * 6 - cross * 0.05 - ac.omega.z * 2, -1, 1);
       const b = this.brake && ac.gearStates[0].contact ? 1 : 0;
       c.brakeLeft = b; c.brakeRight = b;
+      if (this.reversers) { c.reverse = ac.vel.len() > 30; c.throttle = c.reverse ? 0.8 : 0; c.speedbrake = 1; }
       if (ac.vel.len() < 0.05) { this.phase = 'stopped'; this.stop = { x: ac.pos.y, y: ac.pos.x }; }
     }
   }

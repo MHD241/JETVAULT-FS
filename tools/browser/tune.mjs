@@ -9,7 +9,7 @@ await page.waitForFunction(() => !document.getElementById('loading'), null, { ti
 const tune = JSON.parse(tuneJson ?? '{}');
 const views = JSON.parse(process.argv[5] ?? '[["chase-rwy",{"kind":"runway","ident":"24"},"chase",{}],["cockpit-rwy",{"kind":"runway","ident":"24"},"cockpit",{}],["approach",{"kind":"approach","ident":"06","distanceNm":3},"chase",{"orbitAz":2.4,"orbitEl":0.25,"chaseDist":22}]]');
 for (const [name, spawn, mode, rig] of views) {
-  await page.evaluate(([spawn, mode, rig, tune]) => { const a = window.jetvault; Object.assign(a.env.tune, tune); a.fly(spawn); a.rig.setMode(mode, a.sim.aircraft); Object.assign(a.rig, rig); }, [spawn, mode, rig, tune]);
+  await page.evaluate(([spawn, mode, rig, tune]) => { const a = window.jetvault; Object.assign(a.env.tune, tune); if (spawn.aircraft) a.selectAircraft(spawn.aircraft); a.fly(spawn); a.rig.setMode(mode, a.sim.aircraft); Object.assign(a.rig, rig); }, [spawn, mode, rig, tune]);
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `${out}/${name}.png` });
   console.log('shot', name);

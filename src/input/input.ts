@@ -11,7 +11,7 @@ export type Action =
   | 'brakes' | 'brakeLeft' | 'brakeRight' | 'parkingBrake'
   | 'viewCockpit' | 'viewChase' | 'viewWing' | 'viewTower' | 'viewFree'
   | 'pause' | 'simRate' | 'menu' | 'autoStart' | 'apToggle' | 'apHdg' | 'apAlt' | 'apUp' | 'apDown'
-  | 'debugCollision' | 'perfOverlay' | 'hud' | 'mouseYoke' | 'reset' | 'zoomIn' | 'zoomOut' | 'hdgBugSync';
+  | 'gearToggle' | 'speedbrake' | 'reverse' | 'debugCollision' | 'perfOverlay' | 'hud' | 'mouseYoke' | 'reset' | 'zoomIn' | 'zoomOut' | 'hdgBugSync';
 
 /** Default bindings (KeyboardEvent.code, optionally prefixed with modifiers "Shift+" / "Ctrl+"). */
 export const DEFAULT_BINDINGS: Record<Action, string[]> = {
@@ -23,7 +23,8 @@ export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   mixtureRich: ['Shift+KeyM'], mixtureLean: ['KeyM'],
   flapsUp: ['F6', 'BracketLeft'], flapsDown: ['F7', 'BracketRight'],
   trimUp: ['Numpad1', 'End'], trimDown: ['Numpad7', 'Home'],
-  brakes: ['Period'], brakeLeft: ['Comma'], brakeRight: ['Slash'], parkingBrake: ['Ctrl+Period', 'KeyB'],
+  brakes: ['Period'], brakeLeft: ['Comma'], brakeRight: ['Shift+Period'],
+  gearToggle: ['KeyG'], speedbrake: ['Slash'], reverse: ['KeyV'], parkingBrake: ['Ctrl+Period', 'KeyB'],
   viewCockpit: ['Digit1'], viewChase: ['Digit2'], viewWing: ['Digit3'], viewTower: ['Digit4'], viewFree: ['Digit5'],
   pause: ['KeyP'], simRate: ['KeyR'], menu: ['Escape'], autoStart: ['Ctrl+KeyE'],
   apToggle: ['Shift+KeyA'], apHdg: ['Shift+KeyH'], apAlt: ['Shift+KeyL'], apUp: ['Shift+PageUp'], apDown: ['Shift+PageDown'],
@@ -121,7 +122,12 @@ export class InputManager {
   consume(): Action[] { const q = this.pressedQueue; this.pressedQueue = []; return q; }
 
   /** Applies continuous inputs to the controls. `beta` is sideslip (rad) for auto-rudder. */
-  update(dt: number, c: FlightControls, beta: number, onGround: boolean) {
+  /** Heading held by the ground auto-rudder assist (rad), null when not holding. */
+  private holdHdg: number | null = null;
+  /** Pedal deflection added by the assist this frame (shown in the diagnostics). */
+  assistYaw = 0;
+
+  update(dt: number, c: FlightControls, beta: number, onGround: boolean, heading = 0, yawRate = 0, groundSpeed = 0) {
     const s = this.settings;
     const rate = s.keyRate * dt;
     const centre = 2.5 * dt;
@@ -167,7 +173,21 @@ export class InputManager {
     if (this.mouseYoke) { pitch = clamp(pitch - this.mouseY * 1.2, -1, 1); roll = clamp(roll + this.mouseX * 1.2, -1, 1); }
 
     // beginner assistance: coordinate turns with rudder in the air (pilot input still adds)
-    if (s.autoRudder && !onGround) yaw = clamp(yaw + beta * 4, -1, 1);
+    // Beginner assist (optional, Settings): moves the rudder pedals like a pilot would.
+    // In the air it coordinates turns (zero sideslip); on the ground, while no rudder key
+    // is held, it holds the current heading against propeller swirl / P-factor / crosswind.
+    this.assistYaw = 0;
+    if (s.autoRudder && !onGround) {
+      this.assistYaw = beta * 4;
+      this.holdHdg = null;
+    } else if (s.autoRudder && onGround && groundSpeed > 1.5 && Math.abs(yaw) < 0.05) {
+      if (this.holdHdg === null) this.holdHdg = heading;
+      let e = this.holdHdg - heading; e = Math.atan2(Math.sin(e), Math.cos(e));
+      this.assistYaw = e * 6 - yawRate * 2.5;
+    } else {
+      this.holdHdg = null;
+    }
+    yaw = clamp(yaw + this.assistYaw, -1, 1);
 
     c.pitch = clamp(pitch, -1, 1);
     c.roll = clamp(roll, -1, 1);
@@ -181,6 +201,7 @@ export class InputManager {
     if (this.held('mixtureLean')) c.mixture = clamp(c.mixture - 0.3 * dt, 0, 1);
     if (this.held('trimUp')) c.trim = clamp(c.trim + 0.25 * dt, -1, 1);
     if (this.held('trimDown')) c.trim = clamp(c.trim - 0.25 * dt, -1, 1);
+    c.reverse = this.held('reverse');
     const both = this.held('brakes') ? 1 : 0;
     c.brakeLeft = Math.max(both, this.held('brakeLeft') ? 1 : 0, gpBrakeL);
     c.brakeRight = Math.max(both, this.held('brakeRight') ? 1 : 0, gpBrakeR);

@@ -65,8 +65,9 @@ export class Hud {
       this.set('V/S', `${(Math.round(ind.vsiFpm / 10) * 10).toFixed(0)}`);
       this.set('HDG', `${Math.round(ind.headingDeg).toString().padStart(3, '0')}°`);
       this.set('THR', `${(c.throttle * 100).toFixed(0)}%`);
-      this.set('RPM', ind.rpm.toFixed(0), ind.rpm > 2700 ? 'bad' : '');
-      this.set('FLAPS', `${Math.round(ac.flap * RAD)}°`, ac.flap > 0.01 ? 'on' : '');
+      if (ac.def.turbofans) this.set('RPM', `N1 ${(ind.rpm / 100).toFixed(0)}%`, ind.rpm / 100 > 101 ? 'bad' : '');
+      else this.set('RPM', ind.rpm.toFixed(0), ind.rpm > 2700 ? 'bad' : '');
+      this.set('FLAPS', `${Math.round(ac.flap * RAD)}°${ac.def.retractableGear ? (ac.gearExt > 0.99 ? ' GR DN' : ac.gearExt > 0.01 ? ' GR TR' : ' GR UP') : ''}`, ac.flap > 0.01 ? 'on' : '');
       this.set('TRIM', `${c.trim >= 0 ? 'UP' : 'DN'} ${Math.abs(c.trim * 100).toFixed(0)}`);
       this.set('BRAKES', c.parkingBrake ? 'PARK' : c.brakeLeft > 0 || c.brakeRight > 0 ? 'ON' : 'OFF', c.parkingBrake ? 'warn' : '');
       this.set('AP', ap.engaged ? `${ap.lateral} ${ap.vertical}` : 'OFF', ap.engaged ? 'on' : '');

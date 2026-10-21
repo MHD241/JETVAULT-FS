@@ -1,0 +1,15 @@
+import { loadEGPH, newSim, run, ft, LandingPilot, CALM_ISA } from '../../tests/helpers';
+import { DEG } from '../../src/core/math';
+import { B738 } from '../../src/sim/aircraft/b738';
+import { runwayEnd } from '../../src/world/airport';
+const world = await loadEGPH();
+const sim = newSim(world, CALM_ISA, B738);
+sim.aircraft.fuel = [3000, 3000]; sim.aircraft.updateMass();
+sim.spawn({ kind: 'approach', ident: '24', distanceNm: 4 });
+const ac = sim.aircraft;
+console.log('mass', ac.mass.toFixed(0), 'flap', (ac.flap / DEG).toFixed(0));
+const { end } = runwayEnd(world.airport, '24');
+const lp = new LandingPilot(sim, end.x, end.y, end.hdgTrue * DEG, end.elev, 145, end.displaced + 350, true, 3.85, 8, true, 0.8, 4);
+let last = 0;
+run(sim, 400, (t) => { lp.step(); if (t - last > 5 && t > 95) { last = t; console.log(t.toFixed(0), lp.phase, 'IAS', sim.systems.ind.iasKt.toFixed(0), 'hgt', (ac.altitude - end.elev - 3.85).toFixed(0), 'N1', (ac.engine.rpm/100).toFixed(0), 'pitch', (ac.euler[1]/DEG).toFixed(1), 'cross', lp.track().cross.toFixed(1), 'along', lp.track().along.toFixed(0), 'gs', ac.vel.len().toFixed(0)); } if (lp.phase === 'stopped') return true; });
+console.log(lp.phase, 'td', lp.touchdown, 'roll m', lp.stop && lp.touchdown && Math.hypot(lp.stop.x - lp.touchdown.x, lp.stop.y - lp.touchdown.y).toFixed(0), 'crashed', ac.crashed, ac.crashReason);

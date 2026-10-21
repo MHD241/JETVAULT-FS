@@ -3,10 +3,13 @@
 import { flatWorld, newSim } from '../../tests/helpers';
 import { Vec3, Quat, KT, FT } from '../../src/core/math';
 import { Aircraft } from '../../src/sim/fdm/aircraft';
-const sim = newSim(flatWorld(0));
+import { B738 } from '../../src/sim/aircraft/b738';
+import { C172 } from '../../src/sim/aircraft/c172';
+const DEF = process.argv[2] === 'b738' ? B738 : C172;
+const sim = newSim(flatWorld(0), undefined, DEF);
 sim.spawn({ kind: 'runway', ident: '36' });
 const ac = sim.aircraft;
-const V = 120 * KT, alt = 5000 * FT;
+const V = (DEF === B738 ? 250 : 120) * KT, alt = 5000 * FT;
 const S = ac.def.wingArea, b = ac.def.wingSpan, cbar = ac.def.mac;
 const c = { ...sim.controls, throttle: 0, mags: 'OFF' as const };
 // measure body forces/moments for a given state using a 1-step finite difference on velocities

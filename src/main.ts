@@ -4,9 +4,13 @@ import * as THREE from 'three';
 import { loadWorld, World, LandCover } from './world/world';
 import { Simulation, SpawnKind } from './sim/simulation';
 import { C172 } from './sim/aircraft/c172';
+import { B738 } from './sim/aircraft/b738';
+import { AircraftDef } from './sim/fdm/aircraft';
+import { B737Model } from './render/b737Model';
+import { B737Cockpit } from './render/b737Cockpit';
 import { DEFAULT_WEATHER, WeatherSettings } from './sim/weather';
 import { TerrainRenderer } from './render/terrainMesh';
-import { AirportRenderer, buildPavementOverlay } from './render/airportMesh';
+import { AirportRenderer, buildPavementOverlay, buildRoadOverlay } from './render/airportMesh';
 import { BuildingsRenderer } from './render/buildingsMesh';
 import { C172Model } from './render/c172Model';
 import { Cockpit } from './render/cockpit';
@@ -49,8 +53,9 @@ class App implements MenuHost {
   terrain!: TerrainRenderer;
   airport!: AirportRenderer;
   buildings!: BuildingsRenderer;
-  model!: C172Model;
-  cockpit!: Cockpit;
+  model!: C172Model | B737Model;
+  cockpit!: Cockpit | B737Cockpit;
+  aircraftDefs: AircraftDef[] = [C172, B738];
   env!: EnvironmentRenderer;
   rig!: CameraRig;
   debug!: DebugView;
@@ -102,7 +107,16 @@ class App implements MenuHost {
     const lcLoBuf = await fetchBuf(`./data/egph/${this.world.meta.landcoverLo.file}`);
     const lcLo = await decodeGray(lcLoBuf, this.world.meta.landcoverLo.n);
     const lo = new LandCover(lcLo, this.world.meta.landcoverLo.n, this.world.meta.landcoverLo.half, this.world.meta.landcoverLo.step);
-    this.terrain = new TerrainRenderer(this.world.terrain.hi, this.world.terrain.lo, this.world.landcover, lo, overlay);
+    let roads = null;
+    try { roads = buildRoadOverlay(JSON.parse(new TextDecoder().decode(await fetchBuf('./data/egph/roads.json')))); } catch { /* optional data */ }
+    let imagery = null;
+    try {
+      progress('Satellite imagery (Copernicus Sentinel-2)');
+      const t = await new THREE.TextureLoader().loadAsync('./data/egph/imagery.jpg');
+      t.colorSpace = THREE.NoColorSpace; t.anisotropy = 8; // image row 0 = north = v 1 (flipY default)
+      imagery = { texture: t, e0: -12000, n0: -12000, size: 24000 };
+    } catch { /* optional data */ }
+    this.terrain = new TerrainRenderer(this.world.terrain.hi, this.world.terrain.lo, this.world.landcover, lo, overlay, roads, imagery);
     this.scene.add(this.terrain.group);
     progress('Building airport');
     this.airport = new AirportRenderer(this.world.airport, this.world.terrain);
@@ -111,13 +125,12 @@ class App implements MenuHost {
     this.buildings = new BuildingsRenderer(this.world.obstacles.buildings);
     this.scene.add(this.buildings.group);
     progress('Building aircraft');
-    this.model = new C172Model();
-    this.cockpit = new Cockpit(this.sim);
-    this.aircraftGroup.add(this.model.root, this.cockpit.root);
+    this.buildAircraftVisuals();
     this.aircraftGroup.matrixAutoUpdate = false;
     this.scene.add(this.aircraftGroup);
     this.env = new EnvironmentRenderer(this.scene, this.renderer, this.terrain.uniforms.uDetail.value as THREE.DataTexture);
     this.rig = new CameraRig(window.innerWidth / window.innerHeight);
+    this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
     this.placeTower();
     this.debug = new DebugView(this.sim.aircraft, this.world);
     this.scene.add(this.debug.group);
@@ -153,7 +166,35 @@ class App implements MenuHost {
     }
   }
 
+  private buildAircraftVisuals() {
+    if (this.model) this.aircraftGroup.remove(this.model.root);
+    if (this.cockpit) this.aircraftGroup.remove(this.cockpit.root);
+    const jet = this.sim.def.id === 'b738';
+    this.model = jet ? new B737Model() : new C172Model();
+    this.cockpit = jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
+    this.aircraftGroup.add(this.model.root, this.cockpit.root);
+    if (this.rig) {
+      this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
+      this.rig.chaseDist = jet ? 60 : 16;
+      this.rig.headPitch = jet ? -0.32 : -0.2;
+      if (jet) this.rig.wingCam.set(-6, -21, -2.5); else this.rig.wingCam.set(-1.2, -6.6, -1.6);
+    }
+    if (this.debug) { this.scene.remove(this.debug.group); this.debug = new DebugView(this.sim.aircraft, this.world); this.scene.add(this.debug.group); }
+  }
+
+  /** Switch aircraft type (rebuilds the simulation and the aircraft visuals). */
+  selectAircraft(id: string) {
+    if (this.sim.def.id === id) return;
+    const def = this.aircraftDefs.find((d) => d.id === id)!;
+    this.sim = new Simulation(this.world, def, this.weather);
+    this.payload = def.stations.map((st) => st.mass);
+    this.fuelFraction = id === 'b738' ? [0.45, 0.45] : [1, 1];
+    this.buildAircraftVisuals();
+  }
+
   // ---------------------------------------------------------------- MenuHost
+  startView: 'cockpit' | 'chase' = 'cockpit';
+
   fly(spawn: SpawnKind | { kind: 'air'; east: number; north: number; altFt: number; hdg: number }) {
     const ac = this.sim.aircraft;
     ac.payload = [...this.payload];
@@ -164,7 +205,7 @@ class App implements MenuHost {
     this.lastSpawn = JSON.parse(JSON.stringify(spawn));
     this.sim.paused = false;
     this.started = true;
-    this.rig.setMode(spawn.kind === 'approach' || spawn.kind === 'air' ? 'cockpit' : this.rig.mode, ac);
+    this.rig.setMode(this.startView, ac);
     this.menu.hide();
     this.renderer.domElement.focus();
   }
@@ -258,7 +299,9 @@ class App implements MenuHost {
       case 'pause': sim.paused = !sim.paused; break;
       case 'simRate': sim.timeScale = sim.timeScale >= 4 ? 1 : sim.timeScale * 2; this.hud.toast(`Simulation rate ${sim.timeScale}x`); break;
       case 'flapsUp': c.flapLever = Math.max(0, c.flapLever - 1); break;
-      case 'flapsDown': c.flapLever = Math.min(3, c.flapLever + 1); break;
+      case 'flapsDown': c.flapLever = Math.min(ac.def.controls.flapDetents.length - 1, c.flapLever + 1); break;
+      case 'gearToggle': if (ac.def.retractableGear) { c.gearDown = !c.gearDown; this.hud.toast(c.gearDown ? 'Gear down' : 'Gear up'); } break;
+      case 'speedbrake': c.speedbrake = c.speedbrake > 0.5 ? 0 : 1; this.hud.toast(c.speedbrake ? 'Speedbrake extended' : 'Speedbrake retracted'); break;
       case 'throttleFull': c.throttle = 1; break;
       case 'throttleIdle': c.throttle = 0; break;
       case 'parkingBrake': c.parkingBrake = !c.parkingBrake; this.hud.toast(c.parkingBrake ? 'Parking brake set' : 'Parking brake released'); break;
@@ -296,6 +339,29 @@ class App implements MenuHost {
     this.autoStart = null;
   }
 
+  /** Flight-control diagnostics (part of the F10 overlay). */
+  private diagnostics() {
+    const ac = this.sim.aircraft, c = this.sim.controls, R = 180 / Math.PI;
+    const eff = this.sim.autopilot.effectiveControls(c);
+    const vb = ac.q.invRotate(ac.vel);
+    const w = this.sim.wind.windAt(Math.max(ac.agl, 0));
+    const wDir = ((Math.atan2(-w.y, -w.x) * R) + 360) % 360;
+    const gear = ac.def.gear.map((g, i) => {
+      const s = ac.gearStates[i];
+      return `  ${g.name.padEnd(11)} N ${(s.force / 1000).toFixed(2).padStart(6)} kN  side ${(s.lateralForce / 1000).toFixed(2).padStart(6)} kN${s.contact ? '' : ' (air)'}`;
+    }).join('\n');
+    return `--- controls / state ---\n` +
+      `Pedals in   ${eff.yaw.toFixed(3)} (assist ${this.input.assistYaw.toFixed(3)})\n` +
+      `Rudder      ${(ac.rudder * R).toFixed(2)} deg   Nose steer ${((ac.gearStates[0]?.steer ?? 0) * R).toFixed(2)} deg\n` +
+      `Aileron L/R ${(ac.aileronL * R).toFixed(2)} / ${(ac.aileronR * R).toFixed(2)} deg  (stick ${eff.roll.toFixed(3)})\n` +
+      `Elevator    ${(ac.elevator * R).toFixed(2)} deg  trim ${c.trim.toFixed(2)}\n` +
+      `Yaw rate    ${(ac.q.rotate(ac.omega).z * R).toFixed(2)} deg/s  Roll rate ${(ac.omega.x * R).toFixed(2)} deg/s\n` +
+      `Sideslip    ${(ac.beta * R).toFixed(2)} deg  Lateral vel ${vb.y.toFixed(2)} m/s\n` +
+      `Wind        ${wDir.toFixed(0)} deg / ${(Math.hypot(w.x, w.y) / 0.5144).toFixed(1)} kt\n` +
+      `CG offset   y ${ac.cg.y.toFixed(3)} m  mass ${ac.mass.toFixed(0)} kg\n` +
+      `Thrust      ${(ac.engines.reduce((a, e) => a + e.thrust, 0) / 1000).toFixed(2)} kN\n` + gear;
+  }
+
   private togglePerf() {
     if (this.perfEl) { this.perfEl.remove(); this.perfEl = null; return; }
     this.perfEl = document.createElement('div');
@@ -312,7 +378,7 @@ class App implements MenuHost {
     const sim = this.sim, ac = sim.aircraft;
     for (const a of this.input.consume()) this.handleAction(a);
     if (!this.menu.open) {
-      this.input.update(dt, sim.controls, ac.beta, ac.onGround);
+      this.input.update(dt, sim.controls, ac.beta, ac.onGround, ac.euler[2], ac.q.rotate(ac.omega).z, Math.hypot(ac.vel.x, ac.vel.y));
       this.runAutoStart(dt);
     }
     sim.advance(dt);
@@ -353,7 +419,7 @@ class App implements MenuHost {
       this.perfEl.textContent =
         `FPS          ${fps.toFixed(1)}\nCPU frame    ${frameMs.toFixed(1)} ms\nPhysics      ${sim.physicsMs.toFixed(2)} ms (${sim.stepsLastFrame} steps @240 Hz)\n` +
         `Draw calls   ${info.render.calls}\nTriangles    ${(info.render.triangles / 1e6).toFixed(2)} M\nTerrain tris ${(this.terrain.trianglesDrawn / 1e6).toFixed(2)} M\n` +
-        `Geometries   ${info.memory.geometries}  Textures ${info.memory.textures}\nCamera       ${cam.position.x.toFixed(0)}, ${cam.position.y.toFixed(0)}, ${cam.position.z.toFixed(0)}`;
+        `Geometries   ${info.memory.geometries}  Textures ${info.memory.textures}\n` + this.diagnostics();
     }
   }
 }

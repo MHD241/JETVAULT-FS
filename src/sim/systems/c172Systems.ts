@@ -42,6 +42,11 @@ export interface Indications {
   avionicsPowered: boolean;
   /** Turn coordinator 'flag' (electric gyro unpowered). */
   turnFlag: boolean;
+  /** Jet engine indications. */
+  n1: number[];
+  egtC: number[];
+  fuelFlowKgH: number;
+  fuelTotalKg: number;
 }
 
 const GAL = 3.78541; // L
@@ -88,6 +93,7 @@ export class C172Systems {
       fuelLeftGal: 0, fuelRightGal: 0, fuelFlowGph: 0, manifoldInHg: 0, vacuumInHg: 0, busVolts: 0,
       ammeterA: 0, oatC: 0, stallHorn: false, lowVacuum: false, lowVolts: false, lowFuelL: false,
       lowFuelR: false, lowOilPress: false, gyrosValid: false, avionicsPowered: false, turnFlag: true,
+      n1: [], egtC: [], fuelFlowKgH: 0, fuelTotalKg: 0,
     };
   }
 
@@ -124,7 +130,7 @@ export class C172Systems {
       if (c.landingLight) load += 4.5;
       if (c.fuelPump) load += 2;
       if (c.pitotHeat) load += 5;
-      if (Math.abs(ac.flap - ac.def.controls.flapDetents[clamp(Math.round(c.flapLever), 0, 3)]) > 0.001) load += 10;
+      if (Math.abs(ac.flap - ac.def.controls.flapDetents[clamp(Math.round(c.flapLever), 0, ac.def.controls.flapDetents.length - 1)]) > 0.001) load += 10;
       if (eng.starterEngaged) load += 140;
     }
     if (!c.masterBattery) {
@@ -141,7 +147,7 @@ export class C172Systems {
     }
 
     // --- Fuel: burn from the selected tanks
-    const burn = eng.fuelFlow * dt;
+    const burn = ac.engines.reduce((a, e) => a + e.fuelFlow, 0) * dt;
     if (burn > 0) {
       const t = ac.def.tanks;
       const sel = c.fuelSelector;
@@ -216,6 +222,10 @@ export class C172Systems {
 
     // Engine
     ind.rpm = eng.rpm;
+    ind.n1 = ac.engines.map((e) => e.rpm / 100);
+    ind.egtC = ac.engines.map((e) => e.egt - 273.15);
+    ind.fuelFlowKgH = ac.engines.reduce((a, e) => a + e.fuelFlow, 0) * 3600;
+    ind.fuelTotalKg = ac.fuel.reduce((a, f) => a + f, 0);
     ind.manifoldInHg = eng.manifoldPressure / 3386.39;
     ind.oilTempF = (eng.oilTemp - 273.15) * 1.8 + 32;
     ind.oilPressPsi = eng.oilPressure / 6894.76;

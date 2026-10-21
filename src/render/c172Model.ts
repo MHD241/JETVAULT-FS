@@ -22,7 +22,7 @@ const BLUE = new THREE.Color(0x2f6fd6);
 const WHITE = new THREE.Color(0xf4f5f7);
 
 /** NACA 4-digit airfoil, returns closed loop of [x/c, z/c(up positive)] from TE over upper to LE and back. */
-function naca(m: number, p: number, t: number, n = 24): [number, number][] {
+export function naca(m: number, p: number, t: number, n = 24): [number, number][] {
   const up: [number, number][] = [], lo: [number, number][] = [];
   for (let i = 0; i <= n; i++) {
     const x = 0.5 * (1 - Math.cos((Math.PI * i) / n));
@@ -34,7 +34,7 @@ function naca(m: number, p: number, t: number, n = 24): [number, number][] {
 }
 
 /** Section of an airfoil loop between chord fractions [a, b], closed with straight caps. */
-function airfoilPart(loop: [number, number][], a: number, b: number): [number, number][] {
+export function airfoilPart(loop: [number, number][], a: number, b: number): [number, number][] {
   const n = loop.length;
   const half = (n - 1) / 2;
   const upper = loop.slice(0, half + 1).reverse(); // LE -> TE
@@ -62,7 +62,7 @@ function airfoilPart(loop: [number, number][], a: number, b: number): [number, n
  * Lofts a section between two spanwise stations. Each station: leading edge (x, y, z) in
  * FRD, chord, incidence (rad). `profile` is in chord fractions; `hinge` shifts the origin.
  */
-function loftWing(profile: [number, number][], stations: { le: THREE.Vector3; chord: number; inc: number }[], hingeX = 0) {
+export function loftWing(profile: [number, number][], stations: { le: THREE.Vector3; chord: number; inc: number }[], hingeX = 0) {
   const pos: number[] = [], idx: number[] = [];
   const m = profile.length;
   for (const s of stations) {
@@ -96,7 +96,7 @@ function loftWing(profile: [number, number][], stations: { le: THREE.Vector3; ch
 }
 
 /** Ensures outward normals by checking against the centroid; flips winding if needed. */
-function orient(g: THREE.BufferGeometry) {
+export function orient(g: THREE.BufferGeometry) {
   g.computeBoundingBox();
   const c = new THREE.Vector3(); g.boundingBox!.getCenter(c);
   const p = g.getAttribute('position'), n = g.getAttribute('normal');
@@ -481,7 +481,7 @@ export class C172Model {
 }
 
 /** Tapered elliptical strut between two points. */
-function strut(a: THREE.Vector3, b: THREE.Vector3, r0: number, r1: number, mat: THREE.Material) {
+export function strut(a: THREE.Vector3, b: THREE.Vector3, r0: number, r1: number, mat: THREE.Material) {
   const len = a.distanceTo(b);
   const g = new THREE.CylinderGeometry(r1, r0, len, 10);
   g.scale(1, 1, 0.45);

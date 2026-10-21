@@ -28,6 +28,8 @@ export interface AirportData {
   aprons: [number, number][][];
   /** Derived GA parking positions [east, north, heading deg true] (tools/derive_stands.py). */
   stands: [number, number, number][];
+  /** Parking positions clear for a 737-size aircraft. */
+  standsJet?: [number, number, number][];
   /** Raw OSM gate points (terminal facade). */
   gates?: [number, number][];
   boundary: [number, number][];

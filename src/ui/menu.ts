@@ -5,7 +5,7 @@ import { SpawnKind } from '../sim/simulation';
 import { WeatherSettings, CloudCover } from '../sim/weather';
 import { Action, InputSettings, DEFAULT_BINDINGS, saveInputSettings } from '../input/input';
 import { World } from '../world/world';
-import { Aircraft } from '../sim/fdm/aircraft';
+import { Aircraft, AircraftDef } from '../sim/fdm/aircraft';
 
 export interface GraphicsSettings {
   renderScale: number;
@@ -31,6 +31,9 @@ export interface MenuHost {
   inputSettings: InputSettings;
   payload: number[];
   fuelFraction: [number, number];
+  aircraftDefs: AircraftDef[];
+  selectAircraft(id: string): void;
+  startView: 'cockpit' | 'chase';
   fly(spawn: SpawnKind | { kind: 'air'; east: number; north: number; altFt: number; hdg: number }): void;
   applyWeather(w: WeatherSettings): void;
   applyGraphics(g: GraphicsSettings): void;
@@ -50,6 +53,7 @@ const ACTION_LABELS: Partial<Record<Action, string>> = {
   viewCockpit: 'Cockpit view', viewChase: 'Chase view', viewWing: 'Wing view', viewTower: 'Tower view', viewFree: 'Free camera (WASD/QE)',
   pause: 'Pause', simRate: 'Simulation rate 1x/2x/4x', menu: 'Menu', autoStart: 'Automatic engine start sequence',
   apToggle: 'Autopilot engage/disengage', apHdg: 'Autopilot HDG mode', apAlt: 'Autopilot ALT hold', apUp: 'Autopilot UP', apDown: 'Autopilot DN',
+  gearToggle: 'Landing gear up/down (737)', speedbrake: 'Speedbrake extend/retract (737)', reverse: 'Thrust reversers (hold, on ground, 737)',
   hdgBugSync: 'Heading bug to current heading', debugCollision: 'Collision debug view + editor', perfOverlay: 'Performance overlay',
   hud: 'HUD on/off', mouseYoke: 'Mouse yoke on/off', reset: 'Restart flight', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
 };
@@ -121,14 +125,18 @@ export class Menu {
 
   private renderFly(s: HTMLElement) {
     const ap = this.host.world.airport;
-    s.innerHTML = `<h2>Fly Now</h2><p>Cessna 172S at Edinburgh. Choose where to start.</p><h3>Start position</h3>`;
+    const def = this.host.aircraft.def;
+    const jet = def.id === 'b738';
+    s.innerHTML = `<h2>Fly Now</h2><p>Choose the aircraft, airport, start position and view.</p><h3>Aircraft</h3>`;
+    this.aircraftPicker(s);
+    s.insertAdjacentHTML('beforeend', `<h3>Airport</h3><div class="jv-grid"><div class="jv-card sel"><b>EGPH Edinburgh</b><span>Runway 06/24 · real terrain, taxiways and buildings</span></div></div><h3>Start position</h3>`);
     const grid = document.createElement('div'); grid.className = 'jv-grid';
     const opts: [SpawnKind, string, string][] = [
-      ...ap.stands.map((_, i): [SpawnKind, string, string] => [{ kind: 'stand', index: i, coldAndDark: false }, `Parking stand ${i + 1}`, 'Apron, parking brake set']),
-      [{ kind: 'runway', ident: '24' }, 'Runway 24', 'Lined up, engine running'],
-      [{ kind: 'runway', ident: '06' }, 'Runway 06', 'Lined up, engine running'],
-      [{ kind: 'approach', ident: '24', distanceNm: 3 }, 'Final approach 24', '3 nm, 3° glidepath, flaps 10'],
-      [{ kind: 'approach', ident: '06', distanceNm: 3 }, 'Final approach 06', '3 nm, 3° glidepath, flaps 10'],
+      ...(jet ? ap.standsJet ?? [] : ap.stands).map((_, i): [SpawnKind, string, string] => [{ kind: 'stand', index: i, coldAndDark: false }, `Parking stand ${i + 1}`, 'Apron, parking brake set']),
+      [{ kind: 'runway', ident: '24' }, 'Runway 24', jet ? 'Lined up, engines running, flaps 5' : 'Lined up, engine running'],
+      [{ kind: 'runway', ident: '06' }, 'Runway 06', jet ? 'Lined up, engines running, flaps 5' : 'Lined up, engine running'],
+      [{ kind: 'approach', ident: '24', distanceNm: jet ? 6 : 3 }, 'Final approach 24', jet ? '6 nm, 3° glidepath, flaps 30, gear down' : '3 nm, 3° glidepath, flaps 10'],
+      [{ kind: 'approach', ident: '06', distanceNm: jet ? 6 : 3 }, 'Final approach 06', jet ? '6 nm, 3° glidepath, flaps 30, gear down' : '3 nm, 3° glidepath, flaps 10'],
     ];
     const key = (k: SpawnKind) => JSON.stringify({ ...k, coldAndDark: undefined });
     for (const [k, t, d] of opts) {
@@ -142,8 +150,10 @@ export class Menu {
     const form = document.createElement('div');
     form.className = 'jv-form';
     form.style.marginTop = '18px';
-    if (this.spawn.kind === 'stand') {
-      form.innerHTML = `<label>Cold and dark</label><input type="checkbox" id="cd" ${this.spawn.coldAndDark ? 'checked' : ''}><span class="jv-dim">Engine off, all switches off</span>`;
+    form.innerHTML = `<label>Start view</label><select id="sv"><option value="cockpit" ${this.host.startView === 'cockpit' ? 'selected' : ''}>Cockpit</option><option value="chase" ${this.host.startView === 'chase' ? 'selected' : ''}>External (chase)</option></select><span></span>`;
+    form.querySelector('#sv')!.addEventListener('change', (e) => { this.host.startView = (e.target as HTMLSelectElement).value as 'cockpit' | 'chase'; });
+    if (this.spawn.kind === 'stand' && !jet) {
+      form.insertAdjacentHTML('beforeend', `<label>Cold and dark</label><input type="checkbox" id="cd" ${this.spawn.coldAndDark ? 'checked' : ''}><span class="jv-dim">Engine off, all switches off</span>`);
       form.querySelector('#cd')!.addEventListener('change', (e) => { if (this.spawn.kind === 'stand') this.spawn.coldAndDark = (e.target as HTMLInputElement).checked; });
     }
     s.appendChild(form);
@@ -215,14 +225,33 @@ export class Menu {
     g.restore();
   }
 
+  /** Aircraft cards with a planform preview drawn from the flight-model geometry. */
+  private aircraftPicker(s: HTMLElement) {
+    const grid = document.createElement('div'); grid.className = 'jv-grid';
+    const blurb: Record<string, string> = {
+      c172s: 'Lycoming IO-360 180 hp · fixed-pitch prop · steam gauges · validated against the POH',
+      b738: '2 x CFM56-7B26 (117 kN) · glass PFD/ND · flaps, slats, spoilers, reversers, retractable gear',
+    };
+    for (const d of this.host.aircraftDefs) {
+      const c = document.createElement('div');
+      c.className = 'jv-card' + (d.id === this.host.aircraft.def.id ? ' sel' : '');
+      const cv = document.createElement('canvas'); cv.width = 260; cv.height = 150; cv.style.width = '100%';
+      drawPlanform(cv, d);
+      c.appendChild(cv);
+      c.insertAdjacentHTML('beforeend', `<b>${d.name}</b><span>${blurb[d.id] ?? ''}<br>MTOW ${d.maxTakeoffMass.toLocaleString()} kg · span ${d.wingSpan} m</span>`);
+      c.onclick = () => { this.host.selectAircraft(d.id); this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; this.render(); };
+      grid.appendChild(c);
+    }
+    grid.insertAdjacentHTML('beforeend', `<div class="jv-card" style="opacity:.45;cursor:default"><b>Airbus A320</b><span>Planned</span></div>`);
+    s.appendChild(grid);
+  }
+
   private renderAircraft(s: HTMLElement) {
     const ac = this.host.aircraft;
     const d = ac.def;
-    s.innerHTML = `<h2>Aircraft Selection</h2>
-      <div class="jv-grid"><div class="jv-card sel"><b>${d.name}</b><span>Lycoming IO-360-L2A 180 hp · fixed-pitch propeller<br>MTOW ${d.maxTakeoffMass} kg · Vne ${d.limits.vne} KIAS</span></div>
-      <div class="jv-card" style="opacity:.45;cursor:default"><b>Airbus A320</b><span>Planned</span></div>
-      <div class="jv-card" style="opacity:.45;cursor:default"><b>Boeing 737-800</b><span>Planned</span></div></div>
-      <h3>Weight and balance (applied on the next start)</h3>`;
+    s.innerHTML = `<h2>Aircraft Selection</h2>`;
+    this.aircraftPicker(s);
+    s.insertAdjacentHTML('beforeend', `<h3>Weight and balance (applied on the next start)</h3>`);
     const form = document.createElement('div'); form.className = 'jv-form';
     const out = document.createElement('div');
     const upd = () => {
@@ -230,7 +259,9 @@ export class Menu {
       d.stations.forEach((st, i) => { m += this.host.payload[i]; mx += st.pos.x * this.host.payload[i]; });
       d.tanks.forEach((t, i) => { const f = t.capacity * this.host.fuelFraction[i]; m += f; mx += t.pos.x * f; });
       const cg = mx / m;
-      const macLE = 0.06 + 0.25 * d.mac; // quarter chord + 25 % MAC
+      const wing = d.surfaces.filter((q) => q.role === 'wing');
+      const qc = wing.reduce((a, q) => a + q.pos.x * q.area, 0) / wing.reduce((a, q) => a + q.area, 0);
+      const macLE = qc + 0.25 * d.mac; // area-weighted quarter chord + 25 % MAC
       const pct = ((macLE - cg) / d.mac) * 100;
       out.innerHTML = `<p>Total mass <b style="color:${m > d.maxTakeoffMass ? 'var(--danger)' : 'var(--text)'}">${m.toFixed(0)} kg (${(m / 0.4536).toFixed(0)} lb)</b>
         ${m > d.maxTakeoffMass ? ' — above maximum take-off mass' : ''} · CG ${pct.toFixed(0)} % MAC</p>`;
@@ -374,4 +405,27 @@ export class Menu {
     reset.onclick = () => { inp.bindings = JSON.parse(JSON.stringify(DEFAULT_BINDINGS)); saveInputSettings(inp); this.render(); };
     s.appendChild(reset);
   }
+}
+
+/** Top view drawn from the aerodynamic surfaces and gear of the flight model. */
+function drawPlanform(cv: HTMLCanvasElement, d: AircraftDef) {
+  const g = cv.getContext('2d')!;
+  g.fillStyle = '#0d1626'; g.fillRect(0, 0, cv.width, cv.height);
+  const xs = d.surfaces.map((q) => q.pos.x).concat(d.hullPoints.map((p) => p.x));
+  const span = d.wingSpan + 1;
+  const len = Math.max(...xs) - Math.min(...xs) + 2;
+  const k = Math.min((cv.width - 20) / span, (cv.height - 20) / len);
+  const cx = cv.width / 2, cy = cv.height / 2 + ((Math.max(...xs) + Math.min(...xs)) / 2) * k;
+  g.fillStyle = '#c9d3e3';
+  for (const q of d.surfaces) {
+    if (q.role === 'vtail') continue;
+    const halfSpan = q.area / q.chord / 2;
+    g.fillRect(cx + q.pos.y * k - halfSpan * k, cy - (q.pos.x + q.chord * 0.25) * k, halfSpan * 2 * k, q.chord * k);
+  }
+  g.fillStyle = '#e9edf3';
+  const nose = Math.max(...xs), tail = Math.min(...xs);
+  const fw = d.id === 'b738' ? 3.76 : 1.15;
+  g.beginPath(); g.ellipse(cx, cy - ((nose + tail) / 2) * k, (fw / 2) * k, ((nose - tail) / 2) * k, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#4f8ef7';
+  for (const t of d.turbofans ?? []) g.fillRect(cx + t.pos.y * k - 1.0 * k, cy - (t.pos.x + 2.5) * k, 2.0 * k, 4.5 * k);
 }

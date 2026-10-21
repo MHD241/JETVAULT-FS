@@ -35,6 +35,12 @@ export interface FlightControls {
   kollsman: number;
   /** Heading bug, deg magnetic. */
   headingBug: number;
+  /** Landing gear lever (retractable-gear aircraft). */
+  gearDown: boolean;
+  /** Speedbrake / spoiler lever 0..1. */
+  speedbrake: number;
+  /** Thrust reversers commanded (jets; only effective on the ground at idle). */
+  reverse: boolean;
 }
 
 export function defaultControls(): FlightControls {
@@ -44,6 +50,7 @@ export function defaultControls(): FlightControls {
     masterAlternator: false, avionics: false, fuelPump: false, fuelSelector: 'BOTH',
     beacon: false, navLights: false, strobes: false, taxiLight: false, landingLight: false,
     pitotHeat: false, kollsman: 1013.25, headingBug: 0,
+    gearDown: true, speedbrake: 0, reverse: false,
   };
 }
 
@@ -51,10 +58,10 @@ export function defaultControls(): FlightControls {
 export const TAKEOFF_TRIM = 0.15;
 
 /** Controls for an aircraft ready to fly (engine running, systems on, trim set for takeoff). */
-export function readyControls(): FlightControls {
+export function readyControls(trim = TAKEOFF_TRIM, flapLever = 0): FlightControls {
   return {
     ...defaultControls(), mags: 'BOTH', masterBattery: true, masterAlternator: true, avionics: true,
     beacon: true, navLights: true, strobes: true, parkingBrake: false, throttle: 0.1, mixture: 1,
-    trim: TAKEOFF_TRIM,
+    trim, flapLever,
   };
 }

@@ -2,13 +2,16 @@ import * as THREE from 'three';
 import { Aircraft } from '../sim/fdm/aircraft';
 import { Vec3 } from '../core/math';
 import { nedToThree, bodyMatrix } from './coords';
-import { EYE } from './cockpit';
 
 export type ViewMode = 'cockpit' | 'chase' | 'wing' | 'tower' | 'free';
 
 export class CameraRig {
   readonly camera: THREE.PerspectiveCamera;
   mode: ViewMode = 'cockpit';
+  /** Pilot eye point (body frame), set per aircraft. */
+  eye = new THREE.Vector3(0.18, -0.3, -0.8);
+  /** Wing-view camera point (body frame). */
+  wingCam = new THREE.Vector3(-1.2, -6.6, -1.6);
   headYaw = 0; headPitch = -0.2;
   orbitAz = 0; orbitEl = 0.18; chaseDist = 16;
   fovCockpit = 70; fovExternal = 55;
@@ -52,7 +55,7 @@ export class CameraRig {
   }
 
   zoom(dir: number) {
-    if (this.mode === 'chase') { this.chaseDist = THREE.MathUtils.clamp(this.chaseDist * (dir > 0 ? 0.9 : 1.1), 7, 300); return; }
+    if (this.mode === 'chase') { this.chaseDist = THREE.MathUtils.clamp(this.chaseDist * (dir > 0 ? 0.9 : 1.1), 7, 400); return; }
     const f = THREE.MathUtils.clamp(this.camera.fov * (dir > 0 ? 0.92 : 1.08), 10, 90);
     this.camera.fov = f;
     if (this.mode === 'cockpit') this.fovCockpit = f; else this.fovExternal = f;
@@ -65,7 +68,7 @@ export class CameraRig {
     const datum = nedToThree(ac.worldPoint(new Vec3(0, 0, 0)));
     const body = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyMatrix4(R).add(datum);
     if (this.mode === 'cockpit') {
-      cam.position.copy(body(EYE.x, EYE.y, EYE.z));
+      cam.position.copy(body(this.eye.x, this.eye.y, this.eye.z));
       // camera looks along -z: basis (right, up, back) built from the body axes
       const right = new THREE.Vector3(0, 1, 0).applyMatrix4(R);
       const up = new THREE.Vector3(0, 0, -1).applyMatrix4(R);
@@ -91,10 +94,10 @@ export class CameraRig {
       cam.up.set(0, 1, 0);
       cam.lookAt(target);
     } else if (this.mode === 'wing') {
-      cam.position.copy(body(-1.2, -6.6, -1.6));
+      cam.position.copy(body(this.wingCam.x, this.wingCam.y, this.wingCam.z));
       const up = new THREE.Vector3(0, 0, -1).applyMatrix4(R);
       cam.up.copy(up);
-      cam.lookAt(body(2.5 + this.orbitAz * 4, 0.5, -0.6 - this.orbitEl * 3));
+      cam.lookAt(body(this.wingCam.x + 4 + this.orbitAz * 4, this.wingCam.y * 0.1, this.wingCam.z * 0.4 - this.orbitEl * 3));
     } else if (this.mode === 'tower') {
       cam.position.copy(this.towerPos);
       cam.up.set(0, 1, 0);

@@ -197,4 +197,13 @@ export const C172: AircraftDef = {
   ],
   limits: { vne: 163, vno: 129, vfe: 85, vs0: 40, vs1: 48, nMax: 3.8, nMin: -1.52 },
   spawnHeight: 0.95,
+  tailArm: 4.6,
+  stallWarnAlpha: 12,
+  eye: new Vec3(0.18, -0.3, -0.8),
+  profile: {
+    takeoffTrim: 0.15, takeoffFlapLever: 0,
+    approachKias: 75, approachThrottle: 0.48, approachFlapLever: 1, approachTrim: 0.25, approachPitchDeg: -1,
+    cruiseKias: 100, cruiseThrottle: 0.65, idleRpm: 800, approachRpm: 2100, cruiseRpm: 2350,
+    standClearance: 9,
+  },
 };

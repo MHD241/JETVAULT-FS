@@ -41,6 +41,8 @@ export interface GearDef {
   wheelRadius: number;
   /** Maximum nosewheel steering angle, rad (0 = not steerable). */
   steerMax: number;
+  /** Steering limit at speed (e.g. 737 rudder-pedal steering 7 deg); blends in 3-12 m/s. */
+  steerHighSpeed?: number;
   brake: 'left' | 'right' | null;
   /** Maximum vertical speed the leg tolerates at contact, m/s. */
   maxSinkRate: number;
@@ -63,6 +65,8 @@ export interface GearState {
   wheelSpeed: number; // m/s along heading
   steer: number; // rad
   skidding: boolean;
+  /** Lateral (side) tyre force, N (+ = toward the right of the wheel). */
+  lateralForce: number;
   bristle: Vec3; // world-frame stiction displacement
   touchdownSink: number; // m/s at the most recent touchdown
   bottomed: boolean;
@@ -98,7 +102,7 @@ const MAX_BRAKE_MU = 0.5; // light-aircraft disc brakes are torque-limited below
 export function newGearState(): GearState {
   return {
     compression: 0, force: 0, contact: false, wheelAngle: 0, wheelSpeed: 0, steer: 0,
-    skidding: false, bristle: new Vec3(), touchdownSink: 0, bottomed: false, surface: null,
+    skidding: false, lateralForce: 0, bristle: new Vec3(), touchdownSink: 0, bottomed: false, surface: null,
   };
 }
 
@@ -125,9 +129,11 @@ export function gearForces(
     const nW = new Vec3(nTmp.n, nTmp.e, -nTmp.u); // up normal in NED
     // vertical depth below ground (NED z is down), converted to depth along the normal
     const depth = (pWheel.z + hGround) * nTmp.u;
-    s.steer = d.steerMax * clamp(inp.steer, -1, 1);
+    const gs = Math.hypot(k.vel.x, k.vel.y);
+    const lim = d.steerHighSpeed !== undefined ? d.steerMax + (d.steerHighSpeed - d.steerMax) * smoothstep(3, 12, gs) : d.steerMax;
+    s.steer = lim * clamp(inp.steer, -1, 1);
     if (depth <= 0) {
-      s.contact = false; s.compression = 0; s.force = 0; s.bristle.set(0, 0, 0); s.skidding = false;
+      s.contact = false; s.compression = 0; s.force = 0; s.lateralForce = 0; s.bristle.set(0, 0, 0); s.skidding = false;
       s.bottomed = false; s.surface = null;
       continue;
     }
@@ -205,6 +211,7 @@ export function gearForces(
     s.skidding = tot > cap * 0.98 && w > 0.5;
     if (tot > cap) { fLong *= cap / tot; fLat *= cap / tot; }
 
+    s.lateralForce = fLat;
     const fWorld = nW.scale(fn).add(fwd.scale(fLong)).add(right.scale(fLat));
     const fBody = k.q.invRotate(fWorld);
     force.addIn(fBody);

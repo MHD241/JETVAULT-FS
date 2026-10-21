@@ -308,6 +308,7 @@ def main():
         nv["x"], nv["y"] = local_xy(nv["lon"], nv["lat"])
     from derive_stands import derive
     airport["gates"], airport["stands"] = derive(airport)
+    airport["standsJet"] = derive(airport, 20.0)[1]
     json.dump(airport, open(os.path.join(OUT, "airport.json"), "w"), separators=(",", ":"))
 
     meta = dict(

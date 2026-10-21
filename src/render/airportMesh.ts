@@ -60,6 +60,32 @@ export function buildPavementOverlay(ap: AirportData): TerrainOverlay {
   return { texture: tex, e0, n0, size };
 }
 
+/** Road network overlay (Overture/OSM road segments) around the airport. */
+export function buildRoadOverlay(roads: [string, [number, number][]][]): TerrainOverlay {
+  const size = 18000, e0 = -9000, n0 = -9000, px = 4096;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = px;
+  const g = cv.getContext('2d')!;
+  const k = px / size;
+  const width: Record<string, number> = { motorway: 24, trunk: 18, primary: 13, secondary: 10, tertiary: 8, residential: 6.5, unclassified: 6, living_street: 5, service: 4.5 };
+  const order = ['service', 'living_street', 'unclassified', 'residential', 'tertiary', 'secondary', 'primary', 'trunk', 'motorway'];
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const cls of order) {
+    g.strokeStyle = cls === 'motorway' || cls === 'trunk' ? 'rgb(70,71,73)' : 'rgb(88,88,88)';
+    g.lineWidth = Math.max(1, width[cls] * k);
+    g.beginPath();
+    for (const [c, pts] of roads) {
+      if (c !== cls) continue;
+      pts.forEach(([x, y], i) => { const X = (x - e0) * k, Y = px - (y - n0) * k; if (i) g.lineTo(X, Y); else g.moveTo(X, Y); });
+    }
+    g.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.NoColorSpace;
+  tex.anisotropy = 8;
+  return { texture: tex, e0, n0, size };
+}
+
 /** Runway markings texture in runway coordinates (u across, v along from end[0]). */
 function runwayTexture(rw: Runway) {
   const W = 512, H = 4096;

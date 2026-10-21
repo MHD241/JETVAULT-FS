@@ -7,6 +7,9 @@ import { Vec3, Quat, Inertia, DEG, clamp, moveToward, approach } from '../../cor
 import { AirState, airAt, AtmosphereConditions, impactPressure, casFromImpactPressure } from '../atmosphere';
 import { SurfaceDef, SectionModel, groundEffectFactor } from './aero';
 import { PistonEngine, PistonEngineDef, PropellerDef } from './piston';
+import { TurbofanEngine, TurbofanDef } from './turbofan';
+
+export type EngineModel = PistonEngine | TurbofanEngine;
 import {
   GearDef, ContactPointDef, GearState, newGearState, gearForces, contactPointForces, GroundQuery,
   ContactEvent, BodyKinematics,
@@ -18,6 +21,10 @@ export type ControlChannel = 'aileronL' | 'aileronR' | 'elevator' | 'rudder' | '
 
 export interface AeroSurfaceDef extends SurfaceDef {
   channel?: ControlChannel;
+  /** Spoiler panels on this strip (speedbrake lever dumps lift and adds drag). */
+  spoiler?: boolean;
+  /** Leading-edge slat: clMax increase when flaps are out. */
+  slatClMax?: number;
 }
 
 export interface MassStation { name: string; pos: Vec3; mass: number; max: number }
@@ -55,13 +62,32 @@ export interface AircraftDef {
    * and yaw. The pitch volume also stands in for the propeller normal force.
    */
   fuselage: { pos: Vec3; dragArea: number; sideArea: number; planArea: number; munkVolume: number; munkVolumeYaw: number };
-  engine: PistonEngineDef;
-  prop: PropellerDef;
-  propPos: Vec3;
+  /** Piston engine + propeller (single-engine props). */
+  engine?: PistonEngineDef;
+  prop?: PropellerDef;
+  propPos?: Vec3;
   /** Prop + crankshaft polar inertia for gyroscopic moments, kg m^2. */
-  propInertia: number;
+  propInertia?: number;
   /** Fraction of the slipstream velocity increment swirling across the fin. */
-  swirl: number;
+  swirl?: number;
+  /** Turbofans (jets): definition and thrust point in the body frame. */
+  turbofans?: { def: TurbofanDef; pos: Vec3 }[];
+  /** Retractable gear: extension time (s) and drag area when down (m^2). */
+  retractableGear?: { time: number; dragArea: number };
+  /** Tail arm for the downwash lag, m. */
+  tailArm: number;
+  /** Body angle of attack (deg) at which the stall warning (horn/shaker) triggers. */
+  stallWarnAlpha: number;
+  /** Pilot eye point in the body frame. */
+  eye: Vec3;
+  /** Values used when starting a flight in a given configuration. */
+  profile: {
+    takeoffTrim: number; takeoffFlapLever: number;
+    approachKias: number; approachThrottle: number; approachFlapLever: number; approachTrim: number; approachPitchDeg: number;
+    cruiseKias: number; cruiseThrottle: number; idleRpm: number; approachRpm: number; cruiseRpm: number;
+    /** Clearance radius needed at a parking stand, m. */
+    standClearance: number;
+  };
   gear: GearDef[];
   contacts: ContactPointDef[];
   /** Points checked against buildings (body frame, datum). */
@@ -102,7 +128,12 @@ export class Aircraft {
   cg = new Vec3();
   inertia: Inertia;
   surfaces: SurfaceRuntime[];
-  engine: PistonEngine;
+  engines: EngineModel[];
+  get engine(): EngineModel { return this.engines[0]; }
+  /** Gear extension 0 (up) .. 1 (down and locked). */
+  gearExt = 1;
+  /** Spoiler panel extension 0..1. */
+  spoiler = 0;
   gearStates: GearState[];
   contactActive: boolean[];
   payload: number[];
@@ -149,7 +180,7 @@ export class Aircraft {
         deflection: 0, alpha: 0, cl: 0, stall: 0, force: new Vec3(),
       };
     });
-    this.engine = new PistonEngine(def.engine, def.prop);
+    this.engines = def.turbofans ? def.turbofans.map((t) => new TurbofanEngine(t.def)) : [new PistonEngine(def.engine!, def.prop!)];
     this.gearStates = def.gear.map(() => newGearState());
     this.contactActive = def.contacts.map(() => false);
     this.payload = def.stations.map((s) => s.mass);
@@ -252,8 +283,14 @@ export class Aircraft {
     this.aileronR = approach(this.aileronR, ailRTarget, cl.surfaceTau, dt);
     this.rudder = approach(this.rudder, rudTarget, cl.surfaceTau, dt);
     const flapTarget = cl.flapDetents[clamp(Math.round(c.flapLever), 0, cl.flapDetents.length - 1)];
-    // Electric flap motor needs bus power
+    // Electric / hydraulic flap drive needs power
     if (busPowered) this.flap = moveToward(this.flap, flapTarget, cl.flapRate * dt);
+    if (d.retractableGear) {
+      // gear cannot retract with weight on wheels (squat switch)
+      const want = c.gearDown || this.onGround ? 1 : 0;
+      if (busPowered) this.gearExt = moveToward(this.gearExt, want, dt / d.retractableGear.time);
+    }
+    this.spoiler = moveToward(this.spoiler, clamp(c.speedbrake, 0, 1), dt / 1.5);
 
     // --- Air data
     this.groundElevation = env.ground.heightAt(this.pos.y, this.pos.x);
@@ -271,33 +308,41 @@ export class Aircraft {
     this.cas = casFromImpactPressure(impactPressure(Math.max(0, vb.x), this.air));
 
     // --- Propulsion
-    this.engine.step(dt, {
-      throttle: c.throttle, mixture: c.mixture, mags: c.mags, starterPower: busPowered, fuelAvailable,
-    }, this.air, vb.x);
-    this.fuelStarved = !fuelAvailable;
-
     const F = new Vec3();
     const M = new Vec3();
     const rho = this.air.density;
-
-    // Thrust along body x at the propeller hub; torque reaction rolls left (clockwise prop)
-    const rProp = d.propPos.sub(this.cg);
-    const thrust = new Vec3(this.engine.thrust, 0, 0);
-    F.addIn(thrust);
-    M.addIn(rProp.cross(thrust));
-    M.x -= this.engine.propTorque;
-    // P-factor: descending (right) blade sees more AoA at positive alpha -> yaw left
-    M.z -= this.engine.thrust * 0.1 * (d.prop.diameter / 2) * clamp(this.alpha, -0.4, 0.4);
-    // Gyroscopic precession of the propeller
-    const omegaProp = (this.engine.rpm * 2 * Math.PI) / 60;
-    const H = new Vec3(d.propInertia * omegaProp, 0, 0);
-    M.addIn(this.omega.cross(H).neg());
+    this.fuelStarved = !fuelAvailable;
+    const engIn = { throttle: c.throttle, mixture: c.mixture, mags: c.mags, starterPower: busPowered, fuelAvailable, reverse: c.reverse, onGround: this.onGround };
+    if (d.turbofans) {
+      d.turbofans.forEach((t, i) => {
+        const e = this.engines[i];
+        e.step(dt, engIn, this.air, vb.x);
+        const th = new Vec3(e.thrust, 0, 0);
+        F.addIn(th);
+        M.addIn(t.pos.sub(this.cg).cross(th));
+      });
+    } else {
+      const e = this.engines[0] as PistonEngine;
+      e.step(dt, engIn, this.air, vb.x);
+      // Thrust along body x at the propeller hub; torque reaction rolls left (clockwise prop)
+      const rProp = d.propPos!.sub(this.cg);
+      const thrust = new Vec3(e.thrust, 0, 0);
+      F.addIn(thrust);
+      M.addIn(rProp.cross(thrust));
+      M.x -= e.propTorque;
+      // P-factor: descending (right) blade sees more AoA at positive alpha -> yaw left
+      M.z -= e.thrust * 0.1 * (d.prop!.diameter / 2) * clamp(this.alpha, -0.4, 0.4);
+      // Gyroscopic precession of the propeller
+      const omegaProp = (e.rpm * 2 * Math.PI) / 60;
+      const H = new Vec3(d.propInertia! * omegaProp, 0, 0);
+      M.addIn(this.omega.cross(H).neg());
+    }
 
     // --- Lifting surfaces
     const wingAgl = this.agl; // CG height is close enough to the wing for ground effect
     let wingLift = 0;
-    const slipV = this.engine.slipstreamDeltaV;
-    const tailArm = 4.6;
+    const slipV = this.engines[0].slipstreamDeltaV;
+    const tailArm = d.tailArm;
     const lagTau = tailArm / Math.max(this.tas, 10);
     for (const s of this.surfaces) {
       const sd = s.def;
@@ -308,7 +353,7 @@ export class Aircraft {
       const vloc = vb.add(this.omega.cross(r));
       if (sd.slipstream > 0) {
         vloc.x += slipV * sd.slipstream;
-        if (sd.role === 'vtail') vloc.y -= slipV * d.swirl;
+        if (sd.role === 'vtail') vloc.y -= slipV * (d.swirl ?? 0);
       }
       const vc = vloc.dot(s.chordDir);
       const vn = vloc.dot(s.normalDir);
@@ -318,7 +363,9 @@ export class Aircraft {
       let alpha = Math.atan2(-vn, vc);
       const ge = groundEffectFactor(wingAgl, sd.span);
       if (sd.downwash) alpha -= this.downwash * ge;
-      const [clv, cdp, cm, stall] = s.model.coeffs(alpha, s.deflection);
+      const slat = sd.slatClMax && this.flap > 0.01 ? sd.slatClMax * Math.min(1, this.flap / (5 * DEG)) : 0;
+      let [clv, cdp, cm, stall] = s.model.coeffs(alpha, s.deflection, slat);
+      if (sd.spoiler && this.spoiler > 0) { clv *= 1 - 0.6 * this.spoiler; cdp += 0.08 * this.spoiler; }
       // ground effect also increases the effective lift slope slightly
       const clEff = clv * (1 + 0.12 * (1 - ge) * (sd.role === 'wing' ? 1 : 0));
       const cdi = (clEff * clEff) / (Math.PI * sd.oswald * sd.aspectRatio) * ge;
@@ -343,7 +390,8 @@ export class Aircraft {
     if (this.tas > 0.5) {
       const rF = fu.pos.sub(this.cg);
       const dir = vb.scale(1 / this.tas);
-      const fd = dir.scale(-this.qbar * fu.dragArea);
+      const gearDrag = d.retractableGear ? d.retractableGear.dragArea * this.gearExt : 0;
+      const fd = dir.scale(-this.qbar * (fu.dragArea + gearDrag));
       const fcf = new Vec3(0, -0.5 * rho * fu.sideArea * 1.2 * vb.y * Math.abs(vb.y), -0.5 * rho * fu.planArea * 1.2 * vb.z * Math.abs(vb.z));
       const ff = fd.add(fcf);
       F.addIn(ff);
@@ -361,9 +409,13 @@ export class Aircraft {
     const kin = this.kin();
     const ev: ContactEvent[] = [];
     const steer = c.yaw;
-    const gf = gearForces(d.gear, this.gearStates, kin, env.ground,
-      { steer, brakeLeft: c.brakeLeft, brakeRight: c.brakeRight, parkingBrake: c.parkingBrake }, dt, ev);
-    F.addIn(gf.force); M.addIn(gf.moment);
+    if (this.gearExt > 0.98) {
+      const gf = gearForces(d.gear, this.gearStates, kin, env.ground,
+        { steer, brakeLeft: c.brakeLeft, brakeRight: c.brakeRight, parkingBrake: c.parkingBrake }, dt, ev);
+      F.addIn(gf.force); M.addIn(gf.moment);
+    } else {
+      for (const g of this.gearStates) { g.contact = false; g.force = 0; g.compression = 0; g.lateralForce = 0; }
+    }
     const cf = contactPointForces(d.contacts, this.contactActive, kin, env.ground, this.engine.rpm > 150, ev);
     F.addIn(cf.force); M.addIn(cf.moment);
     this.onGround = this.gearStates.some((g) => g.contact);
@@ -403,8 +455,7 @@ export class Aircraft {
     this.q.integrate(this.omega, dt);
 
     // Stall warning vane: triggers ~5-10 kt above the stall (local AoA near wing root)
-    const root = this.surfaces.find((s) => s.def.name === 'wingL1') ?? this.surfaces[0];
-    this.stallWarning = this.tas > 5 && root.alpha + root.deflection * 0.3 > 14 * DEG;
+    this.stallWarning = this.tas > 15 && !this.onGround && this.alpha / DEG > d.stallWarnAlpha - 0.15 * (this.flap / DEG);
 
     // --- Damage / crash detection
     for (const e of ev) {

@@ -39,7 +39,7 @@ export class TerrainRenderer {
 
   constructor(
     hi: HeightGrid, lo: HeightGrid | null, lcHi: LandCover | null, lcLo: LandCover | null,
-    overlay: TerrainOverlay | null,
+    overlay: TerrainOverlay | null, roads: TerrainOverlay | null = null, imagery: TerrainOverlay | null = null,
   ) {
     const detailTex = makeNoiseTexture(256);
     this.uniforms = {
@@ -48,7 +48,7 @@ export class TerrainRenderer {
       uDetail: { value: detailTex },
       uWet: { value: 0 },
     };
-    this.hiMaterial = makeTerrainMaterial(this.uniforms, lcHi, overlay);
+    this.hiMaterial = makeTerrainMaterial(this.uniforms, lcHi, overlay, roads, imagery);
     this.loMaterial = makeTerrainMaterial(this.uniforms, lcLo, null);
     this.group.name = 'terrain';
 
@@ -219,7 +219,7 @@ function makeLandcoverTexture(lc: LandCover) {
   return t;
 }
 
-function makeTerrainMaterial(shared: Record<string, THREE.IUniform>, lc: LandCover | null, overlay: TerrainOverlay | null) {
+function makeTerrainMaterial(shared: Record<string, THREE.IUniform>, lc: LandCover | null, overlay: TerrainOverlay | null, roads: TerrainOverlay | null = null, imagery: TerrainOverlay | null = null) {
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, metalness: 0 });
   const empty = new THREE.DataTexture(new Uint8Array([30, 0, 0, 0]), 1, 1, THREE.RedFormat);
   empty.needsUpdate = true;
@@ -230,6 +230,10 @@ function makeTerrainMaterial(shared: Record<string, THREE.IUniform>, lc: LandCov
     uLcStep: { value: lc ? lc.step : 1e9 },
     uOverlay: { value: overlay ? overlay.texture : null },
     uOverlayRect: { value: overlay ? new THREE.Vector3(overlay.e0, overlay.n0, overlay.size) : new THREE.Vector3(0, 0, -1) },
+    uRoads: { value: roads ? roads.texture : null },
+    uImg: { value: imagery ? imagery.texture : null },
+    uImgRect: { value: imagery ? new THREE.Vector3(imagery.e0, imagery.n0, imagery.size) : new THREE.Vector3(0, 0, -1) },
+    uRoadsRect: { value: roads ? new THREE.Vector3(roads.e0, roads.n0, roads.size) : new THREE.Vector3(0, 0, -1) },
   };
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, shared, local);
@@ -245,6 +249,10 @@ uniform float uLcN, uLcHalf, uLcStep, uTime, uNight, uWet;
 uniform sampler2D uDetail;
 uniform sampler2D uOverlay;
 uniform vec3 uOverlayRect;
+uniform sampler2D uRoads;
+uniform vec3 uRoadsRect;
+uniform sampler2D uImg;
+uniform vec3 uImgRect;
 float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 vec3 srgb(vec3 c) { return pow(c, vec3(2.2)); }
 // ESA WorldCover class -> albedo, with per-field variation for cropland
@@ -293,6 +301,25 @@ float gWater; float gBuilt; float gPaved;
   float slope = 1.0 - clamp(vWorldNormal.y, 0.0, 1.0);
   col = mix(col, srgb(vec3(0.42, 0.40, 0.37)) * (0.8 + 0.4 * n2), smoothstep(0.25, 0.45, slope) * (1.0 - gWater));
   col *= 0.88 + 0.24 * n2;
+  // Sentinel-2 true-colour imagery (real ground appearance), fading out at its edges
+  float gImg = 0.0;
+  if (uImgRect.z > 0.0) {
+    vec2 iuv = (en - uImgRect.xy) / uImgRect.z;
+    if (iuv.x > 0.0 && iuv.y > 0.0 && iuv.x < 1.0 && iuv.y < 1.0) {
+      vec2 ed = min(iuv, 1.0 - iuv) * uImgRect.z;
+      gImg = smoothstep(0.0, 1500.0, min(ed.x, ed.y));
+      vec3 im = srgb(texture2D(uImg, iuv).rgb) * (0.94 + 0.12 * n2);
+      col = mix(col, im, gImg * (1.0 - gWater * 0.6));
+    }
+  }
+  // road network (OSM via Overture)
+  if (uRoadsRect.z > 0.0) {
+    vec2 ruv = (en - uRoadsRect.xy) / uRoadsRect.z;
+    if (ruv.x > 0.0 && ruv.y > 0.0 && ruv.x < 1.0 && ruv.y < 1.0) {
+      vec4 rd = texture2D(uRoads, ruv);
+      col = mix(col, srgb(rd.rgb) * (0.9 + 0.2 * n2), rd.a * (1.0 - gWater) * (1.0 - 0.7 * gImg));
+    }
+  }
   // airport pavement overlay (taxiways / aprons) drawn from OSM geometry
   gPaved = 0.0;
   if (uOverlayRect.z > 0.0) {
@@ -329,6 +356,6 @@ if (uNight > 0.01) {
 }
 `);
   };
-  mat.customProgramCacheKey = () => (overlay ? 'terrain-ov' : 'terrain');
+  mat.customProgramCacheKey = () => (overlay ? 'terrain-ov' : 'terrain') + (roads ? '-rd' : '') + (imagery ? '-img' : '');
   return mat;
 }
