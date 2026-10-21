@@ -1,0 +1,44 @@
+{
+ "projection": "+proj=tmerc +lat_0=55.950145 +lon_0=-3.372288 +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs +type=crs",
+ "origin": {
+  "lat": 55.950145,
+  "lon": -3.372288
+ },
+ "terrainHi": {
+  "file": "terrain_hi.bin",
+  "n": 1601,
+  "half": 24000.0,
+  "step": 30.0,
+  "scale": 0.1
+ },
+ "terrainLo": {
+  "file": "terrain_lo.bin",
+  "n": 1001,
+  "half": 120000.0,
+  "step": 240.0,
+  "scale": 0.1
+ },
+ "landcoverHi": {
+  "file": "landcover_hi.png",
+  "n": 2401,
+  "half": 24000.0,
+  "step": 20.0
+ },
+ "landcoverLo": {
+  "file": "landcover_lo.png",
+  "n": 1001,
+  "half": 120000.0,
+  "step": 240.0
+ },
+ "buildings": {
+  "file": "buildings.bin",
+  "count": 37503
+ },
+ "rowOrder": "north-to-south",
+ "attribution": [
+  "Copernicus DEM GLO-30: (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA",
+  "ESA WorldCover 10 m 2021 v200, (c) ESA WorldCover project, CC BY 4.0",
+  "Airport and building geometry: Overture Maps Foundation, derived from OpenStreetMap (c) OpenStreetMap contributors, ODbL",
+  "Runway thresholds: OurAirports (public domain)"
+ ]
+}

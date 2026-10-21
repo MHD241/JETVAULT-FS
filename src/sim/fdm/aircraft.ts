@@ -1,0 +1,423 @@
+// Six-degree-of-freedom rigid body aircraft assembled from lifting surfaces, a fuselage
+// body, a propeller/engine and landing gear. All motion results from forces and moments:
+// the controls only move control surfaces, the throttle only changes engine air flow,
+// the brakes only change tyre friction.
+
+import { Vec3, Quat, Inertia, DEG, clamp, moveToward, approach } from '../../core/math';
+import { AirState, airAt, AtmosphereConditions, impactPressure, casFromImpactPressure } from '../atmosphere';
+import { SurfaceDef, SectionModel, groundEffectFactor } from './aero';
+import { PistonEngine, PistonEngineDef, PropellerDef } from './piston';
+import {
+  GearDef, ContactPointDef, GearState, newGearState, gearForces, contactPointForces, GroundQuery,
+  ContactEvent, BodyKinematics,
+} from './gear';
+import { FlightControls } from '../controls';
+import { ObstacleIndex } from '../../world/obstacles';
+
+export type ControlChannel = 'aileronL' | 'aileronR' | 'elevator' | 'rudder' | 'flap';
+
+export interface AeroSurfaceDef extends SurfaceDef {
+  channel?: ControlChannel;
+}
+
+export interface MassStation { name: string; pos: Vec3; mass: number; max: number }
+export interface FuelTank { name: string; pos: Vec3; capacity: number; unusable: number; side: 'LEFT' | 'RIGHT' }
+
+export interface AircraftDef {
+  id: string;
+  name: string;
+  emptyMass: number;
+  emptyCG: Vec3;
+  /** Inertia about the CG at refMass (kg m^2); scaled with mass. */
+  refInertia: Inertia;
+  refMass: number;
+  maxTakeoffMass: number;
+  stations: MassStation[];
+  tanks: FuelTank[];
+  wingArea: number;
+  wingSpan: number;
+  mac: number;
+  surfaces: AeroSurfaceDef[];
+  controls: {
+    elevatorUp: number; elevatorDown: number; // rad, trailing edge
+    aileronUp: number; aileronDown: number;
+    rudder: number;
+    trimRange: number; // equivalent elevator rad at full trim
+    /** Fixed (ground-adjustable) aileron tab rigging, in roll-input units (+ = right). */
+    aileronRig: number;
+    flapDetents: number[]; // rad
+    flapRate: number; // rad/s
+    surfaceTau: number; // s, control surface follow time constant
+  };
+  /**
+   * Fuselage body: parasite drag area of the whole airframe (fuselage, gear, struts,
+   * cooling), cross-flow areas, and Munk (potential-flow) destabilising volumes in pitch
+   * and yaw. The pitch volume also stands in for the propeller normal force.
+   */
+  fuselage: { pos: Vec3; dragArea: number; sideArea: number; planArea: number; munkVolume: number; munkVolumeYaw: number };
+  engine: PistonEngineDef;
+  prop: PropellerDef;
+  propPos: Vec3;
+  /** Prop + crankshaft polar inertia for gyroscopic moments, kg m^2. */
+  propInertia: number;
+  /** Fraction of the slipstream velocity increment swirling across the fin. */
+  swirl: number;
+  gear: GearDef[];
+  contacts: ContactPointDef[];
+  /** Points checked against buildings (body frame, datum). */
+  hullPoints: Vec3[];
+  limits: { vne: number; vno: number; vfe: number; vs0: number; vs1: number; nMax: number; nMin: number };
+  /** Datum height above ground when parked (approx, for spawning). */
+  spawnHeight: number;
+}
+
+export interface Environment {
+  atmosphere: AtmosphereConditions;
+  /** Air velocity (NED, m/s) at height AGL; includes turbulence. */
+  wind: (agl: number) => Vec3;
+  ground: GroundQuery;
+  obstacles?: ObstacleIndex;
+}
+
+export interface SurfaceRuntime {
+  def: AeroSurfaceDef;
+  model: SectionModel;
+  chordDir: Vec3;
+  normalDir: Vec3;
+  spanDir: Vec3;
+  deflection: number; // rad (positive = trailing edge toward -normal, i.e. more lift)
+  alpha: number;
+  cl: number;
+  stall: number;
+  force: Vec3;
+}
+
+export class Aircraft {
+  readonly def: AircraftDef;
+  pos = new Vec3();
+  vel = new Vec3();
+  q = new Quat();
+  omega = new Vec3();
+  mass = 0;
+  cg = new Vec3();
+  inertia: Inertia;
+  surfaces: SurfaceRuntime[];
+  engine: PistonEngine;
+  gearStates: GearState[];
+  contactActive: boolean[];
+  payload: number[];
+  fuel: number[]; // kg per tank
+  flap = 0; // rad actual
+  elevator = 0; aileronL = 0; aileronR = 0; rudder = 0; // rad actual
+  crashed = false;
+  crashReason = '';
+  events: ContactEvent[] = [];
+  time = 0;
+
+  // Derived air data / state (updated every step)
+  air: AirState = airAt(0);
+  airVelBody = new Vec3();
+  tas = 0;
+  cas = 0;
+  alpha = 0;
+  beta = 0;
+  mach = 0;
+  qbar = 0;
+  agl = 0;
+  groundElevation = 0;
+  /** Specific force (non-gravitational acceleration) in body frame, m/s^2. */
+  specificForce = new Vec3(0, 0, -9.81);
+  loadFactor = 1;
+  wingCL = 0;
+  /** Downwash angle at the tail (lagged), rad. */
+  downwash = 0;
+  onGround = false;
+  maxLoadFactor = 1;
+  minLoadFactor = 1;
+  stallWarning = false;
+  fuelStarved = false;
+
+  constructor(def: AircraftDef) {
+    this.def = def;
+    this.surfaces = def.surfaces.map((s) => {
+      const n = s.normal.norm();
+      const x = new Vec3(1, 0, 0);
+      const chordDir = x.scale(Math.cos(s.incidence)).add(n.scale(Math.sin(s.incidence))).norm();
+      const normalDir = n.scale(Math.cos(s.incidence)).sub(x.scale(Math.sin(s.incidence))).norm();
+      return {
+        def: s, model: new SectionModel(s), chordDir, normalDir, spanDir: chordDir.cross(normalDir),
+        deflection: 0, alpha: 0, cl: 0, stall: 0, force: new Vec3(),
+      };
+    });
+    this.engine = new PistonEngine(def.engine, def.prop);
+    this.gearStates = def.gear.map(() => newGearState());
+    this.contactActive = def.contacts.map(() => false);
+    this.payload = def.stations.map((s) => s.mass);
+    this.fuel = def.tanks.map((t) => t.capacity);
+    this.inertia = def.refInertia;
+    this.updateMass();
+  }
+
+  updateMass() {
+    const d = this.def;
+    let m = d.emptyMass;
+    const mom = d.emptyCG.scale(d.emptyMass);
+    d.stations.forEach((s, i) => { m += this.payload[i]; mom.addIn(s.pos.scale(this.payload[i])); });
+    d.tanks.forEach((t, i) => { m += this.fuel[i]; mom.addIn(t.pos.scale(this.fuel[i])); });
+    this.mass = m;
+    this.cg = mom.scale(1 / m);
+    const k = m / d.refMass;
+    this.inertia = new Inertia(d.refInertia.ixx * k, d.refInertia.iyy * k, d.refInertia.izz * k, d.refInertia.ixz * k);
+  }
+
+  get euler() { return this.q.toEuler(); }
+  /** Altitude MSL of the CG, m. */
+  get altitude() { return -this.pos.z; }
+
+  /** Position of a body-frame (datum) point in world NED. */
+  worldPoint(p: Vec3) { return this.pos.add(this.q.rotate(p.sub(this.cg))); }
+
+  /**
+   * Places the aircraft at rest on its gear at local east/north with true heading (rad).
+   * Iterates the static equilibrium using the real gear springs.
+   */
+  placeOnGround(east: number, north: number, heading: number, env: Environment) {
+    const h = env.ground.heightAt(east, north);
+    this.q = Quat.fromEuler(0, 0, heading);
+    this.pos = new Vec3(north, east, -(h + this.def.spawnHeight));
+    this.vel = new Vec3();
+    this.omega = new Vec3();
+    this.crashed = false;
+    this.crashReason = '';
+    this.gearStates = this.def.gear.map(() => newGearState());
+    this.contactActive = this.def.contacts.map(() => false);
+    // let it settle on the springs with brakes on, engine untouched
+    const ctl = { steer: 0, brakeLeft: 1, brakeRight: 1, parkingBrake: true };
+    for (let i = 0; i < 2400; i++) this.settleStep(1 / 240, env, ctl);
+    this.vel = new Vec3();
+    this.omega = new Vec3();
+    this.events = [];
+    for (const g of this.gearStates) g.bristle.set(0, 0, 0);
+  }
+
+  private settleStep(dt: number, env: Environment, ctl: { steer: number; brakeLeft: number; brakeRight: number; parkingBrake: boolean }) {
+    const kin = this.kin();
+    const ev: ContactEvent[] = [];
+    const g = gearForces(this.def.gear, this.gearStates, kin, env.ground, ctl, dt, ev);
+    const F = this.q.rotate(g.force).add(new Vec3(0, 0, this.mass * 9.80665));
+    this.vel.addScaled(F, dt / this.mass);
+    this.vel = this.vel.scale(0.98); // settling only: artificial damping
+    this.pos.addScaled(this.vel, dt);
+    const wdot = this.inertia.solve(g.moment.sub(this.omega.cross(this.inertia.mul(this.omega))));
+    this.omega.addScaled(wdot, dt);
+    this.omega = this.omega.scale(0.98);
+    this.q.integrate(this.omega, dt);
+  }
+
+  /** Initialise in flight, wings level, at true airspeed (m/s), heading (rad). */
+  placeInFlight(east: number, north: number, altMSL: number, heading: number, tas: number, pitch = 0) {
+    this.q = Quat.fromEuler(0, pitch, heading);
+    this.pos = new Vec3(north, east, -altMSL);
+    this.vel = this.q.rotate(new Vec3(tas, 0, 0));
+    this.omega = new Vec3();
+    this.crashed = false;
+    this.gearStates = this.def.gear.map(() => newGearState());
+    this.contactActive = this.def.contacts.map(() => false);
+  }
+
+  private kin(): BodyKinematics {
+    return { pos: this.pos, vel: this.vel, q: this.q, omega: this.omega, cg: this.cg };
+  }
+
+  /**
+   * Advance the simulation by dt seconds. `fuelAvailable` and `busPowered` come from the
+   * fuel and electrical systems (busPowered drives the starter and the electric flaps).
+   */
+  step(dt: number, c: FlightControls, env: Environment, fuelAvailable: boolean, busPowered: boolean) {
+    if (this.crashed) return;
+    const d = this.def;
+    this.time += dt;
+
+    // --- Control surfaces follow the pilot's inputs (cable-driven, slightly lagged)
+    const cl = d.controls;
+    const pitchCmd = clamp(c.pitch, -1, 1);
+    const elevStick = pitchCmd >= 0 ? -cl.elevatorUp * pitchCmd : -cl.elevatorDown * pitchCmd;
+    const elevTarget = clamp(elevStick - c.trim * cl.trimRange, -cl.elevatorUp, cl.elevatorDown);
+    const r = clamp(c.roll + cl.aileronRig, -1, 1);
+    const ailRTarget = r >= 0 ? -cl.aileronUp * r : -cl.aileronDown * r;
+    const ailLTarget = r >= 0 ? cl.aileronDown * r : cl.aileronUp * r;
+    const rudTarget = -cl.rudder * clamp(c.yaw, -1, 1);
+    this.elevator = approach(this.elevator, elevTarget, cl.surfaceTau, dt);
+    this.aileronL = approach(this.aileronL, ailLTarget, cl.surfaceTau, dt);
+    this.aileronR = approach(this.aileronR, ailRTarget, cl.surfaceTau, dt);
+    this.rudder = approach(this.rudder, rudTarget, cl.surfaceTau, dt);
+    const flapTarget = cl.flapDetents[clamp(Math.round(c.flapLever), 0, cl.flapDetents.length - 1)];
+    // Electric flap motor needs bus power
+    if (busPowered) this.flap = moveToward(this.flap, flapTarget, cl.flapRate * dt);
+
+    // --- Air data
+    this.groundElevation = env.ground.heightAt(this.pos.y, this.pos.x);
+    this.agl = this.altitude - this.groundElevation;
+    airAt(this.altitude, env.atmosphere, this.air);
+    const wind = env.wind(this.agl);
+    const vAirWorld = this.vel.sub(wind);
+    const vb = this.q.invRotate(vAirWorld);
+    this.airVelBody = vb;
+    this.tas = vb.len();
+    this.alpha = Math.atan2(vb.z, vb.x);
+    this.beta = this.tas > 0.5 ? Math.asin(clamp(vb.y / this.tas, -1, 1)) : 0;
+    this.mach = this.tas / this.air.speedOfSound;
+    this.qbar = 0.5 * this.air.density * this.tas * this.tas;
+    this.cas = casFromImpactPressure(impactPressure(Math.max(0, vb.x), this.air));
+
+    // --- Propulsion
+    this.engine.step(dt, {
+      throttle: c.throttle, mixture: c.mixture, mags: c.mags, starterPower: busPowered, fuelAvailable,
+    }, this.air, vb.x);
+    this.fuelStarved = !fuelAvailable;
+
+    const F = new Vec3();
+    const M = new Vec3();
+    const rho = this.air.density;
+
+    // Thrust along body x at the propeller hub; torque reaction rolls left (clockwise prop)
+    const rProp = d.propPos.sub(this.cg);
+    const thrust = new Vec3(this.engine.thrust, 0, 0);
+    F.addIn(thrust);
+    M.addIn(rProp.cross(thrust));
+    M.x -= this.engine.propTorque;
+    // P-factor: descending (right) blade sees more AoA at positive alpha -> yaw left
+    M.z -= this.engine.thrust * 0.1 * (d.prop.diameter / 2) * clamp(this.alpha, -0.4, 0.4);
+    // Gyroscopic precession of the propeller
+    const omegaProp = (this.engine.rpm * 2 * Math.PI) / 60;
+    const H = new Vec3(d.propInertia * omegaProp, 0, 0);
+    M.addIn(this.omega.cross(H).neg());
+
+    // --- Lifting surfaces
+    const wingAgl = this.agl; // CG height is close enough to the wing for ground effect
+    let wingLift = 0;
+    const slipV = this.engine.slipstreamDeltaV;
+    const tailArm = 4.6;
+    const lagTau = tailArm / Math.max(this.tas, 10);
+    for (const s of this.surfaces) {
+      const sd = s.def;
+      s.deflection = sd.channel === 'aileronL' ? this.aileronL : sd.channel === 'aileronR' ? this.aileronR
+        : sd.channel === 'elevator' ? this.elevator : sd.channel === 'rudder' ? this.rudder
+          : sd.channel === 'flap' ? this.flap : 0;
+      const r = sd.pos.sub(this.cg);
+      const vloc = vb.add(this.omega.cross(r));
+      if (sd.slipstream > 0) {
+        vloc.x += slipV * sd.slipstream;
+        if (sd.role === 'vtail') vloc.y -= slipV * d.swirl;
+      }
+      const vc = vloc.dot(s.chordDir);
+      const vn = vloc.dot(s.normalDir);
+      const V2 = vc * vc + vn * vn;
+      if (V2 < 0.25) { s.force = new Vec3(); s.alpha = 0; s.cl = 0; s.stall = 0; continue; }
+      const V = Math.sqrt(V2);
+      let alpha = Math.atan2(-vn, vc);
+      const ge = groundEffectFactor(wingAgl, sd.span);
+      if (sd.downwash) alpha -= this.downwash * ge;
+      const [clv, cdp, cm, stall] = s.model.coeffs(alpha, s.deflection);
+      // ground effect also increases the effective lift slope slightly
+      const clEff = clv * (1 + 0.12 * (1 - ge) * (sd.role === 'wing' ? 1 : 0));
+      const cdi = (clEff * clEff) / (Math.PI * sd.oswald * sd.aspectRatio) * ge;
+      const q = 0.5 * rho * V2;
+      const mDir = s.chordDir.scale(vc / V).add(s.normalDir.scale(vn / V));
+      const lDir = s.normalDir.scale(vc / V).sub(s.chordDir.scale(vn / V));
+      const f = lDir.scale(q * sd.area * clEff).add(mDir.scale(-q * sd.area * (cdp + cdi)));
+      F.addIn(f);
+      M.addIn(r.cross(f));
+      M.addIn(s.spanDir.scale(q * sd.area * sd.chord * cm));
+      s.alpha = alpha; s.cl = clEff; s.stall = stall; s.force = f;
+      if (sd.role === 'wing') wingLift += f.dot(s.normalDir);
+    }
+    const qInf = Math.max(this.qbar, 1);
+    this.wingCL = wingLift / (qInf * d.wingArea);
+    const AR = (d.wingSpan * d.wingSpan) / d.wingArea;
+    const epsTarget = (2 * this.wingCL) / (Math.PI * AR * 0.85);
+    this.downwash = approach(this.downwash, clamp(epsTarget, -0.3, 0.3), lagTau, dt);
+
+    // --- Fuselage, gear legs, struts: parasite drag, cross-flow drag, Munk moment
+    const fu = d.fuselage;
+    if (this.tas > 0.5) {
+      const rF = fu.pos.sub(this.cg);
+      const dir = vb.scale(1 / this.tas);
+      const fd = dir.scale(-this.qbar * fu.dragArea);
+      const fcf = new Vec3(0, -0.5 * rho * fu.sideArea * 1.2 * vb.y * Math.abs(vb.y), -0.5 * rho * fu.planArea * 1.2 * vb.z * Math.abs(vb.z));
+      const ff = fd.add(fcf);
+      F.addIn(ff);
+      M.addIn(rF.cross(ff));
+      const ca = Math.cos(this.alpha), cb = Math.cos(this.beta);
+      M.y += this.qbar * 2 * fu.munkVolume * Math.sin(this.alpha) * ca * cb;
+      M.z -= this.qbar * 2 * fu.munkVolumeYaw * Math.sin(this.beta) * cb;
+    }
+
+    // --- Ground contact
+    const kin = this.kin();
+    const ev: ContactEvent[] = [];
+    const steer = c.yaw;
+    const gf = gearForces(d.gear, this.gearStates, kin, env.ground,
+      { steer, brakeLeft: c.brakeLeft, brakeRight: c.brakeRight, parkingBrake: c.parkingBrake }, dt, ev);
+    F.addIn(gf.force); M.addIn(gf.moment);
+    const cf = contactPointForces(d.contacts, this.contactActive, kin, env.ground, this.engine.rpm > 150, ev);
+    F.addIn(cf.force); M.addIn(cf.moment);
+    this.onGround = this.gearStates.some((g) => g.contact);
+
+    // Buildings
+    if (env.obstacles) {
+      for (const p of d.hullPoints) {
+        const w = this.worldPoint(p);
+        const id = env.obstacles.hit(w.y, w.x, -w.z);
+        if (id >= 0) {
+          ev.push({ name: `building #${id}`, kind: 'building', impactSpeed: this.vel.len(), fatal: true });
+          break;
+        }
+      }
+    }
+
+    // Water: touching water with the gear is a ditching
+    for (let i = 0; i < this.gearStates.length; i++) {
+      if (this.gearStates[i].contact && this.gearStates[i].surface === 'water' && this.vel.len() > 2) {
+        ev.push({ name: d.gear[i].name, kind: 'gear', impactSpeed: this.vel.len(), fatal: true });
+      }
+    }
+
+    // --- Integrate rigid body (semi-implicit Euler)
+    this.specificForce = F.scale(1 / this.mass);
+    this.loadFactor = -this.specificForce.z / 9.80665;
+    if (this.tas > 20) {
+      this.maxLoadFactor = Math.max(this.maxLoadFactor, this.loadFactor);
+      this.minLoadFactor = Math.min(this.minLoadFactor, this.loadFactor);
+    }
+    const Fw = this.q.rotate(F).add(new Vec3(0, 0, this.mass * 9.80665));
+    this.vel.addScaled(Fw, dt / this.mass);
+    this.pos.addScaled(this.vel, dt);
+    const Iw = this.inertia.mul(this.omega);
+    const wdot = this.inertia.solve(M.sub(this.omega.cross(Iw)));
+    this.omega.addScaled(wdot, dt);
+    this.q.integrate(this.omega, dt);
+
+    // Stall warning vane: triggers ~5-10 kt above the stall (local AoA near wing root)
+    const root = this.surfaces.find((s) => s.def.name === 'wingL1') ?? this.surfaces[0];
+    this.stallWarning = this.tas > 5 && root.alpha + root.deflection * 0.3 > 14 * DEG;
+
+    // --- Damage / crash detection
+    for (const e of ev) {
+      this.events.push(e);
+      if (e.fatal && !this.crashed) {
+        this.crashed = true;
+        this.crashReason = e.kind === 'building' ? `Collision with ${e.name}`
+          : e.kind === 'prop' ? 'Propeller strike'
+            : e.kind === 'gear' ? (this.gearStates.some((g) => g.surface === 'water') ? 'Ditched in water' : `Hard landing: ${e.name} gear failed (${(e.impactSpeed * 196.85).toFixed(0)} fpm)`)
+              : `Impact: ${e.name} (${(e.impactSpeed * 196.85).toFixed(0)} fpm)`;
+      }
+    }
+    if (this.events.length > 64) this.events.splice(0, this.events.length - 64);
+    if (this.loadFactor > d.limits.nMax * 1.5 || this.loadFactor < d.limits.nMin * 1.5) {
+      this.crashed = true;
+      this.crashReason = `Structural failure (${this.loadFactor.toFixed(1)} g)`;
+    }
+    if (this.crashed) { this.vel = new Vec3(); this.omega = new Vec3(); }
+  }
+}

@@ -1,0 +1,101 @@
+// Building obstacles: extruded footprints (from Overture/OSM) indexed in a uniform grid.
+// Used for aircraft-object collision and rendered as the same prisms, so what you see
+// is what you hit.
+
+export interface Building {
+  /** Footprint, counter-clockwise, local [east, north] metres. */
+  pts: Float32Array; // interleaved e,n
+  base: number; // m MSL (lowest terrain under footprint)
+  top: number; // m MSL
+  minE: number; maxE: number; minN: number; maxN: number;
+}
+
+export class ObstacleIndex {
+  private cells = new Map<number, number[]>();
+  readonly buildings: Building[] = [];
+  constructor(private cell = 100) {}
+
+  private key(ix: number, iy: number) { return (ix + 32768) * 65536 + (iy + 32768); }
+
+  add(b: Building) {
+    const id = this.buildings.length;
+    this.buildings.push(b);
+    const c = this.cell;
+    for (let ix = Math.floor(b.minE / c); ix <= Math.floor(b.maxE / c); ix++) {
+      for (let iy = Math.floor(b.minN / c); iy <= Math.floor(b.maxN / c); iy++) {
+        const k = this.key(ix, iy);
+        let l = this.cells.get(k);
+        if (!l) { l = []; this.cells.set(k, l); }
+        l.push(id);
+      }
+    }
+  }
+
+  /** Returns the building containing the point (east, north, alt MSL), or -1. */
+  hit(east: number, north: number, alt: number): number {
+    const l = this.cells.get(this.key(Math.floor(east / this.cell), Math.floor(north / this.cell)));
+    if (!l) return -1;
+    for (const id of l) {
+      const b = this.buildings[id];
+      if (alt < b.base || alt > b.top) continue;
+      if (east < b.minE || east > b.maxE || north < b.minN || north > b.maxN) continue;
+      if (pointInPoly(b.pts, east, north)) return id;
+    }
+    return -1;
+  }
+
+  /** Buildings whose bounding box intersects the rectangle. */
+  query(minE: number, minN: number, maxE: number, maxN: number): number[] {
+    const out = new Set<number>();
+    const c = this.cell;
+    for (let ix = Math.floor(minE / c); ix <= Math.floor(maxE / c); ix++) {
+      for (let iy = Math.floor(minN / c); iy <= Math.floor(maxN / c); iy++) {
+        const l = this.cells.get(this.key(ix, iy));
+        if (l) for (const id of l) out.add(id);
+      }
+    }
+    return [...out];
+  }
+}
+
+export function pointInPoly(pts: Float32Array, x: number, y: number): boolean {
+  let inside = false;
+  const n = pts.length / 2;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = pts[2 * i], yi = pts[2 * i + 1], xj = pts[2 * j], yj = pts[2 * j + 1];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Parses buildings.bin (see tools/build_geodata.py) and drapes them on the terrain. */
+export function parseBuildings(
+  buf: ArrayBuffer, heightAt: (e: number, n: number) => number, maxDist = Infinity,
+): Building[] {
+  const dv = new DataView(buf);
+  const count = dv.getUint32(0, true);
+  let off = 4;
+  const out: Building[] = [];
+  for (let i = 0; i < count; i++) {
+    const nv = dv.getUint16(off, true);
+    const h = dv.getFloat32(off + 2, true);
+    off += 6;
+    const pts = new Float32Array(nv * 2);
+    for (let k = 0; k < nv * 2; k++) pts[k] = dv.getFloat32(off + k * 4, true);
+    off += nv * 8;
+    let minE = Infinity, maxE = -Infinity, minN = Infinity, maxN = -Infinity;
+    for (let k = 0; k < nv; k++) {
+      const e = pts[2 * k], n = pts[2 * k + 1];
+      if (e < minE) minE = e; if (e > maxE) maxE = e;
+      if (n < minN) minN = n; if (n > maxN) maxN = n;
+    }
+    const cE = (minE + maxE) / 2, cN = (minN + maxN) / 2;
+    if (Math.hypot(cE, cN) > maxDist) continue;
+    // The DEM is a surface model that partly contains buildings already, so buildings
+    // stand on the lowest ground under the footprint.
+    let base = heightAt(cE, cN);
+    for (let k = 0; k < nv; k++) base = Math.min(base, heightAt(pts[2 * k], pts[2 * k + 1]));
+    out.push({ pts, base: base - 1, top: base + h, minE, maxE, minN, maxN });
+  }
+  return out;
+}

@@ -1,0 +1,25 @@
+import { flatWorld, newSim, run, kt } from '../../tests/helpers';
+import { RAD } from '../../src/core/math';
+const sim = newSim(flatWorld(0));
+sim.spawn({ kind: 'stand', index: 0, coldAndDark: true });
+const ac = sim.aircraft;
+console.log('mass', ac.mass.toFixed(1), 'cg', ac.cg);
+run(sim, 3);
+const [phi, th, psi] = ac.euler;
+console.log('rest: alt', ac.altitude.toFixed(3), 'pitch', (th*RAD).toFixed(2), 'roll', (phi*RAD).toFixed(2), 'hdg', (psi*RAD).toFixed(1));
+console.log('gear', ac.gearStates.map(g => `${g.compression.toFixed(3)}m ${g.force.toFixed(0)}N`));
+console.log('vel', ac.vel.len().toFixed(4));
+// engine start
+const c = sim.controls;
+c.masterBattery = true; c.mixture = 1; c.throttle = 0.1; c.mags = 'START';
+let t = 0;
+run(sim, 6, (tt) => { t = tt; if (ac.engine.running && c.mags === 'START') { console.log('started at', tt.toFixed(2), 's rpm', ac.engine.rpm.toFixed(0)); c.mags = 'BOTH'; } });
+c.masterAlternator = true;
+c.throttle = 0;
+run(sim, 15);
+console.log('idle rpm', ac.engine.rpm.toFixed(0), 'MAP inHg', (ac.engine.manifoldPressure/3386).toFixed(1), 'ff gph', (ac.engine.fuelFlow/0.72*3600/3.785).toFixed(2), 'volts', sim.systems.busVolts);
+c.throttle = 1;
+run(sim, 10);
+console.log('static full rpm', ac.engine.rpm.toFixed(0), 'thrust N', ac.engine.thrust.toFixed(0), 'power hp', (ac.engine.power/745.7).toFixed(0), 'ff gph', (ac.engine.fuelFlow/0.72*3600/3.785).toFixed(2), 'moved m', Math.hypot(ac.pos.x, ac.pos.y).toFixed(3), 'speed', kt(ac.vel.len()).toFixed(2));
+console.log('gear', ac.gearStates.map(g => `${g.compression.toFixed(3)}m ${g.force.toFixed(0)}N skid ${g.skidding}`));
+c.mixture = 0; run(sim, 15); console.log('after cutoff rpm', ac.engine.rpm.toFixed(0), ac.engine.running);
