@@ -357,7 +357,8 @@ export class Menu {
       <label>Controller dead zone</label><input type="range" min="0" max="0.3" step="0.01" value="${inp.deadZone}" data-i="deadZone"><span class="val">${inp.deadZone}</span>
       <label>Controller response curve</label><input type="range" min="1" max="3" step="0.1" value="${inp.curve}" data-i="curve"><span class="val">${inp.curve}</span>
       <label>Invert pitch axis</label><input type="checkbox" data-i="invertPitch" ${inp.invertPitch ? 'checked' : ''}><span></span>
-      <label>Beginner mode: auto-rudder</label><input type="checkbox" data-i="autoRudder" ${inp.autoRudder ? 'checked' : ''}><span class="jv-dim">Coordinates turns with rudder; the flight model is unchanged</span>
+      <label>Beginner mode: auto-rudder</label><input type="checkbox" data-i="autoRudder" ${inp.autoRudder ? 'checked' : ''}><span class="jv-dim">Moves the pedals: coordinates turns, holds heading on the ground</span>
+      <label>Beginner mode: auto-trim</label><input type="checkbox" data-i="autoTrim" ${inp.autoTrim ? 'checked' : ''}><span class="jv-dim">Holds level flight / vertical speed when you release the stick (moves the trim)</span>
       <label>Axis: pitch / roll / yaw / throttle</label><input type="text" data-i="axes" value="${inp.axes.pitch},${inp.axes.roll},${inp.axes.yaw},${inp.axes.throttle}"><span class="jv-dim">Gamepad API axis indices for your joystick or yoke</span>`;
     c.addEventListener('input', (e) => {
       const t = e.target as HTMLInputElement;

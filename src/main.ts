@@ -21,7 +21,8 @@ import { bodyMatrix, nedToThree } from './render/coords';
 import { InputManager, loadInputSettings, Action } from './input/input';
 import { Hud } from './ui/hud';
 import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
-import { Vec3 } from './core/math';
+import { Vec3, clamp } from './core/math';
+import { AutoTrim } from './sim/assists';
 
 const loadingMsg = document.getElementById('loading-msg')!;
 const loadingBar = document.getElementById('loading-bar')!;
@@ -77,6 +78,7 @@ class App implements MenuHost {
   private drag: { x: number; y: number; button: number; knob: THREE.Object3D | null; moved: boolean } | null = null;
   private tipEl = document.createElement('div');
   private autoStart: { t: number } | null = null;
+  private autoTrim = new AutoTrim();
 
   constructor() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
@@ -379,6 +381,9 @@ class App implements MenuHost {
     for (const a of this.input.consume()) this.handleAction(a);
     if (!this.menu.open) {
       this.input.update(dt, sim.controls, ac.beta, ac.onGround, ac.euler[2], ac.q.rotate(ac.omega).z, Math.hypot(ac.vel.x, ac.vel.y));
+      if (this.input.settings.autoTrim && !sim.autopilot.engaged && !sim.paused) {
+        sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.input.rawPitch), -1, 1);
+      }
       this.runAutoStart(dt);
     }
     sim.advance(dt);

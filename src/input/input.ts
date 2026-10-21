@@ -41,6 +41,8 @@ export interface InputSettings {
   curve: number;
   /** Beginner assistance: automatic rudder coordination (physics unchanged). */
   autoRudder: boolean;
+  /** Beginner assist: auto-trim / flight-path hold when the stick is released. */
+  autoTrim: boolean;
   invertPitch: boolean;
   /** Axis mapping for game controllers / joysticks. */
   axes: { pitch: number; roll: number; yaw: number; throttle: number };
@@ -50,7 +52,7 @@ const STORE = 'jetvault.input.v1';
 
 export function loadInputSettings(): InputSettings {
   const def: InputSettings = {
-    bindings: JSON.parse(JSON.stringify(DEFAULT_BINDINGS)), keyRate: 1.6, deadZone: 0.06, curve: 1.6, autoRudder: true, invertPitch: false,
+    bindings: JSON.parse(JSON.stringify(DEFAULT_BINDINGS)), keyRate: 1.6, deadZone: 0.06, curve: 1.6, autoRudder: true, autoTrim: true, invertPitch: false,
     axes: { pitch: 1, roll: 0, yaw: 2, throttle: 3 },
   };
   try {
@@ -126,6 +128,8 @@ export class InputManager {
   private holdHdg: number | null = null;
   /** Pedal deflection added by the assist this frame (shown in the diagnostics). */
   assistYaw = 0;
+  /** Pilot pitch input before assists (for the auto-trim). */
+  rawPitch = 0;
 
   update(dt: number, c: FlightControls, beta: number, onGround: boolean, heading = 0, yawRate = 0, groundSpeed = 0) {
     const s = this.settings;
@@ -190,6 +194,7 @@ export class InputManager {
     yaw = clamp(yaw + this.assistYaw, -1, 1);
 
     c.pitch = clamp(pitch, -1, 1);
+    this.rawPitch = c.pitch;
     c.roll = clamp(roll, -1, 1);
     c.yaw = clamp(yaw, -1, 1);
     if (throttleAxis !== null) c.throttle = throttleAxis;
