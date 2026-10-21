@@ -353,6 +353,10 @@ export class Aircraft {
       M.z -= this.qbar * 2 * fu.munkVolumeYaw * Math.sin(this.beta) * cb;
     }
 
+    // Flight (aerodynamic + thrust) load factor, for structural limits. Ground reactions
+    // are judged separately (gear sink rate, contact impact speed).
+    const flightNz = -F.z / (this.mass * 9.80665);
+
     // --- Ground contact
     const kin = this.kin();
     const ev: ContactEvent[] = [];
@@ -387,8 +391,8 @@ export class Aircraft {
     this.specificForce = F.scale(1 / this.mass);
     this.loadFactor = -this.specificForce.z / 9.80665;
     if (this.tas > 20) {
-      this.maxLoadFactor = Math.max(this.maxLoadFactor, this.loadFactor);
-      this.minLoadFactor = Math.min(this.minLoadFactor, this.loadFactor);
+      this.maxLoadFactor = Math.max(this.maxLoadFactor, flightNz);
+      this.minLoadFactor = Math.min(this.minLoadFactor, flightNz);
     }
     const Fw = this.q.rotate(F).add(new Vec3(0, 0, this.mass * 9.80665));
     this.vel.addScaled(Fw, dt / this.mass);
@@ -414,9 +418,10 @@ export class Aircraft {
       }
     }
     if (this.events.length > 64) this.events.splice(0, this.events.length - 64);
-    if (this.loadFactor > d.limits.nMax * 1.5 || this.loadFactor < d.limits.nMin * 1.5) {
+    // ultimate load = 1.5 x limit load
+    if (flightNz > d.limits.nMax * 1.5 || flightNz < d.limits.nMin * 1.5) {
       this.crashed = true;
-      this.crashReason = `Structural failure (${this.loadFactor.toFixed(1)} g)`;
+      this.crashReason = `Structural failure (${flightNz.toFixed(1)} g)`;
     }
     if (this.crashed) { this.vel = new Vec3(); this.omega = new Vec3(); }
   }

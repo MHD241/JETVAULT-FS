@@ -73,6 +73,7 @@ export class C172Systems {
     if (initiallyRunning) {
       this.attGyroSpin = 1; this.dgSpin = 1; this.tcSpin = 1;
       this.busVolts = 28;
+      this.vacuum = 5;
     }
     const [phi, theta, psi] = ac.euler;
     this.attPitch = theta; this.attRoll = phi;
@@ -101,6 +102,9 @@ export class C172Systems {
   }
 
   busPowered() { return this.busVolts > 18; }
+
+  /** Pilot aligns the heading indicator with the magnetic compass (push/turn knob). */
+  syncHeadingIndicator() { this.dgHeading = this.ind.compassDeg; }
 
   /** Electrical, fuel and vacuum update; call before the aircraft step. */
   stepSystems(dt: number, c: FlightControls) {
@@ -154,9 +158,9 @@ export class C172Systems {
     if (this.massTimer > 1) { this.massTimer = 0; ac.updateMass(); }
 
     // --- Vacuum pump (engine driven) and gyros
-    const suction = clamp((eng.rpm - 300) / 900, 0, 1) * 5.0;
+    const suction = clamp((eng.rpm - 250) / 650, 0, 1) * 5.0; // engine-driven pump, regulated to ~5 inHg
     this.vacuum = approach(this.vacuum, suction, 0.5, dt);
-    const vacOk = this.vacuum > 4.0;
+    const vacOk = this.vacuum > 3.5;
     this.attGyroSpin = approach(this.attGyroSpin, vacOk ? 1 : 0, vacOk ? 25 : 150, dt);
     this.dgSpin = approach(this.dgSpin, vacOk ? 1 : 0, vacOk ? 25 : 150, dt);
     this.tcSpin = approach(this.tcSpin, this.busVolts > 18 ? 1 : 0, this.busVolts > 18 ? 15 : 60, dt);
@@ -226,7 +230,7 @@ export class C172Systems {
     ind.ammeterA = this.batteryAmps;
     ind.oatC = ac.air.temperature - 273.15;
     ind.stallHorn = ac.stallWarning && c.masterBattery;
-    ind.lowVacuum = this.vacuum < 3.5 && pow;
+    ind.lowVacuum = this.vacuum < 3.0 && pow;
     ind.lowVolts = this.busVolts < 24.5 && pow;
     ind.lowFuelL = pow && ind.fuelLeftGal < 5;
     ind.lowFuelR = pow && ind.fuelRightGal < 5;

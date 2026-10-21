@@ -47,10 +47,14 @@ export function defaultControls(): FlightControls {
   };
 }
 
-/** Controls for an aircraft ready to fly (engine running, systems on). */
+/** Elevator trim position marked "TAKEOFF": hands-off full-power climb near 70-80 KIAS. */
+export const TAKEOFF_TRIM = 0.15;
+
+/** Controls for an aircraft ready to fly (engine running, systems on, trim set for takeoff). */
 export function readyControls(): FlightControls {
   return {
     ...defaultControls(), mags: 'BOTH', masterBattery: true, masterAlternator: true, avionics: true,
     beacon: true, navLights: true, strobes: true, parkingBrake: false, throttle: 0.1, mixture: 1,
+    trim: TAKEOFF_TRIM,
   };
 }

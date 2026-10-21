@@ -81,6 +81,25 @@ describe('C172S stability (hands off after trimming)', () => {
     expect(Math.abs(kt(ac.cas) - v0)).toBeLessThan(8);
   });
 
+  it('phugoid is stable at full power with nose-up trim (no growing oscillation, no loop)', () => {
+    const sim = newSim(flatWorld(0));
+    sim.spawn({ kind: 'runway', ident: '36' });
+    sim.aircraft.placeInFlight(0, 1000, 1500 * FT, 0, 75 * KT, 0.05);
+    const c = sim.controls; c.throttle = 1; c.trim = 0.3;
+    const amp = (secs: number) => {
+      let lo = Infinity, hi = -Infinity;
+      run(sim, secs, () => {
+        c.roll = -sim.aircraft.euler[0] * 2; c.pitch = 0; c.yaw = sim.aircraft.beta * 4;
+        const th = sim.aircraft.euler[1]; lo = Math.min(lo, th); hi = Math.max(hi, th);
+      });
+      return (hi - lo) * RAD;
+    };
+    const first = amp(40); amp(40); const last = amp(40);
+    console.log(`phugoid pitch swing: first 40 s ${first.toFixed(1)} deg, last 40 s ${last.toFixed(1)} deg`);
+    expect(last).toBeLessThan(first);
+    expect(last).toBeLessThan(25);
+  });
+
   it('Dutch roll after a rudder doublet is damped', () => {
     const sim = trimmed();
     const ac = sim.aircraft, c = sim.controls;

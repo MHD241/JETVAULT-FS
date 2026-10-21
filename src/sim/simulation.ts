@@ -65,14 +65,14 @@ export class Simulation {
     const ac = this.aircraft;
     this.autopilot.disengage();
     ac.maxLoadFactor = 1; ac.minLoadFactor = 1;
+    ac.flap = 0; ac.elevator = 0; ac.aileronL = 0; ac.aileronR = 0; ac.rudder = 0;
     if (s.kind === 'stand') {
       const [x, y, hdgDeg] = ap.stands[s.index % ap.stands.length];
       const hdg = hdgDeg * DEG;
       this.controls = s.coldAndDark ? defaultControls() : readyControls();
       this.controls.parkingBrake = true;
       this.controls.kollsman = this.weather.qnh;
-      ac.engine.rpm = s.coldAndDark ? 0 : 800;
-      ac.engine.running = !s.coldAndDark;
+      if (s.coldAndDark) { ac.engine.rpm = 0; ac.engine.running = false; } else ac.engine.warmUp(800, ac.air);
       ac.placeOnGround(x, y, hdg, this.env);
       this.systems = new C172Systems(ac, !s.coldAndDark);
     } else if (s.kind === 'runway') {
@@ -86,7 +86,7 @@ export class Simulation {
       this.controls.parkingBrake = false;
       this.controls.brakeLeft = 0; this.controls.brakeRight = 0;
       this.controls.landingLight = true; this.controls.taxiLight = false;
-      ac.engine.rpm = 800; ac.engine.running = true;
+      ac.engine.warmUp(800, ac.air);
       ac.placeOnGround(x, y, hdg, this.env);
       this.systems = new C172Systems(ac, true);
     } else {
@@ -104,13 +104,28 @@ export class Simulation {
       this.controls.flapLever = 1;
       this.controls.trim = 0.25;
       this.controls.landingLight = true;
-      ac.engine.rpm = 2100; ac.engine.running = true;
+      ac.engine.warmUp(2100, ac.air);
       ac.flap = 10 * DEG;
       ac.placeInFlight(x, y, alt, hdg, 75 * KT, -1 * DEG);
       // glide path descent rate
       ac.vel = ac.vel.add(new Vec3(0, 0, Math.tan(3 * DEG) * 75 * KT));
       this.systems = new C172Systems(ac, true);
     }
+  }
+
+  /** Airborne start at local east/north, altitude (ft MSL) and true heading (rad). */
+  spawnAir(east: number, north: number, altFt: number, heading: number) {
+    const ac = this.aircraft;
+    this.autopilot.disengage();
+    this.controls = readyControls();
+    this.controls.kollsman = this.weather.qnh;
+    this.controls.throttle = 0.65;
+    this.controls.headingBug = Math.round(((heading * 180) / Math.PI + 360) % 360);
+    ac.engine.warmUp(2350, ac.air);
+    ac.flap = 0;
+    const alt = Math.max(altFt * 0.3048, this.world.heightAt(east, north) + 300);
+    ac.placeInFlight(east, north, alt, heading, 100 * KT, 0);
+    this.systems = new C172Systems(ac, true);
   }
 
   /** One fixed physics step. */

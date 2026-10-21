@@ -3,3 +3,4 @@ dist/
 tools/cache/
 *.log
 .DS_Store
+test-results/

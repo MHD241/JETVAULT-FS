@@ -13,7 +13,8 @@ describe('crash and collision detection', () => {
     const sim = newSim(flatWorld(0));
     sim.spawn({ kind: 'runway', ident: '36' });
     sim.aircraft.placeInFlight(0, 1000, 150, 0, 100 * KT, -30 * DEG);
-    run(sim, 30);
+    sim.controls.trim = 0;
+    run(sim, 30, () => { sim.controls.pitch = -0.3; }); // pilot holds the dive
     expect(sim.aircraft.crashed).toBe(true);
     expect(sim.aircraft.altitude).toBeGreaterThan(-3); // stopped at the surface, not below it
   });
@@ -104,3 +105,25 @@ describe('crash and collision detection', () => {
     console.log(`EGPH 06 landing: touchdown ${lp.touchdown!.kias.toFixed(0)} KIAS ${lp.touchdown!.sinkFpm.toFixed(0)} fpm; stopped ${along.toFixed(0)} m past threshold, ${cross.toFixed(1)} m off centreline`);
   });
 });
+
+describe('regression: ground contact is not an airframe overload', () => {
+  it('an over-rotation tail strike on the runway scrapes but is not a structural failure', () => {
+    const sim = newSim(flatWorld(0));
+    sim.spawn({ kind: 'runway', ident: '36' });
+    const ac = sim.aircraft, c = sim.controls;
+    c.throttle = 1;
+    run(sim, 60, () => { if (kt2(ac.cas) > 52) c.pitch = 1; if (!ac.onGround && ac.agl > 30) return true; });
+    expect(ac.crashReason).not.toMatch(/Structural/);
+    expect(ac.events.some((e) => e.kind === 'tail')).toBe(true); // it did strike the tail
+  });
+  it('a structural failure is detected for a violent pull at high speed', () => {
+    const sim = newSim(flatWorld(0));
+    sim.spawn({ kind: 'runway', ident: '36' });
+    sim.aircraft.placeInFlight(0, 1000, 2000, 0, 160 * KT, 0);
+    sim.controls.throttle = 1;
+    run(sim, 5, () => { sim.controls.pitch = 1; });
+    expect(sim.aircraft.crashed).toBe(true);
+    expect(sim.aircraft.crashReason).toMatch(/Structural/);
+  });
+});
+const kt2 = (ms: number) => ms / KT;

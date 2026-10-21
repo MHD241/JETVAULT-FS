@@ -118,6 +118,15 @@ export class PistonEngine {
     return clamp(1 - 0.35 * ((far - 0.077) / 0.063) ** 1.3, 0, 1);
   }
 
+  /** Engine already running and at operating temperatures (for "ready to fly" starts). */
+  warmUp(rpm: number, air: AirState) {
+    this.rpm = rpm;
+    this.running = true;
+    this.manifoldPressure = air.pressure * 0.5;
+    this.oilTemp = 355; this.cht = 400; this.egt = 900;
+    this.oilPressure = Math.min(85, 30 + (rpm - 700) * 0.025) * 6894.76;
+  }
+
   step(dt: number, inp: EngineInputs, air: AirState, trueAirspeedAxial: number) {
     const d = this.def;
     const omega = (this.rpm * 2 * Math.PI) / 60;
@@ -191,7 +200,9 @@ export class PistonEngine {
     this.cht = approach(this.cht, chtTarget, 90, dt);
     const oilTarget = this.running ? air.temperature + 60 + 40 * load : air.temperature;
     this.oilTemp = approach(this.oilTemp, oilTarget, 240, dt);
-    const oilP = this.rpm > 100 ? clamp(this.rpm / 2400, 0, 1) * 420000 * (1 - 0.25 * clamp((this.oilTemp - 330) / 60, 0, 1)) : 0;
+    // oil pump: ~30 psi at idle, ~70 psi at cruise rpm, lower with hot (thin) oil
+    const psi = this.rpm < 400 ? (this.rpm / 400) * 30 : Math.min(85, 30 + (this.rpm - 700) * 0.025);
+    const oilP = Math.max(0, psi) * 6894.76 * (1 - 0.15 * clamp((this.oilTemp - 360) / 40, 0, 1));
     this.oilPressure = approach(this.oilPressure, oilP, 0.5, dt);
   }
 }

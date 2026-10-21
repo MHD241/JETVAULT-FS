@@ -91,7 +91,7 @@ const surfaces: AeroSurfaceDef[] = [
     normal: new Vec3(0, 0, -1), incidence: HT_INCIDENCE,
     aspectRatio: (HT_SPAN * HT_SPAN) / HT_AREA, oswald: 0.75, span: HT_SPAN,
     airfoil: TAIL, control: ELEVATOR, channel: 'elevator',
-    slipstream: 0.55, downwash: true, role: 'htail',
+    slipstream: 0.3, downwash: true, role: 'htail', // contracted slipstream covers ~35 % of the tail span
   })),
   {
     name: 'fin',
@@ -100,7 +100,7 @@ const surfaces: AeroSurfaceDef[] = [
     normal: new Vec3(0, 1, 0), incidence: 0,
     aspectRatio: 2.0, oswald: 0.7, span: 1.5,
     airfoil: FIN, control: RUDDER, channel: 'rudder',
-    slipstream: 0.7, downwash: false, role: 'vtail',
+    slipstream: 0.5, downwash: false, role: 'vtail', // lower half of the fin
   },
 ];
 
