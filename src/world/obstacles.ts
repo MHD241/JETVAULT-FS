@@ -102,6 +102,19 @@ export function parseBuildings(
   return out;
 }
 
+/** Is a point within 3 m of the building's bounding box edge and footprint? (gates sit on the facade) */
+function near(b: Building, x: number, y: number) {
+  if (x < b.minE - 3 || x > b.maxE + 3 || y < b.minN - 3 || y > b.maxN + 3) return false;
+  const n = b.pts.length / 2;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const ax = b.pts[2 * i], ay = b.pts[2 * i + 1], dx = b.pts[2 * j] - ax, dy = b.pts[2 * j + 1] - ay, l2 = dx * dx + dy * dy;
+    const t = l2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0;
+    if (Math.hypot(x - ax - dx * t, y - ay - dy * t) < 3) return true;
+  }
+  return false;
+}
+
 function polyArea(p: Float32Array) {
   let a = 0;
   const n = p.length / 2;
@@ -125,6 +138,7 @@ export function styleAirportBuildings(list: Building[], gates: [number, number][
     const base = b.base + 1;
     if (area > 20000) { b.role = 'terminal'; b.top = base + 15; }
     else if (area > 5000 && d < 150) { b.role = 'pier'; b.top = base + 11; }
+    else if (area > 1000 && gates.some(([x, y]) => pointInPoly(b.pts, x, y) || near(b, x, y))) { b.role = 'pier'; b.top = base + 10; }
     else if (area > 1200) { b.role = 'airside'; b.top = base + Math.max(b.top - base, 10); }
   }
   // Drop smaller OSM features that sit inside a terminal/pier footprint (overlapping duplicates,

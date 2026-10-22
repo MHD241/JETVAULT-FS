@@ -33,9 +33,14 @@ export class AutoTrim {
       this.thetaRef = theta;
       this.vsInt = 0;
     }
-    const errVs = this.holdVs - vs;
+    // landing assist: with the stick released near the ground a descent is eased to a gentle
+    // sink rate (flare), ~0.45 m/s at touchdown. It only moves the elevator servo.
+    let target = this.holdVs;
+    let maxTheta = 15 * DEG;
+    if (target < -0.3 && ac.agl < 18) { target = Math.max(target, -(0.45 + 0.1 * Math.max(ac.agl, 0))); maxTheta = 7 * DEG; } // never over-rotate into a tail strike
+    const errVs = target - vs;
     this.vsInt = clamp(this.vsInt + errVs * 0.25 * DEG * dt, -12 * DEG, 15 * DEG);
-    const thetaCmd = clamp(this.thetaRef + this.vsInt + errVs * 1.2 * DEG, -10 * DEG, 15 * DEG);
+    const thetaCmd = clamp(this.thetaRef + this.vsInt + errVs * 1.2 * DEG, -10 * DEG, maxTheta);
     const cmd = clamp(3.0 * (thetaCmd - theta) - 0.9 * ac.omega.y, -0.45, 0.45);
     this.servo = moveToward(this.servo, cmd, 0.6 * dt);
     // trim takes over the servo load (same elevator angle, seamless)
