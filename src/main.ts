@@ -25,6 +25,7 @@ import { Vec3, clamp } from './core/math';
 import { AutoTrim } from './sim/assists';
 import { SimpleControls, IS_TOUCH } from './input/simpleControls';
 import { Minimap } from './ui/minimap';
+import { buildJetBridges } from './render/jetBridges';
 import { CrashFx } from './render/crashFx';
 
 const loadingMsg = document.getElementById('loading-msg')!;
@@ -131,6 +132,7 @@ class App implements MenuHost {
     progress('Building city');
     this.buildings = new BuildingsRenderer(this.world.obstacles.buildings);
     this.scene.add(this.buildings.group);
+    this.scene.add(buildJetBridges(this.world.airport.gates ?? [], this.world.obstacles.buildings, (e, n) => this.world.terrain.heightAt(e, n) - 0.2));
     progress('Building aircraft');
     this.buildAircraftVisuals();
     this.aircraftGroup.matrixAutoUpdate = false;

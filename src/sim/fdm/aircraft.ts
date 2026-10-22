@@ -469,11 +469,6 @@ export class Aircraft {
       }
     }
     if (this.events.length > 64) this.events.splice(0, this.events.length - 64);
-    // ultimate load = 1.5 x limit load
-    if (flightNz > d.limits.nMax * 1.5 || flightNz < d.limits.nMin * 1.5) {
-      this.crashed = true;
-      this.crashReason = `Structural failure (${flightNz.toFixed(1)} g)`;
-    }
     if (this.crashed) { this.vel = new Vec3(); this.omega = new Vec3(); }
   }
 }

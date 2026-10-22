@@ -114,8 +114,8 @@ function polyArea(p: Float32Array) {
  * Classify the buildings around the stands and give them plausible heights.
  * Heights are ESTIMATES (terminal ~3 storeys, piers ~2), not surveyed values.
  */
-export function styleAirportBuildings(list: Building[], gates: [number, number][]) {
-  if (!gates.length) return;
+export function styleAirportBuildings(list: Building[], gates: [number, number][]): Building[] {
+  if (!gates.length) return list;
   const gx = gates.reduce((a, g) => a + g[0], 0) / gates.length, gy = gates.reduce((a, g) => a + g[1], 0) / gates.length;
   for (const b of list) {
     const cE = (b.minE + b.maxE) / 2, cN = (b.minN + b.maxN) / 2;
@@ -127,4 +127,19 @@ export function styleAirportBuildings(list: Building[], gates: [number, number][
     else if (area > 5000 && d < 150) { b.role = 'pier'; b.top = base + 11; }
     else if (area > 1200) { b.role = 'airside'; b.top = base + Math.max(b.top - base, 10); }
   }
+  // Drop smaller OSM features that sit inside a terminal/pier footprint (overlapping duplicates,
+  // old outlines) so they do not poke through the new building.
+  const big = list.filter((b) => b.role === 'terminal' || b.role === 'pier');
+  return list.filter((b) => {
+    if (b.role) return true;
+    const cE = (b.minE + b.maxE) / 2, cN = (b.minN + b.maxN) / 2;
+    for (const t of big) {
+      if (cE < t.minE || cE > t.maxE || cN < t.minN || cN > t.maxN) continue;
+      let inside = 0;
+      const n = b.pts.length / 2;
+      for (let i = 0; i < n; i++) if (pointInPoly(t.pts, b.pts[2 * i], b.pts[2 * i + 1])) inside++;
+      if (inside * 2 >= n || pointInPoly(t.pts, cE, cN)) return false;
+    }
+    return true;
+  });
 }

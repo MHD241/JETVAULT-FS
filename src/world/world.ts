@@ -86,8 +86,7 @@ export async function loadWorld(
   onProgress?.('Buildings');
   const obstacles = new ObstacleIndex(100);
   const bbuf = await fetcher(`${base}/${meta.buildings.file}`);
-  const blds = parseBuildings(bbuf, (e, n) => terrain.heightAt(e, n));
-  styleAirportBuildings(blds, airport.gates ?? []);
+  const blds = styleAirportBuildings(parseBuildings(bbuf, (e, n) => terrain.heightAt(e, n)), airport.gates ?? []);
   for (const b of blds) obstacles.add(b);
   let landcover: LandCover | null = null;
   if (decodeLandcover) {

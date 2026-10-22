@@ -19,6 +19,8 @@ export class SimpleControls {
   private events: SimpleEvent[] = [];
   private mouse = { x: 0, y: 0, active: false };
   private joy = { x: 0, y: 0 };
+  private joySmooth = { x: 0, y: 0 };
+  private knobEl: HTMLDivElement | null = null;
   private touchBrake = false;
   private pedal = 0;
   private holdHdg: number | null = null;
@@ -75,6 +77,7 @@ export class SimpleControls {
       </div>`;
     const joy = this.ui.querySelector('.jv-joy') as HTMLDivElement;
     const knob = this.ui.querySelector('.jv-joy-knob') as HTMLDivElement;
+    this.knobEl = knob;
     let id: number | null = null;
     const move = (e: PointerEvent) => {
       const r = joy.getBoundingClientRect();
@@ -82,11 +85,10 @@ export class SimpleControls {
       let x = (e.clientX - r.left - R) / R, y = (e.clientY - r.top - R) / R;
       const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; }
       this.joy.x = x; this.joy.y = y;
-      knob.style.transform = `translate(${x * R * 0.6}px, ${y * R * 0.6}px)`;
     };
     joy.addEventListener('pointerdown', (e) => { id = e.pointerId; joy.setPointerCapture(e.pointerId); move(e); });
     joy.addEventListener('pointermove', (e) => { if (e.pointerId === id) move(e); });
-    const end = (e: PointerEvent) => { if (e.pointerId !== id) return; id = null; this.joy.x = 0; this.joy.y = 0; knob.style.transform = ''; };
+    const end = (e: PointerEvent) => { if (e.pointerId !== id) return; id = null; this.joy.x = 0; this.joy.y = 0; };
     joy.addEventListener('pointerup', end); joy.addEventListener('pointercancel', end);
     this.slider = this.ui.querySelector('.jv-thr input') as HTMLInputElement;
     this.slider.addEventListener('input', () => { this.throttle = Number(this.slider!.value); });
@@ -100,7 +102,18 @@ export class SimpleControls {
     // stick: touch joystick, else mouse position (dead zone in the centre)
     const dz = (v: number, d: number) => (Math.abs(v) < d ? 0 : Math.sign(v) * (Math.abs(v) - d) / (1 - d));
     let pitch = 0, roll = 0;
-    if (IS_TOUCH) { pitch = this.joy.y; roll = this.joy.x; }
+    if (IS_TOUCH) {
+      // smooth the raw finger position (low-pass) and soften the centre with an expo curve
+      const a = 1 - Math.exp(-dt / 0.07);
+      this.joySmooth.x += (this.joy.x - this.joySmooth.x) * a;
+      this.joySmooth.y += (this.joy.y - this.joySmooth.y) * a;
+      const expo = (v: number) => 0.45 * v + 0.55 * v * v * v;
+      pitch = expo(this.joySmooth.y); roll = expo(this.joySmooth.x);
+      if (this.knobEl) {
+        const R = (this.knobEl.parentElement as HTMLElement).clientWidth / 2;
+        this.knobEl.style.transform = `translate(${this.joySmooth.x * R * 0.62}px, ${this.joySmooth.y * R * 0.62}px)`;
+      }
+    }
     else if (this.mouse.active) { pitch = -dz(this.mouse.y, 0.06) * 1.3; roll = dz(this.mouse.x, 0.06) * 1.3; }
     c.pitch = clamp(pitch, -1, 1);
     c.roll = clamp(roll, -1, 1);

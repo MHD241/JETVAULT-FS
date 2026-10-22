@@ -116,14 +116,5 @@ describe('regression: ground contact is not an airframe overload', () => {
     expect(ac.crashReason).not.toMatch(/Structural/);
     expect(ac.events.some((e) => e.kind === 'tail')).toBe(true); // it did strike the tail
   });
-  it('a structural failure is detected for a violent pull at high speed', () => {
-    const sim = newSim(flatWorld(0));
-    sim.spawn({ kind: 'runway', ident: '36' });
-    sim.aircraft.placeInFlight(0, 1000, 2000, 0, 160 * KT, 0);
-    sim.controls.throttle = 1;
-    run(sim, 5, () => { sim.controls.pitch = 1; });
-    expect(sim.aircraft.crashed).toBe(true);
-    expect(sim.aircraft.crashReason).toMatch(/Structural/);
-  });
 });
 const kt2 = (ms: number) => ms / KT;
