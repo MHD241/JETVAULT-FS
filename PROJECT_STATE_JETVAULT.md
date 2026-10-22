@@ -78,6 +78,10 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - East piers: any building with a gate on its facade (>1,000 m²) is now a glazed pier, so jet bridges and stand lines appear along it too (checked top-down).
 - Landing assist (`AutoTrim`): with the stick released below ~60 ft AGL a descent is eased towards ~0.45 m/s at touchdown (elevator servo only, pitch capped at 7° to avoid tail strikes). Headless: a 600 fpm descent released at 120 ft touches down at ~356 fpm (C172) / ~598 fpm (737 in approach configuration). It reduces, but does not eliminate, hard landings. Touch only: wings-levelling aileron input when the joystick is released in the air.
 
+## Update 9
+- Jet bridges rest swung ~28° off the wall normal. A CONNECT JET BRIDGE button (also key J) appears when an airliner is stopped within 85 m of a bridge: the nearest bridge swings, telescopes and raises/lowers to the forward-left door, and the button becomes RETRACT. Moving the aircraft (>2 m/s) retracts it. Other stowed bridges shorten to stay clear of the fuselage.
+- Door position (12.8 m aft of datum forward, left side, sill 2.6 m) is an ESTIMATE for the 737-800; no door model exists. Verified in a headless top-down screenshot (bridge reaches the front-left of the fuselage). No collision, no passengers/boarding yet. Not tested on a touch device.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

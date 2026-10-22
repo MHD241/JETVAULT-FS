@@ -12,7 +12,7 @@ import { clamp } from '../core/math';
 
 export const IS_TOUCH = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0) && matchMedia('(pointer: coarse)').matches;
 
-export type SimpleEvent = 'gear' | 'flaps' | 'spoilers' | 'camera' | 'menu';
+export type SimpleEvent = 'gear' | 'flaps' | 'spoilers' | 'camera' | 'menu' | 'bridge';
 
 export class SimpleControls {
   private keys = new Set<string>();
@@ -39,6 +39,7 @@ export class SimpleControls {
         if (e.code === 'KeyF') this.events.push('flaps');
         if (e.code === 'KeyB') this.events.push('spoilers');
         if (e.code === 'KeyC') this.events.push('camera');
+        if (e.code === 'KeyJ') this.events.push('bridge');
         if (e.code === 'Escape') this.events.push('menu');
       }
       this.keys.add(e.code);

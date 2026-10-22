@@ -124,3 +124,7 @@ body.touch .jv-minimap { width: 150px; height: 150px; }
   .jv-form { grid-template-columns: 1fr 1fr; }
   .jv-hud .cell { min-width: 48px; }
 }
+
+.jv-bridge { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 14; padding: 12px 22px; border-radius: 12px;
+  border: 1px solid rgba(233, 237, 243, .5); background: rgba(79, 142, 247, .85); color: #fff; font: 700 14px Inter, sans-serif; letter-spacing: .08em; touch-action: none; }
+.jv-bridge:active { background: rgba(60, 110, 200, .95); }

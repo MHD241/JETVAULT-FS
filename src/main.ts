@@ -25,7 +25,7 @@ import { Vec3, clamp } from './core/math';
 import { AutoTrim } from './sim/assists';
 import { SimpleControls, IS_TOUCH } from './input/simpleControls';
 import { Minimap } from './ui/minimap';
-import { buildJetBridges } from './render/jetBridges';
+import { JetBridges } from './render/jetBridges';
 import { CrashFx } from './render/crashFx';
 
 const loadingMsg = document.getElementById('loading-msg')!;
@@ -69,6 +69,8 @@ class App implements MenuHost {
   input!: InputManager;
   aircraftGroup = new THREE.Group();
   private crashFx!: CrashFx;
+  private jetBridges!: JetBridges;
+  private bridgeBtn!: HTMLButtonElement;
   private lastVel = new THREE.Vector3();
   private crashShown = false;
   graphics: GraphicsSettings = loadGraphics();
@@ -132,7 +134,13 @@ class App implements MenuHost {
     progress('Building city');
     this.buildings = new BuildingsRenderer(this.world.obstacles.buildings);
     this.scene.add(this.buildings.group);
-    this.scene.add(buildJetBridges(this.world.airport.gates ?? [], this.world.obstacles.buildings, (e, n) => this.world.terrain.heightAt(e, n) - 0.2));
+    this.jetBridges = new JetBridges(this.world.airport.gates ?? [], this.world.obstacles.buildings, (e, n) => this.world.terrain.heightAt(e, n) - 0.2);
+    this.scene.add(this.jetBridges.group);
+    this.bridgeBtn = document.createElement('button');
+    this.bridgeBtn.className = 'jv-bridge';
+    this.bridgeBtn.style.display = 'none';
+    document.body.appendChild(this.bridgeBtn);
+    this.bridgeBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('bridge'); });
     progress('Building aircraft');
     this.buildAircraftVisuals();
     this.aircraftGroup.matrixAutoUpdate = false;
@@ -285,6 +293,7 @@ class App implements MenuHost {
       this.hud.toast(`Flaps ${Math.round((det[c.flapLever] * 180) / Math.PI)}`);
     }
     if (ev === 'spoilers') { c.speedbrake = c.speedbrake > 0.5 ? 0 : 1; this.hud.toast(c.speedbrake ? 'Spoilers extended' : 'Spoilers retracted'); }
+    if (ev === 'bridge') this.hud.toast(this.jetBridges.toggle(ac));
     if (ev === 'camera') this.rig.setMode(this.rig.mode === 'cockpit' ? 'chase' : 'cockpit', ac);
   }
 
@@ -335,6 +344,10 @@ class App implements MenuHost {
       this.crashFx.trigger(nedToThree(ac.pos), this.lastVel.clone(), nedToThree(ac.pos).y - Math.max(ac.agl, 0), ac.def === B738 ? 35.8 : 11, 0xe9edf3);
     }
     this.crashFx.update(dt);
+    this.jetBridges.update(dt, ac);
+    const showBridge = !this.menu.open && !ac.crashed && this.jetBridges.canConnect(ac);
+    this.bridgeBtn.style.display = showBridge ? 'block' : 'none';
+    if (showBridge) this.bridgeBtn.textContent = this.jetBridges.connected ? 'RETRACT JET BRIDGE' : 'CONNECT JET BRIDGE';
 
     // aircraft transform (model authored in the body frame, origin at the datum)
     const R = bodyMatrix(ac.q);
