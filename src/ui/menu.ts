@@ -73,10 +73,7 @@ export class Menu {
     const nav = document.createElement('nav');
     nav.innerHTML = `<div class="jv-brand"><span class="jv-logo"></span>JETVAULT</div>`;
     const items: [Tab, string, boolean, string?][] = [
-      ['fly', 'Fly Now', true], ['map', 'World Map', true], ['aircraft', 'Aircraft Selection', true],
-      ['airports', 'Airport Selection', true], ['planner', 'Flight Planner', false, 'Not yet available'],
-      ['weather', 'Weather', true], ['settings', 'Settings', true], ['controls', 'Controls', true],
-      ['training', 'Training', false, 'Not yet available'], ['about', 'About JetVault', true],
+      ['fly', 'Fly', true],
     ];
     for (const [t, name, enabled, note] of items) {
       const b = document.createElement('button');
@@ -152,10 +149,6 @@ export class Menu {
     form.style.marginTop = '18px';
     form.innerHTML = `<label>Start view</label><select id="sv"><option value="cockpit" ${this.host.startView === 'cockpit' ? 'selected' : ''}>Cockpit</option><option value="chase" ${this.host.startView === 'chase' ? 'selected' : ''}>External (chase)</option></select><span></span>`;
     form.querySelector('#sv')!.addEventListener('change', (e) => { this.host.startView = (e.target as HTMLSelectElement).value as 'cockpit' | 'chase'; });
-    if (this.spawn.kind === 'stand' && !jet) {
-      form.insertAdjacentHTML('beforeend', `<label>Cold and dark</label><input type="checkbox" id="cd" ${this.spawn.coldAndDark ? 'checked' : ''}><span class="jv-dim">Engine off, all switches off</span>`);
-      form.querySelector('#cd')!.addEventListener('change', (e) => { if (this.spawn.kind === 'stand') this.spawn.coldAndDark = (e.target as HTMLInputElement).checked; });
-    }
     s.appendChild(form);
     const act = document.createElement('div'); act.className = 'jv-actions';
     const fly = document.createElement('button'); fly.className = 'jv-btn'; fly.textContent = 'FLY';
@@ -168,7 +161,7 @@ export class Menu {
     }
     s.appendChild(act);
     const help = document.createElement('p');
-    help.innerHTML = 'Quick reference: arrows = elevator/ailerons, Z/X = rudder, PgUp/PgDn = throttle, F6/F7 = flaps, Numpad 1/7 or End/Home = trim, period = brakes, B = parking brake, 1-5 = views, mouse drag = look, click the panel to operate switches, Esc = menu. Full list under Controls.';
+    help.innerHTML = 'Controls: mouse = fly (move from the centre of the screen) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · C = cockpit/outside view · mouse wheel = zoom · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
     s.appendChild(help);
   }
 

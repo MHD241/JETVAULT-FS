@@ -1,5 +1,5 @@
 import { Simulation } from '../sim/simulation';
-import { RAD, KT, FT } from '../core/math';
+import { RAD } from '../core/math';
 
 /** Minimal in-flight readout (H toggles). Values come from the instrument indications. */
 export class Hud {
@@ -14,7 +14,7 @@ export class Hud {
   constructor() {
     this.el = document.createElement('div');
     this.el.className = 'jv-hud';
-    for (const id of ['IAS', 'GS', 'ALT', 'AGL', 'V/S', 'HDG', 'THR', 'RPM', 'FLAPS', 'TRIM', 'BRAKES', 'AP', 'SIM']) {
+    for (const id of ['SPD', 'ALT', 'V/S', 'HDG', 'THR', 'FLAPS', 'GEAR', 'SPLR', 'BRK']) {
       const c = document.createElement('div');
       c.className = 'cell';
       c.innerHTML = `<b>-</b><span>${id}</span>`;
@@ -54,31 +54,23 @@ export class Hud {
     this.el.classList.toggle('compact', view === 'cockpit');
     this.toastTimer -= dt;
     if (this.toastTimer <= 0) this.toastEl.style.opacity = '0';
-    const ac = sim.aircraft, ind = sim.systems.ind, c = sim.controls, ap = sim.autopilot;
-    this.top.innerHTML = `<strong>JETVAULT</strong> &nbsp;EGPH · ${ac.def.name.toUpperCase()} · ${view.toUpperCase()} VIEW · WEATHER ${sim.weather.source.toUpperCase()}`;
+    const ac = sim.aircraft, ind = sim.systems.ind, c = sim.controls;
+    this.top.innerHTML = '';
     if (this.visible) {
-      const gs = Math.hypot(ac.vel.x, ac.vel.y) / KT;
-      this.set('IAS', `${ind.iasKt.toFixed(0)} kt`, ind.stallHorn ? 'bad' : ind.iasKt > ac.def.limits.vno ? 'warn' : '');
-      this.set('GS', `${gs.toFixed(0)} kt`);
+      this.set('SPD', `${ind.iasKt.toFixed(0)} kt`, ind.stallHorn ? 'bad' : ind.iasKt > ac.def.limits.vno ? 'warn' : '');
       this.set('ALT', `${ind.altitudeFt.toFixed(0)} ft`);
-      this.set('AGL', `${Math.max(0, (ac.agl - 1) / FT).toFixed(0)} ft`);
       this.set('V/S', `${(Math.round(ind.vsiFpm / 10) * 10).toFixed(0)}`);
       this.set('HDG', `${Math.round(ind.headingDeg).toString().padStart(3, '0')}°`);
       this.set('THR', `${(c.throttle * 100).toFixed(0)}%`);
-      if (ac.def.turbofans) this.set('RPM', `N1 ${(ind.rpm / 100).toFixed(0)}%`, ind.rpm / 100 > 101 ? 'bad' : '');
-      else this.set('RPM', ind.rpm.toFixed(0), ind.rpm > 2700 ? 'bad' : '');
-      this.set('FLAPS', `${Math.round(ac.flap * RAD)}°${ac.def.retractableGear ? (ac.gearExt > 0.99 ? ' GR DN' : ac.gearExt > 0.01 ? ' GR TR' : ' GR UP') : ''}`, ac.flap > 0.01 ? 'on' : '');
-      this.set('TRIM', `${c.trim >= 0 ? 'UP' : 'DN'} ${Math.abs(c.trim * 100).toFixed(0)}`);
-      this.set('BRAKES', c.parkingBrake ? 'PARK' : c.brakeLeft > 0 || c.brakeRight > 0 ? 'ON' : 'OFF', c.parkingBrake ? 'warn' : '');
-      this.set('AP', ap.engaged ? `${ap.lateral} ${ap.vertical}` : 'OFF', ap.engaged ? 'on' : '');
-      this.set('SIM', sim.paused ? 'PAUSED' : `${sim.timeScale}x`, sim.paused ? 'warn' : '');
+      this.set('FLAPS', `${Math.round(ac.flap * RAD)}°`, ac.flap > 0.01 ? 'on' : '');
+      this.set('GEAR', !ac.def.retractableGear ? 'FIXED' : ac.gearExt > 0.99 ? 'DOWN' : ac.gearExt > 0.01 ? 'MOVING' : 'UP', ac.gearExt > 0.01 && ac.gearExt < 0.99 ? 'warn' : '');
+      this.set('SPLR', ac.spoiler > 0.05 ? 'ON' : 'OFF', ac.spoiler > 0.05 ? 'warn' : '');
+      this.set('BRK', c.brakeLeft > 0 ? 'ON' : 'OFF', c.brakeLeft > 0 ? 'warn' : '');
     }
     if (ac.crashed) {
-      this.msg.innerHTML = `<div class="big">${ac.crashReason.toUpperCase()}</div><div class="small">Ctrl+R to restart at the same position · Esc for the menu</div>`;
+      this.msg.innerHTML = `<div class="big">${ac.crashReason.toUpperCase()}</div><div class="small">Press Esc (or MENU) to fly again</div>`;
     } else if (sim.paused) {
       this.msg.innerHTML = '<div class="big">PAUSED</div><div class="small">P to resume</div>';
-    } else if (!ac.engine.running && ac.onGround && ac.vel.len() < 0.2 && sim.simTime < 20) {
-      this.msg.innerHTML = '<div class="small">Engine off. Start it from the panel (master BAT, mixture rich, ignition to START) or press Ctrl+E for the automatic start sequence.</div>';
     } else {
       this.msg.innerHTML = '';
     }

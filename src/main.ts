@@ -15,14 +15,16 @@ import { BuildingsRenderer } from './render/buildingsMesh';
 import { C172Model } from './render/c172Model';
 import { Cockpit } from './render/cockpit';
 import { EnvironmentRenderer } from './render/environment';
-import { CameraRig, ViewMode } from './render/cameras';
+import { CameraRig } from './render/cameras';
 import { DebugView } from './render/debugView';
 import { bodyMatrix, nedToThree } from './render/coords';
-import { InputManager, loadInputSettings, Action } from './input/input';
+import { InputManager, loadInputSettings } from './input/input';
 import { Hud } from './ui/hud';
 import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
 import { Vec3, clamp } from './core/math';
 import { AutoTrim } from './sim/assists';
+import { SimpleControls, IS_TOUCH } from './input/simpleControls';
+import { Minimap } from './ui/minimap';
 
 const loadingMsg = document.getElementById('loading-msg')!;
 const loadingBar = document.getElementById('loading-bar')!;
@@ -69,16 +71,14 @@ class App implements MenuHost {
   payload: number[] = [];
   fuelFraction: [number, number] = [1, 1];
   attribution: string[] = [];
-  private lastSpawn: SpawnKind | { kind: 'air'; east: number; north: number; altFt: number; hdg: number } | null = null;
   private started = false;
   private lastT = 0;
   private perfEl: HTMLDivElement | null = null;
   private frameTimes: number[] = [];
-  private raycaster = new THREE.Raycaster();
-  private drag: { x: number; y: number; button: number; knob: THREE.Object3D | null; moved: boolean } | null = null;
   private tipEl = document.createElement('div');
-  private autoStart: { t: number } | null = null;
   private autoTrim = new AutoTrim();
+  simple!: SimpleControls;
+  minimap: Minimap | null = null;
 
   constructor() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
@@ -110,7 +110,8 @@ class App implements MenuHost {
     const lcLo = await decodeGray(lcLoBuf, this.world.meta.landcoverLo.n);
     const lo = new LandCover(lcLo, this.world.meta.landcoverLo.n, this.world.meta.landcoverLo.half, this.world.meta.landcoverLo.step);
     let roads = null;
-    try { roads = buildRoadOverlay(JSON.parse(new TextDecoder().decode(await fetchBuf('./data/egph/roads.json')))); } catch { /* optional data */ }
+    let roadsJson: [string, [number, number][]][] | null = null;
+    try { roadsJson = JSON.parse(new TextDecoder().decode(await fetchBuf('./data/egph/roads.json'))); roads = buildRoadOverlay(roadsJson!); } catch { /* optional data */ }
     let imagery = null;
     try {
       progress('Satellite imagery (Copernicus Sentinel-2)');
@@ -137,9 +138,16 @@ class App implements MenuHost {
     this.debug = new DebugView(this.sim.aircraft, this.world);
     this.scene.add(this.debug.group);
     this.input = new InputManager(loadInputSettings(), this.renderer.domElement);
+    this.simple = new SimpleControls(this.renderer.domElement);
+    this.minimap = new Minimap(this.world.airport, (imagery?.texture.image as CanvasImageSource) ?? null, roadsJson);
+    if (IS_TOUCH) {
+      // phones / tablets: lighter rendering
+      this.graphics = { ...this.graphics, renderScale: Math.min(this.graphics.renderScale, 0.75), shadows: false, buildingDistanceKm: 5, terrainDetail: 0.7 };
+      document.body.classList.add('touch');
+    }
     this.hud = new Hud();
     this.applyGraphics(this.graphics);
-    this.bindPointer();
+    this.renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); this.rig.zoom(e.deltaY < 0 ? 1 : -1); }, { passive: false });
     window.addEventListener('resize', () => this.resize());
     // initial state behind the menu: parked at stand 1
     this.sim.spawn({ kind: 'stand', index: 0, coldAndDark: false });
@@ -195,7 +203,7 @@ class App implements MenuHost {
   }
 
   // ---------------------------------------------------------------- MenuHost
-  startView: 'cockpit' | 'chase' = 'cockpit';
+  startView: 'cockpit' | 'chase' = 'chase';
 
   fly(spawn: SpawnKind | { kind: 'air'; east: number; north: number; altFt: number; hdg: number }) {
     const ac = this.sim.aircraft;
@@ -204,7 +212,8 @@ class App implements MenuHost {
     ac.updateMass();
     if (spawn.kind === 'air') this.sim.spawnAir(spawn.east, spawn.north, spawn.altFt, spawn.hdg);
     else this.sim.spawn(spawn);
-    this.lastSpawn = JSON.parse(JSON.stringify(spawn));
+    this.simple.setThrottle(this.sim.controls.throttle);
+    this.autoTrim = new AutoTrim();
     this.sim.paused = false;
     this.started = true;
     this.rig.setMode(this.startView, ac);
@@ -229,116 +238,20 @@ class App implements MenuHost {
     this.rig.camera.updateProjectionMatrix();
   }
 
-  // ---------------------------------------------------------------- input
-  private bindPointer() {
-    const el = this.renderer.domElement;
-    el.tabIndex = 0;
-    el.addEventListener('contextmenu', (e) => e.preventDefault());
-    const ndc = (e: MouseEvent) => new THREE.Vector2((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
-    el.addEventListener('pointerdown', (e) => {
-      let knob: THREE.Object3D | null = null;
-      if (this.rig.mode === 'cockpit' && e.button === 0) {
-        this.raycaster.setFromCamera(ndc(e), this.rig.camera);
-        const hits = this.raycaster.intersectObjects([this.cockpit.panelMesh, ...this.cockpit.knobs], false);
-        if (hits.length) {
-          const h = hits[0];
-          if (h.object === this.cockpit.panelMesh && h.uv) {
-            const r = this.cockpit.interact(h.uv, 'down');
-            if (r) { this.hud.toast(r.tip, 1.5); return; }
-          } else knob = h.object;
-        }
-      }
-      this.drag = { x: e.clientX, y: e.clientY, button: e.button, knob, moved: false };
-      el.setPointerCapture(e.pointerId);
-    });
-    el.addEventListener('pointermove', (e) => {
-      if (this.drag) {
-        const dx = e.clientX - this.drag.x, dy = e.clientY - this.drag.y;
-        this.drag.x = e.clientX; this.drag.y = e.clientY;
-        this.drag.moved = true;
-        if (this.drag.knob) {
-          const c = this.sim.controls;
-          const key = this.drag.knob.name as 'throttle' | 'mixture';
-          c[key] = THREE.MathUtils.clamp(c[key] - dy * 0.004, 0, 1);
-        } else this.rig.look(dx, dy);
-        return;
-      }
-      if (this.rig.mode === 'cockpit') {
-        this.raycaster.setFromCamera(ndc(e), this.rig.camera);
-        const hits = this.raycaster.intersectObjects([this.cockpit.panelMesh, ...this.cockpit.knobs], false);
-        let tip = '';
-        if (hits.length && hits[0].object === this.cockpit.panelMesh && hits[0].uv) tip = this.cockpit.interact(hits[0].uv, 'move')?.tip ?? '';
-        else if (hits.length) tip = `${hits[0].object.name} (drag up/down)`;
-        else this.cockpit.hover = null;
-        el.style.cursor = tip ? 'pointer' : 'default';
-        this.tipEl.style.display = tip ? '' : 'none';
-        this.tipEl.textContent = tip;
-        this.tipEl.style.left = `${e.clientX + 14}px`; this.tipEl.style.top = `${e.clientY + 14}px`;
-      }
-    });
-    el.addEventListener('pointerup', (e) => {
-      this.cockpit.releaseAll();
-      this.drag = null;
-      el.releasePointerCapture(e.pointerId);
-    });
-    el.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      if (this.rig.mode === 'cockpit' && this.cockpit.hover) {
-        this.raycaster.setFromCamera(ndc(e), this.rig.camera);
-        const h = this.raycaster.intersectObject(this.cockpit.panelMesh, false)[0];
-        if (h?.uv) { this.cockpit.interact(h.uv, 'wheel', e.deltaY < 0 ? 1 : -1); return; }
-      }
-      this.rig.zoom(e.deltaY < 0 ? 1 : -1);
-    }, { passive: false });
-  }
-
-  private handleAction(a: Action) {
-    const sim = this.sim, c = sim.controls, ac = sim.aircraft, ap = sim.autopilot;
-    const views: Partial<Record<Action, ViewMode>> = { viewCockpit: 'cockpit', viewChase: 'chase', viewWing: 'wing', viewTower: 'tower', viewFree: 'free' };
-    if (views[a]) { this.rig.setMode(views[a]!, ac); return; }
-    switch (a) {
-      case 'menu': if (this.menu.open) { if (this.canResume()) this.resume(); } else { this.sim.paused = true; this.menu.show(); } break;
-      case 'pause': sim.paused = !sim.paused; break;
-      case 'simRate': sim.timeScale = sim.timeScale >= 4 ? 1 : sim.timeScale * 2; this.hud.toast(`Simulation rate ${sim.timeScale}x`); break;
-      case 'flapsUp': c.flapLever = Math.max(0, c.flapLever - 1); break;
-      case 'flapsDown': c.flapLever = Math.min(ac.def.controls.flapDetents.length - 1, c.flapLever + 1); break;
-      case 'gearToggle': if (ac.def.retractableGear) { c.gearDown = !c.gearDown; this.hud.toast(c.gearDown ? 'Gear down' : 'Gear up'); } break;
-      case 'speedbrake': c.speedbrake = c.speedbrake > 0.5 ? 0 : 1; this.hud.toast(c.speedbrake ? 'Speedbrake extended' : 'Speedbrake retracted'); break;
-      case 'throttleFull': c.throttle = 1; break;
-      case 'throttleIdle': c.throttle = 0; break;
-      case 'parkingBrake': c.parkingBrake = !c.parkingBrake; this.hud.toast(c.parkingBrake ? 'Parking brake set' : 'Parking brake released'); break;
-      case 'autoStart': this.autoStart = { t: 0 }; this.hud.toast('Automatic start sequence'); break;
-      case 'apToggle': if (ap.engaged) ap.disengage('Pilot'); else ap.engage(sim.systems); this.hud.toast(ap.engaged ? 'Autopilot engaged (ROL / VS)' : `Autopilot off ${ap.disconnectReason}`); break;
-      case 'apHdg': if (ap.engaged) ap.lateral = ap.lateral === 'HDG' ? 'ROL' : 'HDG'; break;
-      case 'apAlt': if (ap.engaged) { if (ap.vertical === 'ALT') ap.vertical = 'VS'; else ap.holdAltitude(sim.systems); } break;
-      case 'apUp': if (ap.vertical === 'VS') ap.targetVsFpm += 100; else ap.targetAltFt += 100; break;
-      case 'apDown': if (ap.vertical === 'VS') ap.targetVsFpm -= 100; else ap.targetAltFt -= 100; break;
-      case 'hdgBugSync': c.headingBug = Math.round(sim.systems.ind.headingDeg); break;
-      case 'debugCollision': this.debug.toggle(); break;
-      case 'perfOverlay': this.togglePerf(); break;
-      case 'hud': this.hud.toggle(); break;
-      case 'mouseYoke': this.input.mouseYoke = !this.input.mouseYoke; this.hud.toast(this.input.mouseYoke ? 'Mouse yoke on' : 'Mouse yoke off'); break;
-      case 'reset': if (this.lastSpawn) this.fly(this.lastSpawn); break;
-      case 'zoomIn': this.rig.zoom(1); break;
-      case 'zoomOut': this.rig.zoom(-1); break;
-      default: break;
+  /** Simplified control events (keys G/F/B/C/Esc or touch buttons). */
+  private handleSimple(ev: string) {
+    const c = this.sim.controls, ac = this.sim.aircraft;
+    if (ev === 'menu') { if (this.menu.open) { if (this.canResume()) this.resume(); } else { this.sim.paused = true; this.menu.show(); } return; }
+    if (this.menu.open) return;
+    if (ev === 'gear' && ac.def.retractableGear) { c.gearDown = !c.gearDown; this.hud.toast(c.gearDown ? 'Gear down' : 'Gear up'); }
+    if (ev === 'gear' && !ac.def.retractableGear) this.hud.toast('Fixed landing gear');
+    if (ev === 'flaps') {
+      const det = ac.def.controls.flapDetents;
+      c.flapLever = (Math.round(c.flapLever) + 1) % det.length;
+      this.hud.toast(`Flaps ${Math.round((det[c.flapLever] * 180) / Math.PI)}`);
     }
-  }
-
-  /** Automatic start: performs the same switch actions a pilot would, in order. */
-  private runAutoStart(dt: number) {
-    if (!this.autoStart) return;
-    const c = this.sim.controls, eng = this.sim.aircraft.engine;
-    const s = this.autoStart;
-    s.t += dt;
-    c.masterBattery = true; c.beacon = true; c.fuelSelector = 'BOTH'; c.mixture = 1;
-    if (s.t < 0.5) { c.throttle = 0.1; return; }
-    if (!eng.running && s.t < 10) { c.mags = 'START'; return; }
-    c.mags = 'BOTH';
-    c.masterAlternator = true; c.avionics = true; c.navLights = true;
-    c.throttle = 0.12;
-    this.hud.toast(eng.running ? 'Engine running' : 'Engine did not start');
-    this.autoStart = null;
+    if (ev === 'spoilers') { c.speedbrake = c.speedbrake > 0.5 ? 0 : 1; this.hud.toast(c.speedbrake ? 'Spoilers extended' : 'Spoilers retracted'); }
+    if (ev === 'camera') this.rig.setMode(this.rig.mode === 'cockpit' ? 'chase' : 'cockpit', ac);
   }
 
   /** Flight-control diagnostics (part of the F10 overlay). */
@@ -364,12 +277,7 @@ class App implements MenuHost {
       `Thrust      ${(ac.engines.reduce((a, e) => a + e.thrust, 0) / 1000).toFixed(2)} kN\n` + gear;
   }
 
-  private togglePerf() {
-    if (this.perfEl) { this.perfEl.remove(); this.perfEl = null; return; }
-    this.perfEl = document.createElement('div');
-    this.perfEl.className = 'jv-perf';
-    document.body.appendChild(this.perfEl);
-  }
+
 
   // ---------------------------------------------------------------- frame
   private frame() {
@@ -378,13 +286,11 @@ class App implements MenuHost {
     this.lastT = now;
     const t0 = performance.now();
     const sim = this.sim, ac = sim.aircraft;
-    for (const a of this.input.consume()) this.handleAction(a);
+    this.input.consume(); // legacy bindings are disabled in the simplified control scheme
+    for (const ev of this.simple.consume()) this.handleSimple(ev);
     if (!this.menu.open) {
-      this.input.update(dt, sim.controls, ac.beta, ac.onGround, ac.euler[2], ac.q.rotate(ac.omega).z, Math.hypot(ac.vel.x, ac.vel.y));
-      if (this.input.settings.autoTrim && !sim.autopilot.engaged && !sim.paused) {
-        sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.input.rawPitch), -1, 1);
-      }
-      this.runAutoStart(dt);
+      this.simple.update(dt, sim.controls, ac);
+      if (!sim.paused) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
     sim.advance(dt);
 
@@ -411,6 +317,7 @@ class App implements MenuHost {
     this.buildings.update(cam.position, this.env.night);
     this.debug.update();
     this.hud.update(sim, dt, this.rig.mode);
+    if (!this.menu.open) this.minimap?.update(ac);
     if (this.menu.open) this.menu.drawMap();
 
     this.renderer.toneMappingExposure = this.env.tune.exposure;
