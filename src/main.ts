@@ -155,6 +155,7 @@ class App implements MenuHost {
     this.hud = new Hud();
     this.applyGraphics(this.graphics);
     this.renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); this.rig.zoom(e.deltaY < 0 ? 1 : -1); }, { passive: false });
+    this.bindTouchLook(this.renderer.domElement);
     window.addEventListener('resize', () => this.resize());
     // initial state behind the menu: parked at stand 1
     this.sim.spawn({ kind: 'stand', index: 0, coldAndDark: false });
@@ -207,6 +208,29 @@ class App implements MenuHost {
     this.payload = def.stations.map((st) => st.mass);
     this.fuelFraction = id === 'b738' ? [0.45, 0.45] : [1, 1];
     this.buildAircraftVisuals();
+  }
+
+  /** One-finger swipe orbits/looks, two-finger pinch zooms (touch controls sit above the canvas). */
+  private bindTouchLook(el: HTMLCanvasElement) {
+    el.style.touchAction = 'none';
+    const pts = new Map<number, { x: number; y: number }>();
+    let pinch = 0;
+    el.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') return; el.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); pinch = 0; });
+    el.addEventListener('pointermove', (e) => {
+      const p = pts.get(e.pointerId);
+      if (!p) return;
+      const dx = e.clientX - p.x, dy = e.clientY - p.y;
+      p.x = e.clientX; p.y = e.clientY;
+      if (pts.size === 1) this.rig.look(dx, dy);
+      else if (pts.size === 2) {
+        const [a, b] = [...pts.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch) { const r = d / pinch; if (Math.abs(r - 1) > 0.01) this.rig.zoom(r > 1 ? 1 : -1); }
+        pinch = d;
+      }
+    });
+    const end = (e: PointerEvent) => { pts.delete(e.pointerId); pinch = 0; };
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
   }
 
   // ---------------------------------------------------------------- MenuHost

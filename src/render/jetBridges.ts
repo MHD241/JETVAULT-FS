@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Building, pointInPoly } from '../world/obstacles';
 
-const LENGTH = 17; // m, extended length from the facade to the cab
+const LENGTH = 24; // m, extended length from the facade to the cab
 const FLOOR = 3.6; // m above ground (737 forward door sill height)
 
 function tint(g: THREE.BufferGeometry, c: THREE.Color) {
@@ -21,7 +21,7 @@ export function buildJetBridges(gates: [number, number][], buildings: Building[]
   const terms = buildings.filter((b) => b.role === 'terminal' || b.role === 'pier');
   const parts: THREE.BufferGeometry[] = [];
   const used: [number, number][] = [];
-  const tube = new THREE.Color(0.78, 0.8, 0.82), dark = new THREE.Color(0.2, 0.22, 0.25), col = new THREE.Color(0.55, 0.57, 0.6);
+  const tube = new THREE.Color(0.40, 0.44, 0.50), dark = new THREE.Color(0.10, 0.12, 0.15), col = new THREE.Color(0.80, 0.82, 0.85), yellow = new THREE.Color(0.95, 0.75, 0.08);
   for (const [gx, gy] of gates) {
     if (used.some(([x, y]) => Math.hypot(x - gx, y - gy) < 9)) continue;
     // nearest wall of any terminal/pier
@@ -53,20 +53,25 @@ export function buildJetBridges(gates: [number, number][], buildings: Building[]
       g.translate(best.px + best.nx * along, base + up, -(best.py + best.ny * along));
       parts.push(g);
     };
-    const tubeG = tint(new THREE.BoxGeometry(LENGTH - 3, 2.5, 2.7), tube);
+    const tubeG = tint(new THREE.BoxGeometry(LENGTH - 3, 3.0, 3.6), tube);
     place(tubeG, (LENGTH - 3) / 2, FLOOR + 1.3);
-    const roofG = tint(new THREE.BoxGeometry(LENGTH - 3, 0.12, 2.9), col);
-    place(roofG, (LENGTH - 3) / 2, FLOOR + 2.6);
-    const winG = tint(new THREE.BoxGeometry(LENGTH - 5, 0.7, 2.76), dark);
-    place(winG, (LENGTH - 3) / 2, FLOOR + 1.6);
-    const cab = tint(new THREE.CylinderGeometry(1.7, 1.7, 2.6, 14), tube);
+    const roofG = tint(new THREE.BoxGeometry(LENGTH - 3, 0.2, 3.8), col);
+    place(roofG, (LENGTH - 3) / 2, FLOOR + 3.0);
+    const winG = tint(new THREE.BoxGeometry(LENGTH - 5, 0.8, 3.66), dark);
+    place(winG, (LENGTH - 3) / 2, FLOOR + 1.9);
+    const cab = tint(new THREE.CylinderGeometry(2.4, 2.4, 3.2, 16), tube);
     place(cab, LENGTH - 1.2, FLOOR + 1.3);
     const wheelBar = tint(new THREE.BoxGeometry(0.5, FLOOR - 0.3, 0.5), dark);
     place(wheelBar, LENGTH - 5, (FLOOR - 0.3) / 2);
     const foot = tint(new THREE.BoxGeometry(2.2, 0.35, 1.2), dark);
     place(foot, LENGTH - 5, 0.17);
-    const hood = tint(new THREE.BoxGeometry(3, 3.2, 3.2), col);
-    place(hood, 0.5, FLOOR + 1.4);
+    const hood = tint(new THREE.BoxGeometry(4, 3.8, 4.4), col);
+    place(hood, 0.5, FLOOR + 1.6);
+    // stand lead-in line and stop bar painted on the apron beyond the cab
+    const lead = tint(new THREE.BoxGeometry(50, 0.06, 0.45), yellow);
+    place(lead, LENGTH + 4 + 25, 0.1);
+    const bar = tint(new THREE.BoxGeometry(0.5, 0.06, 9), yellow);
+    place(bar, LENGTH + 30, 0.1);
   }
   if (parts.length) {
     const mesh = new THREE.Mesh(mergeGeometries(parts.map((g) => g.toNonIndexed()))!, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.3 }));
