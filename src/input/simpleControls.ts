@@ -122,14 +122,16 @@ export class SimpleControls {
     const k = (this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('ArrowLeft') ? 1 : 0);
     this.pedal = k ? clamp(this.pedal + k * 2 * dt, -1, 1) : this.pedal * Math.max(0, 1 - 6 * dt);
     let assist = 0;
+    // on the ground the stick's roll axis steers (nosewheel/rudder), as with a mouse or joystick tiller
+    const steer = ac.onGround ? c.roll : 0;
     const heading = ac.euler[2];
     if (!ac.onGround) { assist = ac.beta * 4; this.holdHdg = null; }
-    else if (Math.hypot(ac.vel.x, ac.vel.y) > 1.5 && !k) {
+    else if (Math.hypot(ac.vel.x, ac.vel.y) > 1.5 && !k && Math.abs(steer) < 0.05) {
       if (this.holdHdg === null) this.holdHdg = heading;
       let e = this.holdHdg - heading; e = Math.atan2(Math.sin(e), Math.cos(e));
       assist = e * 6 - ac.q.rotate(ac.omega).z * 2.5;
     } else this.holdHdg = null;
-    c.yaw = clamp(this.pedal + assist, -1, 1);
+    c.yaw = clamp(this.pedal + steer + assist, -1, 1);
     c.throttle = this.throttle;
     const brake = this.keys.has('Space') || this.touchBrake ? 1 : 0;
     c.brakeLeft = brake; c.brakeRight = brake;
