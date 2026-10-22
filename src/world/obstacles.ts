@@ -8,6 +8,8 @@ export interface Building {
   base: number; // m MSL (lowest terrain under footprint)
   top: number; // m MSL
   minE: number; maxE: number; minN: number; maxN: number;
+  /** Airport building class (set by styleAirportBuildings); 'terminal' and 'pier' render with glazing. */
+  role?: 'terminal' | 'pier' | 'airside';
 }
 
 export class ObstacleIndex {
@@ -98,4 +100,31 @@ export function parseBuildings(
     out.push({ pts, base: base - 1, top: base + h, minE, maxE, minN, maxN });
   }
   return out;
+}
+
+function polyArea(p: Float32Array) {
+  let a = 0;
+  const n = p.length / 2;
+  for (let i = 0; i < n; i++) { const j = (i + 1) % n; a += p[2 * i] * p[2 * j + 1] - p[2 * j] * p[2 * i + 1]; }
+  return Math.abs(a) / 2;
+}
+
+/**
+ * OSM/Overture have footprints for the EGPH terminal complex but no heights (default 8 m).
+ * Classify the buildings around the stands and give them plausible heights.
+ * Heights are ESTIMATES (terminal ~3 storeys, piers ~2), not surveyed values.
+ */
+export function styleAirportBuildings(list: Building[], gates: [number, number][]) {
+  if (!gates.length) return;
+  const gx = gates.reduce((a, g) => a + g[0], 0) / gates.length, gy = gates.reduce((a, g) => a + g[1], 0) / gates.length;
+  for (const b of list) {
+    const cE = (b.minE + b.maxE) / 2, cN = (b.minN + b.maxN) / 2;
+    const d = Math.hypot(cE - gx, cN - gy);
+    if (d > 450) continue;
+    const area = polyArea(b.pts);
+    const base = b.base + 1;
+    if (area > 20000) { b.role = 'terminal'; b.top = base + 15; }
+    else if (area > 5000 && d < 150) { b.role = 'pier'; b.top = base + 11; }
+    else if (area > 1200) { b.role = 'airside'; b.top = base + Math.max(b.top - base, 10); }
+  }
 }

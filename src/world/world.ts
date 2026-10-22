@@ -1,6 +1,6 @@
 import { Terrain, HeightGrid } from './terrain';
 import { AirportData, PavementIndex } from './airport';
-import { ObstacleIndex, parseBuildings } from './obstacles';
+import { ObstacleIndex, parseBuildings, styleAirportBuildings } from './obstacles';
 import { GroundQuery, SurfaceInfo } from '../sim/fdm/gear';
 
 export interface RegionMeta {
@@ -86,7 +86,9 @@ export async function loadWorld(
   onProgress?.('Buildings');
   const obstacles = new ObstacleIndex(100);
   const bbuf = await fetcher(`${base}/${meta.buildings.file}`);
-  for (const b of parseBuildings(bbuf, (e, n) => terrain.heightAt(e, n))) obstacles.add(b);
+  const blds = parseBuildings(bbuf, (e, n) => terrain.heightAt(e, n));
+  styleAirportBuildings(blds, airport.gates ?? []);
+  for (const b of blds) obstacles.add(b);
   let landcover: LandCover | null = null;
   if (decodeLandcover) {
     onProgress?.('Land cover (ESA WorldCover)');

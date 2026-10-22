@@ -54,7 +54,14 @@ float bh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453)
 float gWin;`)
         .replace('#include <color_fragment>', `#include <color_fragment>
 gWin = 0.0;
-if (vWall.z > 0.5) {
+if (vWall.z > 1.5) {
+  // glazed facade: continuous ribbon glazing with mullions, 4.5 m storeys
+  vec2 cell = vec2(vWall.x / 1.8, vWall.y / 4.5);
+  vec2 f = fract(cell);
+  float win = step(0.06, f.x) * step(f.x, 0.96) * step(0.12, f.y) * step(f.y, 0.86) * step(1.0, vWall.y);
+  gWin = win * 0.9;
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.10, 0.17, 0.24), win * 0.85);
+} else if (vWall.z > 0.5) {
   // windows: 3.2 m storeys, ~2.6 m bays
   vec2 cell = vec2(vWall.x / 2.6, vWall.y / 3.2);
   vec2 f = fract(cell);
@@ -83,15 +90,21 @@ const PALETTE = [
 const ROOFS = [[0.30, 0.31, 0.33], [0.36, 0.34, 0.33], [0.42, 0.25, 0.20], [0.25, 0.26, 0.27]]
   .map((c) => new THREE.Color().setRGB(c[0], c[1], c[2], THREE.SRGBColorSpace));
 
+const GLASS = new THREE.Color().setRGB(0.42, 0.52, 0.60, THREE.SRGBColorSpace);
+const CLAD = new THREE.Color().setRGB(0.62, 0.66, 0.70, THREE.SRGBColorSpace);
+const TERM_ROOF = new THREE.Color().setRGB(0.70, 0.71, 0.72, THREE.SRGBColorSpace);
+
 function buildTileGeometry(list: Building[], cx: number, cn: number) {
   const pos: number[] = [], col: number[] = [], wuv: number[] = [], idx: number[] = [];
   let seed = 1;
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   for (const b of list) {
     const n = b.pts.length / 2;
-    const wall = PALETTE[Math.floor(rnd() * PALETTE.length)];
-    const roof = ROOFS[Math.floor(rnd() * ROOFS.length)];
-    const tall = b.top - b.base > 6 ? 1 : 0;
+    let wall = PALETTE[Math.floor(rnd() * PALETTE.length)];
+    let roof = ROOFS[Math.floor(rnd() * ROOFS.length)];
+    let tall = b.top - b.base > 6 ? 1 : 0;
+    if (b.role === 'terminal' || b.role === 'pier') { wall = GLASS; roof = TERM_ROOF; tall = 2; }
+    else if (b.role === 'airside') { wall = CLAD; roof = TERM_ROOF; tall = 0; }
     let perim = 0;
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;

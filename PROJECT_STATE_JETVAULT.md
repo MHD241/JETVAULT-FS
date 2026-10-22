@@ -59,6 +59,11 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - Minimap top-left (heading-up, Sentinel-2 imagery + major roads + runway). Auto-rudder and auto-trim always on. HUD reduced; autopilot/cockpit-click/cold-start UI removed from the UI.
 - Real licensed 737 model: pending user-provided GLB; procedural model still used.
 
+## Update 5 — EGPH terminal (first pass)
+- Data audit: Overture/OSM gives footprints, 55 taxiway centrelines, 28 gate points, 6 aprons; **no** taxiway names, gate numbers, building heights or tower. Overpass (direct OSM) is blocked in this environment.
+- Terminal (>20,000 m²) and pier (>5,000 m² within 150 m of the stands) are now classified in `styleAirportBuildings` (`src/world/obstacles.ts`) with ESTIMATED heights (15 m / 11 m), glazed ribbon-window facades and light roofs; other large airside buildings use grey cladding. Collision uses the same heights.
+- Taxiway centrelines/edge lights already existed. **Not done:** jet bridges, taxiway signs/names, gate numbers, control tower, detailed facades.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
