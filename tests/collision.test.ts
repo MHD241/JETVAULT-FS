@@ -19,8 +19,8 @@ describe('crash and collision detection', () => {
     expect(sim.aircraft.altitude).toBeGreaterThan(-3); // stopped at the surface, not below it
   });
 
-  it('a 1000 fpm arrival breaks the gear; a 150 fpm one does not', () => {
-    for (const [fpm, expectCrash] of [[1000, true], [150, false]] as const) {
+  it('a 3000 fpm arrival breaks the gear; a 1000 fpm one does not (threshold 2500 fpm)', () => {
+    for (const [fpm, expectCrash] of [[3000, true], [1000, false]] as const) {
       const sim = newSim(flatWorld(0));
       sim.spawn({ kind: 'runway', ident: '36' });
       const ac = sim.aircraft;

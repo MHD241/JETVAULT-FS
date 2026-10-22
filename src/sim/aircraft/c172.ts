@@ -163,17 +163,17 @@ export const C172: AircraftDef = {
     {
       name: 'Nose', attach: new Vec3(1.2, 0, 0.25), length: 0.75, travel: 0.18,
       spring: 35000, damping: 3500, dampingRebound: 5000, wheelRadius: 0.19,
-      steerMax: 10 * DEG, brake: null, maxSinkRate: 3.2,
+      steerMax: 10 * DEG, brake: null, maxSinkRate: 12.7,
     },
     {
       name: 'Left main', attach: new Vec3(-0.45, -1.27, 0.35), length: 0.65, travel: 0.15,
       spring: 63000, damping: 3500, dampingRebound: 4500, wheelRadius: 0.2,
-      steerMax: 0, brake: 'left', maxSinkRate: 4.0,
+      steerMax: 0, brake: 'left', maxSinkRate: 12.7,
     },
     {
       name: 'Right main', attach: new Vec3(-0.45, 1.27, 0.35), length: 0.65, travel: 0.15,
       spring: 63000, damping: 3500, dampingRebound: 4500, wheelRadius: 0.2,
-      steerMax: 0, brake: 'right', maxSinkRate: 4.0,
+      steerMax: 0, brake: 'right', maxSinkRate: 12.7,
     },
   ],
   contacts: [

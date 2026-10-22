@@ -126,17 +126,17 @@ export const B738: AircraftDef = {
     {
       name: 'Nose', attach: new Vec3(14.1, 0, 1.6), length: 2.45, travel: 0.4,
       spring: 3.0e5, damping: 6.0e4, dampingRebound: 9.0e4, wheelRadius: 0.38,
-      steerMax: 70 * DEG, steerHighSpeed: 7 * DEG, brake: null, maxSinkRate: 3.5,
+      steerMax: 70 * DEG, steerHighSpeed: 7 * DEG, brake: null, maxSinkRate: 12.7,
     },
     {
       name: 'Left main', attach: new Vec3(-1.5, -2.86, 1.5), length: 2.55, travel: 0.5,
       spring: 1.15e6, damping: 1.6e5, dampingRebound: 2.6e5, wheelRadius: 0.56,
-      steerMax: 0, brake: 'left', maxSinkRate: 4.0,
+      steerMax: 0, brake: 'left', maxSinkRate: 12.7,
     },
     {
       name: 'Right main', attach: new Vec3(-1.5, 2.86, 1.5), length: 2.55, travel: 0.5,
       spring: 1.15e6, damping: 1.6e5, dampingRebound: 2.6e5, wheelRadius: 0.56,
-      steerMax: 0, brake: 'right', maxSinkRate: 4.0,
+      steerMax: 0, brake: 'right', maxSinkRate: 12.7,
     },
   ],
   contacts: [
