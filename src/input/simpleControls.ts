@@ -100,7 +100,7 @@ export class SimpleControls {
     // stick: touch joystick, else mouse position (dead zone in the centre)
     const dz = (v: number, d: number) => (Math.abs(v) < d ? 0 : Math.sign(v) * (Math.abs(v) - d) / (1 - d));
     let pitch = 0, roll = 0;
-    if (IS_TOUCH) { pitch = -this.joy.y; roll = this.joy.x; }
+    if (IS_TOUCH) { pitch = this.joy.y; roll = this.joy.x; }
     else if (this.mouse.active) { pitch = -dz(this.mouse.y, 0.06) * 1.3; roll = dz(this.mouse.x, 0.06) * 1.3; }
     c.pitch = clamp(pitch, -1, 1);
     c.roll = clamp(roll, -1, 1);

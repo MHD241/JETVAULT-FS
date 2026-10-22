@@ -25,6 +25,7 @@ import { Vec3, clamp } from './core/math';
 import { AutoTrim } from './sim/assists';
 import { SimpleControls, IS_TOUCH } from './input/simpleControls';
 import { Minimap } from './ui/minimap';
+import { CrashFx } from './render/crashFx';
 
 const loadingMsg = document.getElementById('loading-msg')!;
 const loadingBar = document.getElementById('loading-bar')!;
@@ -66,6 +67,9 @@ class App implements MenuHost {
   menu!: Menu;
   input!: InputManager;
   aircraftGroup = new THREE.Group();
+  private crashFx!: CrashFx;
+  private lastVel = new THREE.Vector3();
+  private crashShown = false;
   graphics: GraphicsSettings = loadGraphics();
   weather: WeatherSettings = { ...DEFAULT_WEATHER };
   payload: number[] = [];
@@ -131,6 +135,7 @@ class App implements MenuHost {
     this.buildAircraftVisuals();
     this.aircraftGroup.matrixAutoUpdate = false;
     this.scene.add(this.aircraftGroup);
+    this.crashFx = new CrashFx(this.scene);
     this.env = new EnvironmentRenderer(this.scene, this.renderer, this.terrain.uniforms.uDetail.value as THREE.DataTexture);
     this.rig = new CameraRig(window.innerWidth / window.innerHeight);
     this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
@@ -212,6 +217,9 @@ class App implements MenuHost {
     ac.updateMass();
     if (spawn.kind === 'air') this.sim.spawnAir(spawn.east, spawn.north, spawn.altFt, spawn.hdg);
     else this.sim.spawn(spawn);
+    this.crashFx.clear();
+    this.crashShown = false;
+    this.aircraftGroup.visible = true;
     this.simple.setThrottle(this.sim.controls.throttle);
     this.autoTrim = new AutoTrim();
     this.sim.paused = false;
@@ -292,7 +300,15 @@ class App implements MenuHost {
       this.simple.update(dt, sim.controls, ac);
       if (!sim.paused) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
+    if (!ac.crashed) nedToThree(ac.vel, this.lastVel);
     sim.advance(dt);
+    if (ac.crashed && !this.crashShown) {
+      this.crashShown = true;
+      this.aircraftGroup.visible = false;
+      this.rig.setMode('chase', ac);
+      this.crashFx.trigger(nedToThree(ac.pos), this.lastVel.clone(), nedToThree(ac.pos).y - Math.max(ac.agl, 0), ac.def === B738 ? 35.8 : 11, 0xe9edf3);
+    }
+    this.crashFx.update(dt);
 
     // aircraft transform (model authored in the body frame, origin at the datum)
     const R = bodyMatrix(ac.q);
