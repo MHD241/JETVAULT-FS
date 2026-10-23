@@ -58,9 +58,12 @@ export class CameraRig {
     }
   }
 
-  zoom(dir: number) {
-    if (this.mode === 'chase') { this.chaseDist = THREE.MathUtils.clamp(this.chaseDist * (dir > 0 ? 0.9 : 1.1), 7, 400); return; }
-    const f = THREE.MathUtils.clamp(this.camera.fov * (dir > 0 ? 0.92 : 1.08), 10, 90);
+  zoom(dir: number) { this.zoomBy(dir > 0 ? 0.9 : 1.1); }
+
+  /** Multiplicative zoom: factor < 1 zooms in (closer chase camera / narrower field of view). */
+  zoomBy(k: number) {
+    if (this.mode === 'chase') { this.chaseDist = THREE.MathUtils.clamp(this.chaseDist * k, 7, 400); return; }
+    const f = THREE.MathUtils.clamp(this.camera.fov * (k < 1 ? Math.max(k, 0.5) ** 0.8 : Math.min(k, 2) ** 0.8), 10, 90);
     this.camera.fov = f;
     if (this.mode === 'cockpit') this.fovCockpit = f; else this.fovExternal = f;
     this.camera.updateProjectionMatrix();

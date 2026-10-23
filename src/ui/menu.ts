@@ -170,7 +170,7 @@ export class Menu {
     }
     s.appendChild(act);
     const help = document.createElement('p');
-    help.innerHTML = 'Controls: mouse = fly, inverted (move from the centre of the screen; mouse up = nose down) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · U = pushback · gliders: L/R = winch launch / release cable, V = vario sound · C = cockpit/outside view · mouse wheel = zoom · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
+    help.innerHTML = 'Controls: mouse = fly, inverted (move from the centre of the screen; mouse up = nose down) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · U = pushback · gliders: L/R = winch launch / release cable, V = vario sound · C = cockpit/outside view · mouse wheel / pinch = zoom · right-drag or two-finger scroll = look · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
     s.appendChild(help);
   }
 
@@ -387,7 +387,8 @@ export class Menu {
     <tr><td>Flaps (cycle)</td><td><kbd>F</kbd></td></tr>
     <tr><td>Gear</td><td><kbd>G</kbd></td></tr>
     <tr><td>Spoilers / airbrakes</td><td><kbd>B</kbd></td></tr>
-    <tr><td>View: cockpit / outside</td><td><kbd>C</kbd>; mouse wheel zooms; swipe on touch screens</td></tr>
+    <tr><td>View: cockpit / outside</td><td><kbd>C</kbd></td></tr>
+    <tr><td>Camera</td><td>Mouse wheel or trackpad pinch = zoom; hold the right mouse button and move, or two-finger scroll on a trackpad = look/orbit; swipe on touch screens</td></tr>
     <tr><td>Jet bridge (at a gate)</td><td><kbd>J</kbd></td></tr>
     <tr><td>Pushback (airliner at a gate)</td><td><kbd>U</kbd>; <kbd>X</kbd> or <kbd>&uarr;</kbd> centres the tug wheel</td></tr>
     <tr><td>Glider winch launch / release</td><td><kbd>L</kbd> / <kbd>R</kbd>; <kbd>V</kbd> toggles the audio vario</td></tr>

@@ -214,7 +214,16 @@ class App implements MenuHost {
     }
     this.hud = new Hud();
     this.applyGraphics(this.graphics);
-    this.renderer.domElement.addEventListener('wheel', (e) => { e.preventDefault(); this.rig.zoom(e.deltaY < 0 ? 1 : -1); }, { passive: false });
+    this.renderer.domElement.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (e.ctrlKey) { this.rig.zoomBy(Math.exp(e.deltaY * 0.012)); return; } // trackpad pinch (browsers report it as ctrl + wheel)
+      // a mouse wheel notches in whole steps (or lines); a trackpad two-finger scroll is fine-grained
+      const wd = (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY;
+      const notch = e.deltaMode !== 0 || (e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 40 && (wd === undefined || Math.abs(wd) % 120 === 0));
+      if (notch) this.rig.zoom(e.deltaY < 0 ? 1 : -1);
+      else this.rig.look(-e.deltaX, -e.deltaY); // two-finger scroll moves the camera
+    }, { passive: false });
+    this.renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
     this.bindTouchLook(this.renderer.domElement);
     window.addEventListener('resize', () => this.resize());
     // initial state behind the menu: parked at stand 1
@@ -298,6 +307,11 @@ class App implements MenuHost {
     });
     const end = (e: PointerEvent) => { pts.delete(e.pointerId); pinch = 0; };
     el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+    // desktop: hold the right mouse button and move to look around
+    let rmb = false;
+    el.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button === 2) { rmb = true; el.setPointerCapture(e.pointerId); e.preventDefault(); } });
+    el.addEventListener('pointermove', (e) => { if (rmb && e.pointerType === 'mouse') this.rig.look(e.movementX, e.movementY); });
+    el.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse' && e.button === 2) rmb = false; });
   }
 
   // ---------------------------------------------------------------- MenuHost

@@ -3,6 +3,7 @@
 // body frame (FRD) with origin at the datum; moving parts are driven by the simulation.
 
 import * as THREE from 'three';
+import { B737Rig } from './b737Rig';
 import { Aircraft } from '../sim/fdm/aircraft';
 import { FlightControls } from '../sim/controls';
 import { naca, airfoilPart, loftWing, orient, strut } from './c172Model';
@@ -98,7 +99,7 @@ export class B737Model {
   private t = 0;
   /** Real 737-800 mesh (public/models/b738.fbx) once loaded; replaces the procedural exterior. */
   private real: THREE.Group | null = null;
-  private realGear: THREE.Object3D[] = [];
+  private rig: B737Rig | null = null;
 
   constructor() {
     this.root.name = 'B738';
@@ -328,7 +329,7 @@ export class B737Model {
     });
     // gear: retract inboard (mains) and forward (nose)
     const ret = 1 - ac.gearExt;
-    for (const g of this.realGear) g.visible = ac.gearExt > 0.5;
+    if (this.rig) this.rig.update(ac);
     this.mainGear.forEach((g, i) => {
       g.rotation.x = (i === 0 ? -1 : 1) * ret * (Math.PI / 2); // mains fold inboard
       const comp = ac.gearStates[i + 1]?.compression ?? 0;
@@ -362,25 +363,29 @@ export class B737Model {
     const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js');
     const mgr = new THREE.LoadingManager();
     mgr.setURLModifier(() => 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==');
+    const LIVERY = ['Material10', 'Material11', 'Material14', 'Material15', 'Material18'];
+    const livery = new Set<THREE.MeshPhongMaterial>();
+    const whiteRef: { m: THREE.MeshPhongMaterial | null } = { m: null };
     const root = new FBXLoader(mgr).parse(await (await fetch(url)).arrayBuffer(), '');
     root.updateMatrixWorld(true);
-    const gear: THREE.Object3D[] = [];
     root.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
       for (const mat of ([] as THREE.Material[]).concat(m.material)) {
         const mm = mat as THREE.MeshPhongMaterial;
         mm.map = null; mm.side = THREE.DoubleSide;
-        if (['Material10', 'Material11', 'Material14', 'Material15', 'Material18'].includes(mm.name)) mm.color.set(0xf1f3f5);
+        if (LIVERY.includes(mm.name)) livery.add(mm);
+        if (mm.name === 'Color_000') whiteRef.m = mm;
         if ('shininess' in mm) mm.shininess = Math.min(mm.shininess, 40);
       }
       m.castShadow = true; m.receiveShadow = true;
       // The supplied model is painted in a real airline's livery (geometry patches, not textures). Neutralise it:
       // the tail becomes plain navy and the colour patches (lettering, tail art, swooshes, engine lips) become white.
       if (m.name === 'Group_082') m.material = new THREE.MeshPhongMaterial({ color: 0x14254a, shininess: 40, side: THREE.DoubleSide });
-      const b = new THREE.Box3().setFromObject(m), c = b.getCenter(new THREE.Vector3());
-      if (Math.abs(c.x) <= 160 && c.y <= 110 && (Math.abs(c.z) <= 40 || c.z > 550)) gear.push(m);
     });
+    // livery colour patches take the exact look of the white fuselage paint, so no ghost lettering remains
+    const white = whiteRef.m;
+    if (white) for (const mm of livery) { mm.color.copy(white.color); mm.specular.copy(white.specular); mm.shininess = white.shininess; mm.emissive.copy(white.emissive); }
     // model (x span, y up, z nose) -> body FRD metres; pitched ~2 deg nose-up about the main wheels so the
     // nose and main wheels sit on the same plane as the flight model's gear
     const s = 35.79 / 1404.4;
@@ -391,12 +396,14 @@ export class B737Model {
       .multiply(P)
       .multiply(new THREE.Matrix4().makeRotationX(-2.06 * Math.PI / 180))
       .multiply(new THREE.Matrix4().makeTranslation(0, -22, 3));
+    // rig the control surfaces in model space (before the model is placed under the scaling wrapper)
+    try { this.rig = new B737Rig(root); console.info('737 rig:', this.rig.report.join('; ')); } catch (e) { console.warn('737 rig failed; model stays static', e); }
     const wrap = new THREE.Group();
     wrap.matrixAutoUpdate = false; wrap.matrix.copy(m);
     wrap.add(root);
     this.exterior.visible = false;
     this.root.add(wrap);
-    this.real = wrap; this.realGear = gear;
+    this.real = wrap;
     wrap.visible = true;
   }
 }

@@ -1,6 +1,6 @@
 # JetVault Flight Simulator — Project State
 
-_Last updated: update 2 (left-veer diagnosis, Boeing 737-800, Edinburgh imagery/roads)._
+_Last updated: update 20 (737 control-surface animation, desktop camera controls). This file is regenerated and handed over at the end of every piece of work._
 
 ## Engine and architecture
 - **Platform:** browser, TypeScript + three.js (WebGL2), built with Vite. Chosen because the dev environment has no GPU and no native engine; the user plays in a browser. Fallback/native path: Godot 4 (the flight model is engine-independent TypeScript and can be ported).
@@ -131,6 +131,12 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - It arrived painted in a real airline's livery (geometry patches, not textures). That branding is removed: tail plain navy, lettering/swooshes/engine lips recoloured white. Embedded textures are dropped. About screen notes the unverified licence.
 - Static parts: the control surfaces, flaps, spoilers, thrust reversers and engine fans are not separate animated parts (they are merged into groups), so they do not move. Landing-gear parts are picked out by position and hidden when the gear is up (no folding animation). Gear selection is a heuristic; the transit look is unchecked.
 - Cockpit view still uses the existing procedural flight deck (the model has no interior).
+
+## Update 20 — 737 animation rig, desktop camera
+- **Control surfaces (real 737 mesh, `src/render/b737Rig.ts`):** the supplied FBX has no skeleton and only some surfaces are separate meshes. Separate meshes used: flap panels (inboard 4 parts + outboard 2 parts per side), 12 leading-edge slats/Krueger flaps, 2 elevators, landing-gear parts. Carved (duplicate triangles over the untouched skin, so no hole opens): 2 ailerons and 4 spoilers from the wing skin (`Group_010`), the rudder from the fin (`Group_082`). Hinge lines come from each part's own geometry (principal axis in plan). Result at load: aileron 2/2, spoilers 4/4, flaps 4/4, slats 12/12, elevators 2/2, rudder 1/1 (logged to the console as "737 rig").
+- **Realism of the motion:** deflections are the flight model's actual surface positions after actuator lag (ailerons, elevator, rudder); flaps rotate and also move aft and down (Fowler travel, up to ~0.4 m); slats extend intermediate for flaps 1-5 and fully beyond; ground spoilers rise only on the ground, flight spoilers follow the speedbrake and also rise on the up-going aileron side; the gear folds smoothly (nose forward, mains inboard) in step with the gear position, and the nose wheel steers with the tiller. Verified in headless screenshots (flaps 40° with gap, spoilers/ailerons, gear in transit). **Not done:** thrust reversers, engine fan rotation, gear doors, wheel spin and strut compression (the mesh does not separate them); the rudder deflection is small to see and was only checked in one view; the livery patches are now exactly the fuselage white.
+- **Desktop camera:** mouse wheel or trackpad pinch = zoom (pinch arrives as ctrl+wheel); hold the right mouse button and move = look/orbit; two-finger trackpad scroll = look/orbit (a mouse wheel is told apart by whole notches/line mode). Touch gestures unchanged. Not tested with a physical trackpad (headless only).
+- Renamed `PROJECT_STATE_JETVAULT.md` to `PROJECT_STATE.md` at the user's request.
 
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
