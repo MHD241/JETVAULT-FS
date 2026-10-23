@@ -412,7 +412,7 @@ class App implements MenuHost {
   applyWeather(w: WeatherSettings) { this.weather = w; this.sim.setWeather(w); this.hud?.toast('Weather applied'); }
   applyGraphics(g: GraphicsSettings) {
     this.graphics = g;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * g.renderScale);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * g.renderScale);
     this.renderer.shadowMap.enabled = g.shadows;
     this.env.sun.castShadow = g.shadows;
     this.terrain.detail = g.terrainDetail;
