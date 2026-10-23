@@ -8,11 +8,13 @@ from rasterio.transform import from_origin
 from PIL import Image
 sys.path.insert(0, os.path.dirname(__file__))
 from build_geodata import LOCAL, OUT
-HALF, STEP = 12000.0, 6.0
+HALF, STEP = (12000.0, 6.0) if os.environ.get('AIRPORT', 'egph') == 'egph' else (9000.0, 6.0)
 N = int(2 * HALF / STEP)
 tf = from_origin(-HALF, HALF, STEP, STEP)
 B = "/vsicurl/https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/30"
 scenes = [f"{B}/U/VG/2025/5/S2C_30UVG_20250516_0_L2A/TCI.tif", f"{B}/V/VH/2025/5/S2C_30VVH_20250516_0_L2A/TCI.tif"]
+if os.environ.get("AIRPORT", "egph") != "egph":
+    scenes = scenes[1:]  # Portmoak lies inside tile 30VVH
 out = np.zeros((3, N, N), np.float32)
 have = np.zeros((N, N), bool)
 for url in scenes:

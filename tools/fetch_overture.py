@@ -8,8 +8,9 @@ import pyarrow.fs as pfs, pyarrow.dataset as ds
 import shapely.wkb, shapely.geometry
 
 RELEASE = "2026-09-23.0"
-BBOX = (-3.47, 55.90, -3.27, 56.00)  # lon_min, lat_min, lon_max, lat_max
-OUT = os.path.join(os.path.dirname(__file__), "cache")
+REGION = os.environ.get("AIRPORT", "egph")
+BBOX = (-3.47, 55.90, -3.27, 56.00) if REGION == "egph" else (-3.47, 56.12, -3.19, 56.26)  # lon_min, lat_min, lon_max, lat_max
+OUT = os.path.join(os.path.dirname(__file__), "cache" if REGION == "egph" else f"cache_{REGION}")
 
 fs = pfs.S3FileSystem(anonymous=True, region="us-west-2", proxy_options=os.environ.get("HTTPS_PROXY"))
 

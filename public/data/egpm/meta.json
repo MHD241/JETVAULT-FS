@@ -1,0 +1,44 @@
+{
+ "projection": "+proj=tmerc +lat_0=56.191031 +lon_0=-3.328505 +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs +type=crs",
+ "origin": {
+  "lat": 56.191031,
+  "lon": -3.328505
+ },
+ "terrainHi": {
+  "file": "terrain_hi.bin",
+  "n": 1068,
+  "half": 16000.0,
+  "step": 30.0,
+  "scale": 0.1
+ },
+ "terrainLo": {
+  "file": "terrain_lo.bin",
+  "n": 1001,
+  "half": 120000.0,
+  "step": 240.0,
+  "scale": 0.1
+ },
+ "landcoverHi": {
+  "file": "landcover_hi.png",
+  "n": 1601,
+  "half": 16000.0,
+  "step": 20.0
+ },
+ "landcoverLo": {
+  "file": "landcover_lo.png",
+  "n": 1001,
+  "half": 120000.0,
+  "step": 240.0
+ },
+ "buildings": {
+  "file": "buildings.bin",
+  "count": 29092
+ },
+ "rowOrder": "north-to-south",
+ "attribution": [
+  "Copernicus DEM GLO-30: (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA",
+  "ESA WorldCover 10 m 2021 v200, (c) ESA WorldCover project, CC BY 4.0",
+  "Airport and building geometry: Overture Maps Foundation, derived from OpenStreetMap (c) OpenStreetMap contributors, ODbL",
+  "Runway thresholds (EGPH): OurAirports (public domain); Portmoak strip: OpenStreetMap via Overture Maps"
+ ]
+}

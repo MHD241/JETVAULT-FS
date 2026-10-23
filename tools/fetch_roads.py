@@ -5,7 +5,7 @@ import pyarrow.fs as pfs, pyarrow.dataset as ds, shapely.wkb
 sys.path.insert(0, os.path.dirname(__file__))
 from build_geodata import to_local, OUT
 RELEASE = "2026-09-23.0"
-BBOX = (-3.51, 55.88, -3.23, 56.02)
+BBOX = (-3.51, 55.88, -3.23, 56.02) if os.environ.get("AIRPORT", "egph") == "egph" else (-3.43, 56.13, -3.23, 56.25)
 KEEP = {"motorway", "trunk", "primary", "secondary", "tertiary", "residential", "unclassified", "service", "living_street"}
 fs = pfs.S3FileSystem(anonymous=True, region="us-west-2", proxy_options=os.environ.get("HTTPS_PROXY"))
 d = ds.dataset(f"overturemaps-us-west-2/release/{RELEASE}/theme=transportation/type=segment", filesystem=fs, format="parquet")

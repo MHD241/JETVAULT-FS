@@ -112,6 +112,12 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - Restored the full menu (World Map, Aircraft Selection, Airport Selection, Weather, Settings, Controls, About); the Controls tab now documents the fixed key scheme.
 - Mouse pitch inverted (mouse up = nose down).
 
+## Update 16 — Portmoak (EGPM) region
+- Second map region `public/data/egpm` built by the same pipeline with `AIRPORT=egpm` (`tools/fetch_overture.py`, `fetch_roads.py`, `build_geodata.py`, `build_imagery.py`): Copernicus DEM (32 km square at 30 m), ESA WorldCover, Sentinel-2 imagery (±9 km, 16 May 2025), OSM roads and buildings via Overture. Airport selection reloads the simulator with that region (stored in localStorage `jv-airport`, or `?airport=egpm`).
+- **Runway data is not from OurAirports** (it only has the airfield point for Portmoak): the 10/28 strip is the longer OpenStreetMap runway way (~990 m); designators come from its heading, width 30 m is an estimate, elevation ~350 ft. OSM also shows a second parallel strip and shorter ways that are not modelled. Grass surface: no markings, lights or PAPI, grass friction.
+- Glider options at Portmoak: winch launch from either end, airborne at the Lomond Hills ridge (the hills rise north of the airfield: 335-430 m within 3 km), final approach. The ridge faces south, so ridge lift needs a southerly wind (Weather tab); ridge lift comes from the real terrain slope.
+- Not done: the real airfield layout (hangars, clubhouse detail, second runway, winch sites), thermals tied to ground type, aerotow, the other aircraft's start positions at Portmoak are generic. Real-device behaviour NOT TESTED.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

@@ -4,6 +4,7 @@
 import { SpawnKind } from '../sim/simulation';
 import { WeatherSettings, CloudCover } from '../sim/weather';
 import { InputSettings, saveInputSettings } from '../input/input';
+import { REGIONS, currentRegion, switchRegion } from '../world/region';
 import { World } from '../world/world';
 import { Aircraft, AircraftDef } from '../sim/fdm/aircraft';
 
@@ -95,10 +96,17 @@ export class Menu {
     else if (this.tab === 'map') this.renderMap(s);
     else if (this.tab === 'aircraft') this.renderAircraft(s);
     else if (this.tab === 'airports') {
-      s.innerHTML = `<h2>Airport Selection</h2><p>Edinburgh (EGPH) is the validated test region: real terrain (Copernicus DEM), land cover (ESA WorldCover),
-      runway thresholds (OurAirports) and taxiways, aprons, stands and buildings (OpenStreetMap via Overture Maps).
-      Further airports will be added once this region is fully validated.</p>
-      <div class="jv-grid"><div class="jv-card sel"><b>EGPH Edinburgh</b><span>Runway 06/24 · 2556 m · asphalt<br>Elevation ${(h.world.airport.arp.elev / 0.3048).toFixed(0)} ft · TWR ${h.world.airport.frequencies.TWR} · GND ${h.world.airport.frequencies.GND}</span></div></div>`;
+      s.innerHTML = `<h2>Airport Selection</h2><p>Each airport is a separate region of real data: terrain (Copernicus DEM), land cover (ESA WorldCover), Sentinel-2 imagery,
+      and airport, road and building geometry from OpenStreetMap (via Overture Maps). Choosing another airport reloads the simulator.</p>`;
+      const grid = document.createElement('div'); grid.className = 'jv-grid';
+      for (const r of REGIONS) {
+        const c = document.createElement('div');
+        c.className = 'jv-card' + (r.id === currentRegion() ? ' sel' : '');
+        c.innerHTML = `<b>${r.icao} ${r.name}</b><span>${r.blurb}</span>`;
+        c.onclick = () => { if (r.id !== currentRegion()) switchRegion(r.id); };
+        grid.appendChild(c);
+      }
+      s.appendChild(grid);
     } else if (this.tab === 'weather') this.renderWeather(s);
     else if (this.tab === 'settings') this.renderSettings(s);
     else if (this.tab === 'controls') this.renderControls(s);
@@ -120,19 +128,21 @@ export class Menu {
     const glider = !!def.glider;
     s.innerHTML = `<h2>Fly Now</h2><p>Choose the aircraft, airport, start position and view.</p><h3>Aircraft</h3>`;
     this.aircraftPicker(s);
-    s.insertAdjacentHTML('beforeend', `<h3>Airport</h3><div class="jv-grid"><div class="jv-card sel"><b>EGPH Edinburgh</b><span>Runway 06/24 · real terrain, taxiways and buildings</span></div></div><h3>Start position</h3>`);
+    const cur = REGIONS.find((r) => r.id === currentRegion())!;
+    s.insertAdjacentHTML('beforeend', `<h3>Airport</h3><div class="jv-grid"><div class="jv-card sel"><b>${cur.icao} ${cur.name}</b><span>${cur.blurb}<br>Change it under Airport Selection.</span></div></div><h3>Start position</h3>`);
+    const idents = ap.runways.flatMap((r) => r.ends.map((e) => e.ident));
     const grid = document.createElement('div'); grid.className = 'jv-grid';
+    const ridge = ap.icao === 'EGPM';
     const opts: [AnySpawn, string, string][] = glider ? [
-      [{ kind: 'runway', ident: '24' }, 'Runway 24 winch launch', 'On the ground, press LAUNCH for a winch launch (1,400 m cable)'],
-      [{ kind: 'runway', ident: '06' }, 'Runway 06 winch launch', 'On the ground, press LAUNCH for a winch launch (1,400 m cable)'],
-      [{ kind: 'air', east: 0, north: 0, altFt: 3000, hdg: 0 }, 'Airborne, 3,000 ft over the airport', 'Soaring: thermals by day, ridge lift in wind over hills'],
-      [{ kind: 'approach', ident: '24', distanceNm: 1.5 }, 'Final approach 24', '1.5 nm final, airbrakes ready'],
+      ...idents.map((id): [AnySpawn, string, string] => [{ kind: 'runway', ident: id }, `Runway ${id} winch launch`, 'On the ground, press LAUNCH for a winch launch (1,400 m cable)']),
+      ridge
+        ? [{ kind: 'air', east: 1000, north: 1700, altFt: 1500, hdg: 0 }, 'Airborne at the Lomond Hills ridge', 'Ridge soaring: best with a southerly wind (set it under Weather)']
+        : [{ kind: 'air', east: 0, north: 0, altFt: 3000, hdg: 0 }, 'Airborne, 3,000 ft over the airport', 'Soaring: thermals by day, ridge lift in wind over hills'],
+      [{ kind: 'approach', ident: idents[0], distanceNm: 1.5 }, `Final approach ${idents[0]}`, '1.5 nm final, airbrakes ready'],
     ] : [
-      ...(jet ? ap.standsJet ?? [] : ap.stands).map((_, i): [SpawnKind, string, string] => [{ kind: 'stand', index: i, coldAndDark: false }, jet ? `Gate stand ${i + 1}` : `Parking stand ${i + 1}`, jet ? 'Nose-in at a boarding bridge, parking brake set' : 'Apron, parking brake set']),
-      [{ kind: 'runway', ident: '24' }, 'Runway 24', jet ? 'Lined up, engines running, flaps 5' : 'Lined up, engine running'],
-      [{ kind: 'runway', ident: '06' }, 'Runway 06', jet ? 'Lined up, engines running, flaps 5' : 'Lined up, engine running'],
-      [{ kind: 'approach', ident: '24', distanceNm: jet ? 6 : 3 }, 'Final approach 24', jet ? '6 nm, 3° glidepath, flaps 30, gear down' : '3 nm, 3° glidepath, flaps 10'],
-      [{ kind: 'approach', ident: '06', distanceNm: jet ? 6 : 3 }, 'Final approach 06', jet ? '6 nm, 3° glidepath, flaps 30, gear down' : '3 nm, 3° glidepath, flaps 10'],
+      ...(jet ? ap.standsJet ?? [] : ap.stands).map((_, i): [AnySpawn, string, string] => [{ kind: 'stand', index: i, coldAndDark: false }, jet ? `Gate stand ${i + 1}` : `Parking stand ${i + 1}`, jet ? 'Nose-in at a boarding bridge, parking brake set' : 'Apron, parking brake set']),
+      ...idents.map((id): [AnySpawn, string, string] => [{ kind: 'runway', ident: id }, `Runway ${id}`, jet ? 'Lined up, engines running, flaps 5' : 'Lined up, engine running']),
+      ...idents.slice(0, 2).map((id): [AnySpawn, string, string] => [{ kind: 'approach', ident: id, distanceNm: jet ? 6 : 3 }, `Final approach ${id}`, jet ? '6 nm, 3° glidepath, flaps 30, gear down' : '3 nm, 3° glidepath, flaps 10']),
     ];
     const key = (k: AnySpawn) => JSON.stringify({ ...k, coldAndDark: undefined });
     for (const [k, t, d] of opts) {
@@ -165,7 +175,7 @@ export class Menu {
   }
 
   private renderMap(s: HTMLElement) {
-    s.innerHTML = `<h2>World Map</h2><p>Edinburgh region, 48 x 48 km high-resolution terrain. Click the map to start airborne at that position (2,500 ft, heading toward EGPH).</p>`;
+    s.innerHTML = `<h2>World Map</h2><p>${this.host.world.airport.name} region, ${this.host.world.meta.terrainHi.half * 2 / 1000} x ${this.host.world.meta.terrainHi.half * 2 / 1000} km high-resolution terrain. Click the map to start airborne at that position (2,500 ft, heading toward ${this.host.world.airport.icao}).</p>`;
     const cv = document.createElement('canvas');
     cv.width = 800; cv.height = 800; cv.className = 'jv-map';
     s.appendChild(cv);
@@ -208,7 +218,7 @@ export class Menu {
     const P = (e: number, n: number): [number, number] => [((e + grid.half) / (2 * grid.half)) * W, ((grid.half - n) / (2 * grid.half)) * W];
     g.strokeStyle = '#e9edf3'; g.lineWidth = 3;
     for (const rw of this.host.world.airport.runways) { g.beginPath(); g.moveTo(...P(rw.ends[0].x, rw.ends[0].y)); g.lineTo(...P(rw.ends[1].x, rw.ends[1].y)); g.stroke(); }
-    g.fillStyle = '#e9edf3'; g.font = '12px sans-serif'; g.fillText('EGPH', ...P(250, -500));
+    g.fillStyle = '#e9edf3'; g.font = '12px sans-serif'; g.fillText(this.host.world.airport.icao, ...P(250, -500));
     const ac = this.host.aircraft;
     const [x, y] = P(ac.pos.y, ac.pos.x);
     const psi = ac.euler[2];

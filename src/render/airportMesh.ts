@@ -44,6 +44,7 @@ export function buildPavementOverlay(ap: AirportData): TerrainOverlay {
   }
   // runway strip underneath the runway mesh (avoids grass showing at the edges)
   for (const rw of ap.runways) {
+    if (rw.surface === 'grass') continue;
     const [a, b] = rw.ends;
     const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
     const ux = dx / L, uy = dy / L;
@@ -87,6 +88,22 @@ export function buildRoadOverlay(roads: [string, [number, number][]][]): Terrain
 }
 
 /** Runway markings texture in runway coordinates (u across, v along from end[0]). */
+/** Mown grass strip: lighter centre with mowing stripes and faint end marks. */
+function grassRunwayTexture(rw: Runway) {
+  const W = 64, H = 512;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d')!;
+  g.fillStyle = 'rgb(112,138,62)'; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 16; i++) { g.fillStyle = i % 2 ? 'rgba(160,186,96,0.35)' : 'rgba(90,116,48,0.3)'; g.fillRect(8, (i * H) / 16, W - 16, H / 16); }
+  g.fillStyle = 'rgba(255,255,255,0.55)';
+  g.fillRect(2, 0, 2, H); g.fillRect(W - 4, 0, 2, H); // edge marker lines
+  g.fillRect(2, 0, W - 4, 6); g.fillRect(2, H - 6, W - 4, 6); // thresholds
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  void rw;
+  return t;
+}
+
 function runwayTexture(rw: Runway) {
   const W = 512, H = 4096;
   const cv = document.createElement('canvas');
@@ -247,7 +264,7 @@ export class AirportRenderer {
     const nrm = g.getAttribute('normal');
     if (nrm.getY(0) < 0) { g.setIndex(idx.map((_, k) => idx[k - (k % 3) + [0, 2, 1][k % 3]])); g.computeVertexNormals(); }
     const mat = new THREE.MeshStandardMaterial({
-      map: runwayTexture(rw), roughness: 0.85, metalness: 0,
+      map: rw.surface === 'grass' ? grassRunwayTexture(rw) : runwayTexture(rw), roughness: rw.surface === 'grass' ? 1 : 0.85, metalness: 0,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
     });
     const mesh = new THREE.Mesh(g, mat);
@@ -302,6 +319,7 @@ export class AirportRenderer {
       pos.push(e, this.h(e, n) + hgt, -n); col.push(...c); size.push(s); always.push(alw);
     };
     for (const rw of this.ap.runways) {
+      if (rw.surface === 'grass') continue; // unlit grass strip
       const [a, b] = rw.ends;
       const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
       const ux = dx / L, uy = dy / L, px = uy, py = -ux;
@@ -346,6 +364,7 @@ export class AirportRenderer {
 
     // PAPI: 4 units left of each runway, 300 m past the (displaced) threshold
     for (const rw of this.ap.runways) {
+      if (rw.surface === 'grass') continue; // no PAPI on the grass strip
       const [a, b] = rw.ends;
       const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
       const ux = dx / L, uy = dy / L, px = uy, py = -ux;

@@ -3,15 +3,17 @@
 import { Aircraft } from '../sim/fdm/aircraft';
 import { AirportData } from '../world/airport';
 
-const HALF = 12000; // m covered by the base map
 const BASE = 2048; // px
 
 export class Minimap {
   readonly el: HTMLCanvasElement;
   private base: HTMLCanvasElement;
   rangeM = 3500;
+  private HALF: number;
 
-  constructor(ap: AirportData, imagery: CanvasImageSource | null, roads: [string, [number, number][]][] | null) {
+  constructor(ap: AirportData, imagery: CanvasImageSource | null, roads: [string, [number, number][]][] | null, half = 12000) {
+    this.HALF = half;
+    const HALF = half;
     this.el = document.createElement('canvas');
     this.el.className = 'jv-minimap';
     this.el.width = this.el.height = 200;
@@ -40,6 +42,7 @@ export class Minimap {
   update(ac: Aircraft) {
     const g = this.el.getContext('2d')!;
     const S = this.el.width;
+    const HALF = this.HALF;
     const k = BASE / (2 * HALF);
     const e = ac.pos.y, n = ac.pos.x, psi = ac.euler[2];
     g.save();

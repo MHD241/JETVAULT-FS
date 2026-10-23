@@ -70,6 +70,7 @@ export class PavementIndex {
 
   constructor(ap: AirportData) {
     for (const rw of ap.runways) {
+      if (rw.surface === 'grass') continue; // grass strips keep grass friction
       const [a, b] = rw.ends;
       // include 60 m beyond each end (stopways / blast pads)
       const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);

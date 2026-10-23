@@ -36,18 +36,19 @@ import shapely.geometry as sg
 from shapely.ops import transform as shp_transform
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CACHE = os.path.join(ROOT, "tools", "cache")
-OUT = os.path.join(ROOT, "public", "data", "egph")
+CACHE = os.path.join(ROOT, "tools", "cache" if os.environ.get("AIRPORT", "egph") == "egph" else "cache_" + os.environ.get("AIRPORT"))
+REGION = os.environ.get("AIRPORT", "egph")
+OUT = os.path.join(ROOT, "public", "data", REGION)
 
-ARP_LAT, ARP_LON = 55.950145, -3.372288
+ARP_LAT, ARP_LON = (55.950145, -3.372288) if REGION == "egph" else (56.191031, -3.328505)
 LOCAL = CRS.from_proj4(f"+proj=tmerc +lat_0={ARP_LAT} +lon_0={ARP_LON} +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs")
 WGS = CRS.from_epsg(4326)
 to_local = Transformer.from_crs(WGS, LOCAL, always_xy=True)
 to_wgs = Transformer.from_crs(LOCAL, WGS, always_xy=True)
 
-HI = dict(half=24000.0, step=30.0)
+HI = dict(half=24000.0, step=30.0) if REGION == "egph" else dict(half=16000.0, step=30.0)
 LO = dict(half=120000.0, step=240.0)
-LC_HI = dict(half=24000.0, step=20.0)
+LC_HI = dict(half=24000.0, step=20.0) if REGION == "egph" else dict(half=16000.0, step=20.0)
 LC_LO = dict(half=120000.0, step=240.0)
 
 # Runway 06/24 from OurAirports (public domain). Elevations in ft.
@@ -56,6 +57,15 @@ RUNWAYS = [
          ends=[dict(ident="06", lat=55.944, lon=-3.39014, elev_ft=110, hdg_true=59, displaced_ft=700),
                dict(ident="24", lat=55.955898, lon=-3.35506, elev_ft=100, hdg_true=239, displaced_ft=700)]),
 ]
+if REGION == "egpm":
+    # Portmoak (Scottish Gliding Centre): OurAirports has the airfield point only, no runways. The strip
+    # geometry is the longer OpenStreetMap runway way (via Overture); designators come from the heading.
+    # Elevation ~350 ft AMSL (Loch Leven basin). Surface: grass.
+    RUNWAYS = [
+        dict(id="10/28", width_ft=100, surface="grass",
+             ends=[dict(ident="10", lat=56.19181, lon=-3.33823, elev_ft=350, hdg_true=99, displaced_ft=0),
+                   dict(ident="28", lat=56.19037, lon=-3.32239, elev_ft=350, hdg_true=279, displaced_ft=0)]),
+    ]
 ILS = []  # not sourced yet; see PROJECT_STATE (do not invent frequencies)
 
 
@@ -248,7 +258,7 @@ def main():
     for f in infra["features"]:
         c = f["properties"]["class"]
         g = proj_geom(f["geometry"])
-        if c == "international_airport":
+        if c in ("international_airport", "airport"):
             boundary = g
         elif c == "taxiway":
             taxiways.append([[round(x, 2), round(y, 2)] for x, y in g.coords])
@@ -297,18 +307,25 @@ def main():
     nb = write_buildings(os.path.join(OUT, "buildings.bin"), bld, boundary)
 
     lon_c, lat_c = ARP_LON, ARP_LAT
-    airport = dict(icao="EGPH", name="Edinburgh Airport", arp=dict(lat=lat_c, lon=lon_c, elev=135 * 0.3048),
+    airport = dict(icao="EGPH" if REGION == "egph" else "EGPM", name="Edinburgh Airport" if REGION == "egph" else "Portmoak (Scottish Gliding Centre)", arp=dict(lat=lat_c, lon=lon_c, elev=(135 if REGION == "egph" else 350) * 0.3048),
                    runways=runways, runwayLines=rw_lines, taxiways=taxiways, aprons=aprons, stands=stands,
                    boundary=[[round(x, 1), round(y, 1)] for x, y in boundary.exterior.coords][:-1],
                    buildings=airport_blds, ils=ILS,
-                   frequencies=dict(ATIS=131.35, GND=121.75, TWR=118.7, APP=121.2),
+                   frequencies=dict(ATIS=131.35, GND=121.75, TWR=118.7, APP=121.2) if REGION == "egph" else {},
                    navaids=[dict(id="EDN", type="NDB", khz=341, lat=55.97840118408203, lon=-3.2841200828552246),
-                            dict(id="UW", type="NDB", khz=368, lat=55.90520095825195, lon=-3.5025100708007812)])
+                            dict(id="UW", type="NDB", khz=368, lat=55.90520095825195, lon=-3.5025100708007812)] if REGION == "egph" else [])
     for nv in airport["navaids"]:
         nv["x"], nv["y"] = local_xy(nv["lon"], nv["lat"])
-    from derive_stands import derive
-    airport["gates"], airport["stands"] = derive(airport)
-    airport["standsJet"] = derive(airport, 20.0)[1]
+    if REGION == "egph":
+        from derive_stands import derive
+        airport["gates"], airport["stands"] = derive(airport)
+        airport["standsJet"] = derive(airport, 20.0)[1]
+    else:
+        # one parking spot on the grass beside the launch point (the first runway end), facing along the runway
+        e = runways[0]["ends"][0]
+        h = math.radians(e["hdgTrue"])
+        airport["gates"] = []
+        airport["stands"] = [[round(e["x"] + math.cos(h) * 40 + 25, 1), round(e["y"] - math.sin(h) * 40 + 10, 1), round(e["hdgTrue"], 1)]]
     json.dump(airport, open(os.path.join(OUT, "airport.json"), "w"), separators=(",", ":"))
 
     meta = dict(
@@ -323,7 +340,7 @@ def main():
             "Copernicus DEM GLO-30: (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA",
             "ESA WorldCover 10 m 2021 v200, (c) ESA WorldCover project, CC BY 4.0",
             "Airport and building geometry: Overture Maps Foundation, derived from OpenStreetMap (c) OpenStreetMap contributors, ODbL",
-            "Runway thresholds: OurAirports (public domain)",
+            "Runway thresholds (EGPH): OurAirports (public domain); Portmoak strip: OpenStreetMap via Overture Maps",
         ])
     json.dump(meta, open(os.path.join(OUT, "meta.json"), "w"), indent=1)
     print("done; buildings:", nb, "airport buildings:", len(airport_blds))

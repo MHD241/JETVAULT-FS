@@ -8,6 +8,7 @@ import { B738 } from './sim/aircraft/b738';
 import { GLIDER } from './sim/aircraft/glider';
 import { GliderModel, GliderCockpit } from './render/gliderModel';
 import { Vario } from './ui/vario';
+import { currentRegion } from './world/region';
 import { AircraftDef } from './sim/fdm/aircraft';
 import { B737Model } from './render/b737Model';
 import { B737Cockpit } from './render/b737Cockpit';
@@ -120,24 +121,25 @@ class App implements MenuHost {
 
   async init() {
     progress('Loading region data');
-    this.world = await loadWorld('./data/egph', fetchBuf, decodeGray, progress);
+    this.world = await loadWorld(`./data/${currentRegion()}`, fetchBuf, decodeGray, progress);
     this.attribution = this.world.meta.attribution;
     this.sim = new Simulation(this.world, C172, this.weather);
     this.payload = C172.stations.map((s) => s.mass);
     progress('Building terrain');
     const overlay = buildPavementOverlay(this.world.airport);
-    const lcLoBuf = await fetchBuf(`./data/egph/${this.world.meta.landcoverLo.file}`);
+    const lcLoBuf = await fetchBuf(`./data/${currentRegion()}/${this.world.meta.landcoverLo.file}`);
     const lcLo = await decodeGray(lcLoBuf, this.world.meta.landcoverLo.n);
     const lo = new LandCover(lcLo, this.world.meta.landcoverLo.n, this.world.meta.landcoverLo.half, this.world.meta.landcoverLo.step);
     let roads = null;
     let roadsJson: [string, [number, number][]][] | null = null;
-    try { roadsJson = JSON.parse(new TextDecoder().decode(await fetchBuf('./data/egph/roads.json'))); roads = buildRoadOverlay(roadsJson!); } catch { /* optional data */ }
+    try { roadsJson = JSON.parse(new TextDecoder().decode(await fetchBuf(`./data/${currentRegion()}/roads.json`))); roads = buildRoadOverlay(roadsJson!); } catch { /* optional data */ }
     let imagery = null;
     try {
       progress('Satellite imagery (Copernicus Sentinel-2)');
-      const t = await new THREE.TextureLoader().loadAsync('./data/egph/imagery.jpg');
+      const t = await new THREE.TextureLoader().loadAsync(`./data/${currentRegion()}/imagery.jpg`);
       t.colorSpace = THREE.NoColorSpace; t.anisotropy = 8; // image row 0 = north = v 1 (flipY default)
-      imagery = { texture: t, e0: -12000, n0: -12000, size: 24000 };
+      const ih = currentRegion() === 'egph' ? 12000 : 9000; // imagery half-extent, m (tools/build_imagery.py)
+      imagery = { texture: t, e0: -ih, n0: -ih, size: 2 * ih };
     } catch { /* optional data */ }
     this.terrain = new TerrainRenderer(this.world.terrain.hi, this.world.terrain.lo, this.world.landcover, lo, overlay, roads, imagery);
     this.scene.add(this.terrain.group);
@@ -204,7 +206,7 @@ class App implements MenuHost {
     this.scene.add(this.debug.group);
     this.input = new InputManager(loadInputSettings(), this.renderer.domElement);
     this.simple = new SimpleControls(this.renderer.domElement);
-    this.minimap = new Minimap(this.world.airport, (imagery?.texture.image as CanvasImageSource) ?? null, roadsJson);
+    this.minimap = new Minimap(this.world.airport, (imagery?.texture.image as CanvasImageSource) ?? null, roadsJson, imagery ? imagery.size / 2 : 12000);
     if (IS_TOUCH) {
       // phones / tablets: lighter rendering
       this.graphics = { ...this.graphics, renderScale: Math.min(this.graphics.renderScale, 0.75), shadows: false, buildingDistanceKm: 5, terrainDetail: 0.7 };
