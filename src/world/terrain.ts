@@ -76,20 +76,34 @@ export class HeightGrid {
   }
 }
 
-/** Terrain: high-resolution patches (airports) inside a low-resolution regional grid. */
+/** Terrain: high-resolution patches (airports, loaded and unloaded as the aircraft moves) inside a regional grid. */
 export class Terrain {
-  readonly patches: HeightGrid[];
-  constructor(hi: HeightGrid | HeightGrid[], public lo: HeightGrid | null = null) {
-    this.patches = Array.isArray(hi) ? hi : [hi];
+  private entries: { id: string; grid: HeightGrid; prio: number }[] = [];
+  constructor(hi: HeightGrid | HeightGrid[] | null, public lo: HeightGrid | null = null) {
+    const list = hi === null ? [] : Array.isArray(hi) ? hi : [hi];
+    list.forEach((g, i) => this.addPatch(`p${i}`, g, i));
   }
-  /** The first (primary) high-resolution patch. */
-  get hi() { return this.patches[0]; }
+  /** Loaded patch grids, highest priority first (a later patch wins where two overlap). */
+  get patches(): HeightGrid[] { return this.entries.map((e) => e.grid); }
+  /** The first (primary) loaded patch, or the regional grid if none is loaded. */
+  get hi(): HeightGrid { return this.entries.length ? this.entries[this.entries.length - 1].grid : this.lo!; }
+
+  addPatch(id: string, grid: HeightGrid, prio: number) {
+    this.removePatch(id);
+    this.entries.push({ id, grid, prio });
+    this.entries.sort((a, b) => a.prio - b.prio);
+  }
+  removePatch(id: string) { this.entries = this.entries.filter((e) => e.id !== id); }
+  hasPatch(id: string) { return this.entries.some((e) => e.id === id); }
 
   /** Ground elevation (m MSL) at local east/north. Normal is optional. */
   heightAt(east: number, north: number, normalOut?: { e: number; n: number; u: number }): number {
-    for (const p of this.patches) if (p.contains(east, north)) return p.sample(east, north, normalOut);
+    for (let i = this.entries.length - 1; i >= 0; i--) {
+      const g = this.entries[i].grid;
+      if (g.contains(east, north)) return g.sample(east, north, normalOut);
+    }
     if (this.lo) return this.lo.sample(east, north, normalOut);
-    return this.patches[0].sample(east, north, normalOut);
+    return this.entries[0].grid.sample(east, north, normalOut);
   }
 }
 

@@ -10,9 +10,13 @@ import { LandCover } from '../world/world';
 
 const HI_CHUNK = 64; // cells per chunk (patch half-extents are multiples of 960 m: 30 m cells, whole chunks)
 const LO_CHUNK = 40; // cells per chunk (lo grid: 1600 cells -> 40 x 40 chunks)
-const FAR_CULL = 230000; // m: regional chunks further than this are not drawn
+const REGIONAL_RANGE = 45000; // m: regional chunks within this distance (plus altitude allowance) are drawn: a 5 x 5 block of 20 km squares at low altitude
 
 interface Chunk {
+  /** Patch id, or '' for the regional grid. */
+  owner: string;
+  /** Hidden because a higher-priority patch covers this chunk completely. */
+  covered: boolean;
   grid: HeightGrid;
   r0: number; c0: number; cells: number;
   cx: number; cz: number; // three.js centre (east, -north)
@@ -44,9 +48,9 @@ export class TerrainRenderer {
   loMaterial: THREE.MeshStandardMaterial;
   uniforms: Record<string, THREE.IUniform>;
   trianglesDrawn = 0;
-  private patchRects: { e0: number; e1: number; n0: number; n1: number }[] = [];
+  private patchInfo = new Map<string, { rect: { e0: number; e1: number; n0: number; n1: number }; prio: number; mat: THREE.MeshStandardMaterial; p: TerrainPatch }>();
 
-  constructor(patches: TerrainPatch[], lo: HeightGrid | null, lcLo: LandCover | null) {
+  constructor(lo: HeightGrid | null, lcLo: LandCover | null) {
     const detailTex = makeNoiseTexture(256);
     this.uniforms = {
       uTime: { value: 0 },
@@ -56,26 +60,67 @@ export class TerrainRenderer {
     };
     this.loMaterial = makeTerrainMaterial(this.uniforms, lcLo, null);
     this.group.name = 'terrain';
-    for (const p of patches) {
-      const g = p.grid;
-      this.patchRects.push({ e0: g.cx - g.half, e1: g.cx + g.half, n0: g.cy - g.half, n1: g.cy + g.half });
-      const mat = makeTerrainMaterial(this.uniforms, p.lc, p.overlay, p.roads, p.imagery);
-      const nc = (g.n - 1) / HI_CHUNK;
-      for (let i = 0; i < nc; i++) for (let j = 0; j < nc; j++) this.addChunk(g, i * HI_CHUNK, j * HI_CHUNK, HI_CHUNK, mat);
-    }
     if (lo) {
       const nLo = (lo.n - 1) / LO_CHUNK;
-      for (let i = 0; i < nLo; i++) for (let j = 0; j < nLo; j++) this.addChunk(lo, i * LO_CHUNK, j * LO_CHUNK, LO_CHUNK, this.loMaterial);
+      for (let i = 0; i < nLo; i++) for (let j = 0; j < nLo; j++) this.addChunk(lo, i * LO_CHUNK, j * LO_CHUNK, LO_CHUNK, this.loMaterial, '');
+    }
+  }
+
+  /** Streams a high-resolution patch in (its chunks are created; regional terrain under it is lowered). */
+  addPatch(id: string, p: TerrainPatch, prio: number) {
+    this.removePatch(id);
+    const g = p.grid;
+    const rect = { e0: g.cx - g.half, e1: g.cx + g.half, n0: g.cy - g.half, n1: g.cy + g.half };
+    const mat = makeTerrainMaterial(this.uniforms, p.lc, p.overlay, p.roads, p.imagery);
+    mat.polygonOffset = true; mat.polygonOffsetFactor = -prio; mat.polygonOffsetUnits = -2 * prio; // later patches win where two overlap
+    this.patchInfo.set(id, { rect, prio, mat, p });
+    const nc = (g.n - 1) / HI_CHUNK;
+    for (let i = 0; i < nc; i++) for (let j = 0; j < nc; j++) this.addChunk(g, i * HI_CHUNK, j * HI_CHUNK, HI_CHUNK, mat, id);
+    this.refreshCover(rect);
+  }
+
+  /** Streams a patch out: its meshes, geometries, textures and material are freed. */
+  removePatch(id: string) {
+    const info = this.patchInfo.get(id);
+    if (!info) return;
+    this.chunks = this.chunks.filter((ch) => {
+      if (ch.owner !== id) return true;
+      this.group.remove(ch.mesh);
+      for (const g of ch.geoms.values()) g.dispose();
+      ch.mesh.geometry.dispose();
+      return false;
+    });
+    for (const t of [info.p.overlay, info.p.roads, info.p.imagery]) t?.texture.dispose();
+    info.mat.dispose();
+    this.patchInfo.delete(id);
+    this.refreshCover(info.rect);
+  }
+
+  /** Re-evaluates which chunks are covered by higher-priority patches, and rebuilds regional chunks near a changed rectangle. */
+  private refreshCover(rect: { e0: number; e1: number; n0: number; n1: number }) {
+    for (const ch of this.chunks) {
+      const half = (ch.cells * ch.grid.step) / 2;
+      const e0 = ch.cx - half, e1 = ch.cx + half, n0 = -ch.cz - half, n1 = -ch.cz + half;
+      const prio = ch.owner ? this.patchInfo.get(ch.owner)!.prio : -1;
+      ch.covered = false;
+      for (const [id, o] of this.patchInfo) {
+        if (id !== ch.owner && o.prio > prio && e0 >= o.rect.e0 && e1 <= o.rect.e1 && n0 >= o.rect.n0 && n1 <= o.rect.n1) ch.covered = true;
+      }
+      if (!ch.owner && e1 > rect.e0 - 1000 && e0 < rect.e1 + 1000 && n1 > rect.n0 - 1000 && n0 < rect.n1 + 1000) {
+        // regional geometry under/near a patch depends on which patches exist: rebuild it
+        for (const g of ch.geoms.values()) g.dispose();
+        ch.geoms.clear(); ch.lod = -1;
+      }
     }
   }
 
   /** Depth (m) to lower regional terrain under a high-resolution patch so the patch is drawn on top without z-fighting. */
   private underPatch = (e: number, n: number) => {
-    for (const r of this.patchRects) if (e > r.e0 + 60 && e < r.e1 - 60 && n > r.n0 + 60 && n < r.n1 - 60) return 40;
+    for (const o of this.patchInfo.values()) { const r = o.rect; if (e > r.e0 + 60 && e < r.e1 - 60 && n > r.n0 + 60 && n < r.n1 - 60) return 40; }
     return 0;
   };
 
-  private addChunk(grid: HeightGrid, r0: number, c0: number, cells: number, mat: THREE.Material) {
+  private addChunk(grid: HeightGrid, r0: number, c0: number, cells: number, mat: THREE.Material, owner: string) {
     let minY = Infinity, maxY = -Infinity;
     for (let r = r0; r <= r0 + cells; r++) for (let c = c0; c <= c0 + cells; c++) {
       const h = grid.at(r, c);
@@ -90,7 +135,7 @@ export class TerrainRenderer {
     mesh.updateMatrix();
     mesh.visible = false;
     this.group.add(mesh);
-    this.chunks.push({ grid, r0, c0, cells, cx, cz, minY, maxY, lod: -1, mesh, geoms: new Map() });
+    this.chunks.push({ owner, covered: false, grid, r0, c0, cells, cx, cz, minY, maxY, lod: -1, mesh, geoms: new Map() });
   }
 
   /** Choose LODs for the camera position (three.js coords). */
@@ -107,7 +152,12 @@ export class TerrainRenderer {
       const dy = Math.max(0, cam.y - ch.maxY, ch.minY - cam.y);
       const dRaw = Math.hypot(dx, dz, dy * 0.5);
       const regional = ch.grid.step >= 100;
-      if (regional && dRaw > FAR_CULL) { ch.mesh.visible = false; continue; }
+      // regional squares are only drawn near the aircraft (more of them as it climbs); the rest is released
+      if (ch.covered || (regional && dRaw > REGIONAL_RANGE + alt * 14)) {
+        ch.mesh.visible = false;
+        if (ch.lod !== -1 && regional) { for (const g of ch.geoms.values()) g.dispose(); ch.geoms.clear(); ch.lod = -1; }
+        continue;
+      }
       const d = (dRaw * altK) / this.detail;
       let lod: number;
       if (!regional) lod = d < 2500 ? 1 : d < 6000 ? 2 : d < 12000 ? 4 : d < 24000 ? 8 : 16;

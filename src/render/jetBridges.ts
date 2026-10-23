@@ -38,9 +38,13 @@ export class JetBridges {
   readonly group = new THREE.Group();
   private bridges: Bridge[] = [];
   private active: Bridge | null = null;
+  private owned = new Map<string, { bridges: Bridge[]; paint: THREE.Mesh | null; geos: THREE.BufferGeometry[]; mat: THREE.Material }>();
 
-  constructor(gates: [number, number][], buildings: Building[], groundAt: (e: number, n: number) => number) {
-    this.group.name = 'jet bridges';
+  constructor() { this.group.name = 'jet bridges'; }
+
+  /** Streams an airport's boarding bridges in (called when its patch is loaded). */
+  addPatch(id: string, gates: [number, number][], buildings: Building[], groundAt: (e: number, n: number) => number) {
+    this.removePatch(id);
     const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.3 });
     const tubeGeo = mergeGeometries([
       tint(new THREE.BoxGeometry(1, 3.0, 3.6).translate(0.5, 0, 0), tubeCol),
@@ -53,6 +57,7 @@ export class JetBridges {
       tint(new THREE.BoxGeometry(2.2, 0.35, 1.2).translate(-0.3, -7.6, 0), dark),
     ].map((g) => g.toNonIndexed()))!;
     const paint: THREE.BufferGeometry[] = [];
+    const mine: Bridge[] = [];
     for (const site of findGateSites(gates, buildings)) {
       const best = { px: site.px, py: site.py, nx: site.nx, ny: site.ny };
       const base = groundAt(best.px, best.py);
@@ -68,6 +73,7 @@ export class JetBridges {
       const br: Bridge = { group, tube, end, px: best.px, pz: -best.py, base, restYaw, yaw: restYaw, len: REST_LEN, floor: FLOOR, connected: false };
       this.pose(br);
       this.bridges.push(br);
+      mine.push(br);
       // rotunda at the wall and stand markings (static)
       const rot = tint(new THREE.CylinderGeometry(2.4, 2.4, 3.6, 16), light);
       rot.translate(best.px, base + FLOOR + 1.2, -best.py);
@@ -82,7 +88,21 @@ export class JetBridges {
         paint.push(g.toNonIndexed());
       }
     }
-    if (paint.length) this.group.add(new THREE.Mesh(mergeGeometries(paint)!, mat));
+    let paintMesh: THREE.Mesh | null = null;
+    if (paint.length) { paintMesh = new THREE.Mesh(mergeGeometries(paint)!, mat); this.group.add(paintMesh); }
+    this.owned.set(id, { bridges: mine, paint: paintMesh, geos: [tubeGeo, endGeo], mat });
+  }
+
+  /** Streams an airport's bridges out (its patch was unloaded). */
+  removePatch(id: string) {
+    const o = this.owned.get(id);
+    if (!o) return;
+    for (const b of o.bridges) { this.group.remove(b.group); if (this.active === b) this.active = null; }
+    this.bridges = this.bridges.filter((b) => !o.bridges.includes(b));
+    if (o.paint) { this.group.remove(o.paint); o.paint.geometry.dispose(); }
+    for (const g of o.geos) g.dispose();
+    o.mat.dispose();
+    this.owned.delete(id);
   }
 
   private pose(b: Bridge) {

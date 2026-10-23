@@ -29,8 +29,8 @@ import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
 import { Vec3, clamp } from './core/math';
 import { AutoTrim } from './sim/assists';
 import { SimpleControls, IS_TOUCH } from './input/simpleControls';
-import { Minimap, MinimapPatch } from './ui/minimap';
-import { TerrainPatch } from './render/terrainMesh';
+import { Minimap } from './ui/minimap';
+import { LoadedPatch } from './world/world';
 import { JetBridges } from './render/jetBridges';
 import { CrashFx } from './render/crashFx';
 
@@ -38,6 +38,19 @@ const loadingMsg = document.getElementById('loading-msg')!;
 const loadingBar = document.getElementById('loading-bar')!;
 let step = 0;
 const progress = (m: string) => { step++; loadingMsg.textContent = m; loadingBar.style.width = `${Math.min(100, step * 11)}%`; };
+
+/** Frees the GPU resources of an object tree (geometries, materials, textures) and detaches it. */
+function disposeTree(root: THREE.Object3D) {
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    m.geometry?.dispose();
+    for (const mat of ([] as THREE.Material[]).concat((m.material as THREE.Material | THREE.Material[]) ?? [])) {
+      for (const v of Object.values(mat as unknown as Record<string, unknown>)) if (v && (v as THREE.Texture).isTexture) (v as THREE.Texture).dispose();
+      mat.dispose();
+    }
+  });
+  root.removeFromParent();
+}
 
 async function fetchBuf(path: string) {
   const r = await fetch(path);
@@ -62,9 +75,8 @@ class App implements MenuHost {
   sim!: Simulation;
   world!: World;
   terrain!: TerrainRenderer;
-  airports: AirportRenderer[] = [];
-  private minimapPatches: MinimapPatch[] = [];
-  buildings!: BuildingsRenderer;
+  private patchRender = new Map<string, { airport: AirportRenderer; buildings: BuildingsRenderer }>();
+  private streamTimer = 0;
   model!: C172Model | B737Model | GliderModel;
   cockpit!: Cockpit | B737Cockpit | GliderCockpit;
   aircraftDefs: AircraftDef[] = [C172, B738, GLIDER];
@@ -106,7 +118,7 @@ class App implements MenuHost {
 
   constructor() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2) * this.graphics.renderScale);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * this.graphics.renderScale);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.55;
@@ -133,34 +145,16 @@ class App implements MenuHost {
     const lcLoBuf = await fetchBuf(`${base}/${this.world.meta.landcoverLo.file}`);
     const lcLo = await decodeGray(lcLoBuf, this.world.meta.landcoverLo.n);
     const lo = new LandCover(lcLo, this.world.meta.landcoverLo.n, this.world.meta.landcoverLo.half, this.world.meta.landcoverLo.step);
-    const tPatches: TerrainPatch[] = [];
-    this.minimapPatches = [];
-    for (let i = 0; i < this.world.meta.patches.length; i++) {
-      const pm = this.world.meta.patches[i];
-      const airport = this.world.airports[i];
-      progress(`${pm.name}: imagery`);
-      let roads = null;
-      let roadsJson: [string, [number, number][]][] | null = null;
-      try { roadsJson = JSON.parse(new TextDecoder().decode(await fetchBuf(`${base}/${pm.id}/roads.json`))); roads = buildRoadOverlay(roadsJson!, pm.cx, pm.cy, 2 * pm.imgHalf); } catch { /* optional data */ }
-      let imagery = null;
-      try {
-        const t = await new THREE.TextureLoader().loadAsync(`${base}/${pm.id}/imagery.jpg`);
-        t.colorSpace = THREE.NoColorSpace; t.anisotropy = 8; // image row 0 = north = v 1 (flipY default)
-        imagery = { texture: t, e0: pm.cx - pm.imgHalf, n0: pm.cy - pm.imgHalf, size: 2 * pm.imgHalf };
-      } catch { /* optional data */ }
-      tPatches.push({ grid: this.world.terrain.patches[i], lc: this.world.landcovers[i] ?? null, overlay: buildPavementOverlay(airport), roads, imagery });
-      this.minimapPatches.push({ cx: pm.cx, cy: pm.cy, half: pm.imgHalf, imagery: (imagery?.texture.image as CanvasImageSource) ?? null, roads: roadsJson, airport });
-    }
-    this.terrain = new TerrainRenderer(tPatches, this.world.terrain.lo, lo);
+    this.terrain = new TerrainRenderer(this.world.terrain.lo, lo);
     this.scene.add(this.terrain.group);
-    progress('Building airports');
-    this.airports = this.world.airports.map((a) => new AirportRenderer(a, this.world.terrain));
-    for (const a of this.airports) this.scene.add(a.group);
-    progress('Building city');
-    this.buildings = new BuildingsRenderer(this.world.obstacles.buildings);
-    this.scene.add(this.buildings.group);
-    this.jetBridges = new JetBridges(this.world.airports.flatMap((a) => a.gates ?? []), this.world.obstacles.buildings, (e, n) => this.world.terrain.heightAt(e, n) - 0.2);
+    this.minimap = new Minimap(this.world.landcover);
+    this.jetBridges = new JetBridges();
     this.scene.add(this.jetBridges.group);
+    // detail patches (terrain, imagery, roads, airfield, buildings) are streamed in near the aircraft and out behind it
+    this.world.onPatchLoaded = (lp) => this.addPatchRender(lp);
+    this.world.onPatchUnloaded = (id) => this.removePatchRender(id);
+    progress('Building airport and city');
+    for (const lp of this.world.loaded.values()) await this.addPatchRender(lp);
     this.bridgeBtn = document.createElement('button');
     this.bridgeBtn.className = 'jv-bridge';
     this.bridgeBtn.style.display = 'none';
@@ -216,7 +210,6 @@ class App implements MenuHost {
     this.scene.add(this.debug.group);
     this.input = new InputManager(loadInputSettings(), this.renderer.domElement);
     this.simple = new SimpleControls(this.renderer.domElement);
-    this.minimap = new Minimap(this.minimapPatches, this.world.landcover);
     if (IS_TOUCH) {
       // phones / tablets: lighter rendering
       this.graphics = { ...this.graphics, renderScale: Math.min(this.graphics.renderScale, 0.75), shadows: false, buildingDistanceKm: 5, terrainDetail: 0.7 };
@@ -249,8 +242,62 @@ class App implements MenuHost {
     (window as any).jetvault = this; // console access for development and automated checks
   }
 
+  // ------------------------------------------------------------------ patch streaming
+  /** Creates the renderers of a freshly loaded patch (terrain chunks, airfield, buildings, bridges, minimap). */
+  private async addPatchRender(lp: LoadedPatch) {
+    const pm = lp.meta;
+    const base = `./data/${currentRegion()}`;
+    const idx = this.world.meta.patches.findIndex((p) => p.id === pm.id);
+    const airport = this.world.airports[idx];
+    let roads = null;
+    let roadsJson: [string, [number, number][]][] | null = null;
+    try { roadsJson = JSON.parse(new TextDecoder().decode(await fetchBuf(`${base}/${pm.id}/roads.json`))); roads = buildRoadOverlay(roadsJson!, pm.cx, pm.cy, 2 * pm.imgHalf); } catch { /* optional data */ }
+    let imagery = null;
+    try {
+      const t = await new THREE.TextureLoader().loadAsync(`${base}/${pm.id}/imagery.jpg`);
+      t.colorSpace = THREE.NoColorSpace; t.anisotropy = 8; // image row 0 = north = v 1 (flipY default)
+      imagery = { texture: t, e0: pm.cx - pm.imgHalf, n0: pm.cy - pm.imgHalf, size: 2 * pm.imgHalf };
+    } catch { /* optional data */ }
+    if (!this.world.loaded.has(pm.id)) { imagery?.texture.dispose(); return; } // unloaded again while the files were downloading
+    this.terrain.addPatch(pm.id, { grid: lp.grid, lc: lp.lc, overlay: buildPavementOverlay(airport), roads, imagery }, idx);
+    const ar = new AirportRenderer(airport, this.world.terrain);
+    this.scene.add(ar.group);
+    const br = new BuildingsRenderer(lp.buildings);
+    br.maxDistance = this.graphics.buildingDistanceKm * 1000;
+    this.scene.add(br.group);
+    this.patchRender.set(pm.id, { airport: ar, buildings: br });
+    this.jetBridges.addPatch(pm.id, airport.gates ?? [], lp.buildings, (e, n) => this.world.terrain.heightAt(e, n) - 0.2);
+    this.minimap?.addPatch(pm.id, { cx: pm.cx, cy: pm.cy, half: pm.imgHalf, imagery: (imagery?.texture.image as CanvasImageSource) ?? null, roads: roadsJson, airport });
+    if (this.world.airport === airport) this.placeTower();
+  }
+
+  private removePatchRender(id: string) {
+    this.terrain.removePatch(id);
+    this.jetBridges.removePatch(id);
+    this.minimap?.removePatch(id);
+    const r = this.patchRender.get(id);
+    if (r) { disposeTree(r.airport.group); r.buildings.dispose(); this.patchRender.delete(id); }
+  }
+
+  /** Loads patches the aircraft is approaching and releases the ones it has left (hysteresis: 12 km in, 30 km out). */
+  private streamPatches() {
+    const ac = this.sim.aircraft, e = ac.pos.y, n = ac.pos.x;
+    for (const pm of this.world.meta.patches) {
+      const d = this.world.patchDistance(pm, e, n);
+      const loaded = this.world.loaded.has(pm.id);
+      if (!loaded && d < 12000) { this.world.loadPatch(pm.id).catch((err) => console.warn('patch load failed', pm.id, err)); }
+      else if (loaded && d > 30000 && !(this.world.airport.icao === pm.icao && (this.menu.open || !this.started))) this.world.unloadPatch(pm.id);
+    }
+  }
+
+  /** Makes sure every patch near a position is in memory (used before spawning there). */
+  private async ensurePatchesNear(e: number, n: number) {
+    await Promise.all(this.world.meta.patches.filter((pm) => this.world.patchDistance(pm, e, n) < 12000).map((pm) => this.world.loadPatch(pm.id)));
+  }
+
   /** The control tower is the tallest structure near the airport: use the tallest building within 2.5 km. */
   private placeTower() {
+    if (!this.rig) return;
     const ob = this.world.obstacles;
     const c = airportCentre(this.world.airport);
     let best = -1, bestH = 0;
@@ -265,7 +312,11 @@ class App implements MenuHost {
   }
 
   /** The user picked another airport in the menu. */
-  airportChanged() { this.placeTower(); }
+  async airportChanged() {
+    const pm = this.world.patchOf(this.world.airport.icao);
+    if (pm) await this.world.loadPatch(pm.id);
+    this.placeTower();
+  }
 
   private buildAircraftVisuals() {
     if (this.model) this.aircraftGroup.remove(this.model.root);
@@ -331,7 +382,10 @@ class App implements MenuHost {
   // ---------------------------------------------------------------- MenuHost
   startView: 'cockpit' | 'chase' = 'chase';
 
-  fly(spawn: SpawnKind | { kind: 'air'; east: number; north: number; altFt: number; hdg: number }) {
+  async fly(spawn: SpawnKind | { kind: 'air'; east: number; north: number; altFt: number; hdg: number }) {
+    // make sure the detail around the start position is in memory before the aircraft is placed there
+    if (spawn.kind === 'air') await this.ensurePatchesNear(spawn.east, spawn.north);
+    else { const c = airportCentre(this.world.airport); await this.ensurePatchesNear(c.x, c.y); }
     const ac = this.sim.aircraft;
     ac.payload = [...this.payload];
     ac.fuel = ac.def.tanks.map((t, i) => t.capacity * this.fuelFraction[i]);
@@ -362,7 +416,7 @@ class App implements MenuHost {
     this.renderer.shadowMap.enabled = g.shadows;
     this.env.sun.castShadow = g.shadows;
     this.terrain.detail = g.terrainDetail;
-    this.buildings.maxDistance = g.buildingDistanceKm * 1000;
+    for (const r of this.patchRender.values()) r.buildings.maxDistance = g.buildingDistanceKm * 1000;
   }
 
   private resize() {
@@ -514,8 +568,9 @@ class App implements MenuHost {
     this.terrain.update(cam.position, sim.simTime);
     this.terrain.setNight(this.env.night);
     this.terrain.setWet(sim.weather.rain > 0.1 ? Math.min(1, sim.weather.rain * 1.5) : 0);
-    for (const a of this.airports) a.update(cam.position, this.env.lightLevel, window.innerHeight / 1000);
-    this.buildings.update(cam.position, this.env.night);
+    for (const r of this.patchRender.values()) { r.airport.update(cam.position, this.env.lightLevel, window.innerHeight / 1000); r.buildings.update(cam.position, this.env.night); }
+    this.streamTimer -= dt;
+    if (this.streamTimer <= 0) { this.streamTimer = 0.5; this.streamPatches(); }
     this.debug.update();
     this.hud.update(sim, dt, this.rig.mode);
     if (!this.menu.open) this.minimap?.update(ac);

@@ -1,6 +1,6 @@
 # JetVault Flight Simulator — Project State
 
-_Last updated: update 23 (Scotland world with Edinburgh, Glasgow and Portmoak). This file is regenerated and handed over at the end of every piece of work._
+_Last updated: update 24 (patch streaming). This file is regenerated and handed over at the end of every piece of work._
 
 ## Engine and architecture
 - **Platform:** browser, TypeScript + three.js (WebGL2), built with Vite. Chosen because the dev environment has no GPU and no native engine; the user plays in a browser. Fallback/native path: Godot 4 (the flight model is engine-independent TypeScript and can be ported).
@@ -156,6 +156,13 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - **World/physics:** `Terrain` holds several patches plus the regional grid; `World.airports`, `setAirport()`, `isPaved()` / `landAt()` cover all patches. Menu: Airport Selection chooses where you start (Edinburgh, Glasgow, Portmoak); World Map is the whole of Scotland (click to start airborne); the minimap shows imagery inside a patch and a coarse land-cover map elsewhere. The old per-airport region switching is gone (`public/data/egph`, `egpm` removed; the pipeline scripts for them remain in tools/).
 - **Tests (94 pass):** new `tests/scotland.test.ts` (three airports, threshold heights within 15 m of published elevation, 737 on Glasgow asphalt, Portmoak winch launch on grass). Existing Edinburgh tests run against the new world unchanged.
 - **Not done / limits:** no streaming of patches (everything loads up front, ~30 MB); no satellite imagery or 3D buildings outside the three patches (land-cover colours only); thermals are not tied to ground type; real-GPU and phone frame rates NOT TESTED (software render: terrain ~50-60k triangles, ~200-450 draw calls in the views I checked); the UK south of the map edge (about 52.5°N) is not included.
+
+## Update 24 — streaming (less lag)
+- **Detail patches now stream with the aircraft.** Only the patch you start in is loaded at first (start-up download 19 MB instead of ~30 MB: regional terrain 5 MB + Edinburgh 12 MB + code). A patch (30 m terrain, land cover, buildings, imagery, roads, airfield lights, jet bridges, minimap tile) is loaded when the aircraft comes within 12 km of its terrain square and released when it is more than 30 km away (hysteresis). Choosing an airport in the menu or starting there loads it first (`fly()` is async and waits). Per-airport data that stays resident: the small `airport.json` files (runways, gates).
+- **Regional terrain** is drawn only within about 45 km of the aircraft (plus 14 m per metre of altitude, so more of it as you climb): a block of about 5 x 5 squares of 20 km at low altitude; farther chunks are released (their geometry is freed) and come back as you approach. Terrain detail still coarsens with altitude.
+- Overlapping patches (Edinburgh/Portmoak overlap by ~10 km): the later patch wins; covered chunks of the earlier patch are hidden. Physics and rendering use the same priority.
+- Resolution cap: the renderer pixel ratio is capped at 1.5 (was 2) because retina screens at 2x cost a lot of fill rate with the terrain shader; Settings -> render scale still applies on top.
+- Headless check: Edinburgh -> Glasgow -> Edinburgh -> Portmoak transitions load/unload exactly as above with no errors; `tests/scotland.test.ts` checks unload/reload restores terrain and buildings (95 tests pass). **Frame rate was NOT measured on a real GPU** (software rendering only), so how much smoother it is on your machine is unconfirmed. Loading a patch builds its meshes in one go, so a short hitch is possible when you cross into a new airport area.
 
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |

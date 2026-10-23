@@ -12,11 +12,11 @@ import { KT, FT, DEG, clamp } from '../src/core/math';
 
 export const DATA = join(__dirname, '..', 'public', 'data', 'scot');
 
-export async function loadEGPH(): Promise<World> {
+export async function loadEGPH(initial: string[] | 'all' = ['egph']): Promise<World> {
   return loadWorld(DATA, async (p) => {
     const b = readFileSync(p);
     return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
-  });
+  }, undefined, undefined, initial);
 }
 
 /** Flat sea-level test field with a 4 km paved runway heading north (for POH comparisons). */

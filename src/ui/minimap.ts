@@ -14,7 +14,7 @@ export interface MinimapPatch {
   airport: AirportData;
 }
 
-interface Base { canvas: HTMLCanvasElement; p: MinimapPatch }
+interface Base { id: string; canvas: HTMLCanvasElement; p: MinimapPatch }
 
 const LC_COL: Record<number, string> = { 10: '#2b4a30', 20: '#4a5a34', 30: '#58733a', 40: '#6f7a45', 50: '#8a8590', 60: '#7a7260', 70: '#e8eef2', 80: '#1d3c5e', 90: '#4a6a55', 100: '#6a5a48' };
 
@@ -24,13 +24,22 @@ export class Minimap {
   private tmp = document.createElement('canvas');
   rangeM = 3500;
 
-  constructor(patches: MinimapPatch[], private landcover: LandCover | null) {
+  constructor(private landcover: LandCover | null) {
     this.el = document.createElement('canvas');
     this.el.className = 'jv-minimap';
     this.el.width = this.el.height = 200;
     document.body.appendChild(this.el);
     this.tmp.width = this.tmp.height = 100;
-    for (const p of patches) this.bases.push({ canvas: this.makeBase(p), p });
+  }
+
+  addPatch(id: string, p: MinimapPatch) {
+    this.removePatch(id);
+    this.bases.push({ id, canvas: this.makeBase(p), p });
+  }
+
+  removePatch(id: string) {
+    const b = this.bases.find((x) => x.id === id);
+    if (b) { b.canvas.width = 0; this.bases = this.bases.filter((x) => x !== b); } // releases the bitmap memory
   }
 
   private makeBase(p: MinimapPatch) {

@@ -8,7 +8,7 @@ import { clamp } from '../src/core/math';
 import { DEFAULT_WEATHER } from '../src/sim/weather';
 
 describe('Scotland world', async () => {
-  const world = await loadEGPH();
+  const world = await loadEGPH('all');
   it('has three airports with ground data and patches inside the regional grid', () => {
     expect(world.airports.map((a) => a.icao)).toEqual(['EGPH', 'EGPF', 'EGPM']);
     expect(world.terrain.patches.length).toBe(3);
@@ -22,6 +22,20 @@ describe('Scotland world', async () => {
       const h = world.terrain.heightAt(e.x, e.y);
       expect(Math.abs(h - e.elev), a.icao).toBeLessThan(15);
     }
+  });
+  it('streams patches in and out: unloading drops the patch terrain and its buildings, reloading restores them', async () => {
+    const e = world.airports[1].runways[0].ends[0]; // Glasgow threshold
+    const h0 = world.terrain.heightAt(e.x, e.y);
+    const nb = world.obstacles.buildings.length;
+    world.unloadPatch('egpf');
+    expect(world.terrain.hasPatch('egpf')).toBe(false);
+    expect(world.obstacles.buildings.length).toBeLessThan(nb);
+    const coarse = world.terrain.heightAt(e.x, e.y); // regional 500 m grid only
+    expect(Number.isFinite(coarse)).toBe(true);
+    await world.loadPatch('egpf');
+    expect(world.terrain.hasPatch('egpf')).toBe(true);
+    expect(world.obstacles.buildings.length).toBe(nb);
+    expect(world.terrain.heightAt(e.x, e.y)).toBeCloseTo(h0, 3);
   });
   it('lands a 737 on Glasgow 23 area: spawns on the runway and stays on the asphalt', () => {
     world.setAirport('EGPF');

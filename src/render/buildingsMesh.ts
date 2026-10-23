@@ -75,6 +75,12 @@ if (vWall.z > 1.5) {
     return mat;
   }
 
+  /** Frees all tile geometries (the patch was unloaded). */
+  dispose() {
+    for (const t of this.tiles) t.mesh.geometry.dispose();
+    this.group.removeFromParent();
+  }
+
   update(cam: THREE.Vector3, night: number) {
     this.uniforms.uNight.value = night;
     for (const t of this.tiles) {

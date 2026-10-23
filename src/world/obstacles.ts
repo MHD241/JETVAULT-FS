@@ -14,14 +14,24 @@ export interface Building {
 
 export class ObstacleIndex {
   private cells = new Map<number, number[]>();
-  readonly buildings: Building[] = [];
+  buildings: Building[] = [];
+  private tags: string[] = [];
   constructor(private cell = 100) {}
+
+  /** Removes every building added with this tag (patch unloaded) and rebuilds the index. */
+  removeTag(tag: string) {
+    const keep: { b: Building; t: string }[] = [];
+    this.buildings.forEach((b, i) => { if (this.tags[i] !== tag) keep.push({ b, t: this.tags[i] }); });
+    this.cells.clear(); this.buildings = []; this.tags = [];
+    for (const k of keep) this.add(k.b, k.t);
+  }
 
   private key(ix: number, iy: number) { return (ix + 32768) * 65536 + (iy + 32768); }
 
-  add(b: Building) {
+  add(b: Building, tag = '') {
     const id = this.buildings.length;
     this.buildings.push(b);
+    this.tags.push(tag);
     const c = this.cell;
     for (let ix = Math.floor(b.minE / c); ix <= Math.floor(b.maxE / c); ix++) {
       for (let iy = Math.floor(b.minN / c); iy <= Math.floor(b.maxN / c); iy++) {

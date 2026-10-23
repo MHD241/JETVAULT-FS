@@ -37,9 +37,9 @@ export interface MenuHost {
   fuelFraction: [number, number];
   aircraftDefs: AircraftDef[];
   selectAircraft(id: string): void;
-  airportChanged(): void;
+  airportChanged(): Promise<void>;
   startView: 'cockpit' | 'chase';
-  fly(spawn: AnySpawn): void;
+  fly(spawn: AnySpawn): Promise<void> | void;
   applyWeather(w: WeatherSettings): void;
   applyGraphics(g: GraphicsSettings): void;
   resume(): void;
@@ -103,7 +103,7 @@ export class Menu {
         const c = document.createElement('div');
         c.className = 'jv-card' + (a.icao === h.world.airport.icao ? ' sel' : '');
         c.innerHTML = `<b>${a.icao} ${a.name}</b><span>${a.runways.map((r) => `Runway ${r.id} · ${Math.round(r.length)} m · ${r.surface}`).join('<br>')}<br>Elevation ${(a.arp.elev / 0.3048).toFixed(0)} ft</span>`;
-        c.onclick = () => { h.world.setAirport(a.icao); this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; this.host.airportChanged(); this.render(); };
+        c.onclick = () => { h.world.setAirport(a.icao); this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; c.style.opacity = '0.6'; void this.host.airportChanged().then(() => this.render()); };
         grid.appendChild(c);
       }
       s.appendChild(grid);
