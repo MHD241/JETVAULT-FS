@@ -1,6 +1,6 @@
 # JetVault Flight Simulator — Project State
 
-_Last updated: update 21 (737 animation fixes: ground contact, flaps, ailerons, spoilers, gear). This file is regenerated and handed over at the end of every piece of work._
+_Last updated: update 22 (straight 737 rudder). This file is regenerated and handed over at the end of every piece of work._
 
 ## Engine and architecture
 - **Platform:** browser, TypeScript + three.js (WebGL2), built with Vite. Chosen because the dev environment has no GPU and no native engine; the user plays in a browser. Fallback/native path: Godot 4 (the flight model is engine-independent TypeScript and can be ported).
@@ -145,6 +145,9 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - **Spoilers looked wrong:** they are now thin plates lying on the upper skin, hinged at their forward edge (4 per aircraft: 2 inboard ground spoilers that rise only on the ground, 2 outboard flight spoilers that follow the speedbrake and the roll command), instead of ragged groups of triangles.
 - **Gear:** the earlier version grouped the wrong parts (nose cone parts, door fairings) and pivoted around the wrong point. The supplied mesh's gear parts were identified individually: nose strut+wheels (`Group_102`), each main leg with drag brace (`Component#5_00x`), wheel/axle assemblies, and the tyres of both mains, which are one merged mesh (`Group_001`) that is now split into left and right halves. Each main gear swings inboard about the top of its strut; the nose gear folds forward about its attachment, steering when down. Headless frames at 70 %, 45 % and 20 % extension show a continuous fold. Still simplified: the thin outboard door panels travel with the leg and the inboard doors stay fixed (no door sequencing).
 - Remaining known gaps: engine fans, reversers and wheel spin do not animate; rudder deflection is subtle on screen.
+
+## Update 22 — rudder
+- The rudder was squiggly because its hinge line and trailing edge followed noisy per-height samples of the fin mesh. They are now straight least-squares fits (the fin's edges are straight), with the hinge 30 % of the chord ahead of the trailing edge and a linearly tapering thickness. Headless screenshots at neutral and 0.45 rudder show a straight, clean trailing edge; the deflection itself is still subtle to see from the side.
 
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |

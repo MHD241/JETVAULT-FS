@@ -307,24 +307,34 @@ export class B737Rig {
       if (!band.length) return { zmin: -700, zmax: -400 };
       return { zmin: Math.min(...band.map((p) => p.z)), zmax: Math.max(...band.map((p) => p.z)) };
     };
-    const zh = (y: number) => { const q = edge(y); return q.zmin + 0.30 * (q.zmax - q.zmin); };
     const mat = (Array.isArray(fin.material) ? fin.material[0] : fin.material).clone();
     mat.side = THREE.DoubleSide;
     const ymin = yBase + 40, ymax = yTop - 4;
-    const N = 24;
-    const zhs: number[] = [], zte: number[] = [];
-    for (let i = 0; i <= N; i++) { const y = ymin + (ymax - ymin) * (i / N); zhs.push(zh(y)); zte.push(edge(y).zmin); }
-    // light smoothing so the hinge line and trailing edge are clean
-    const smooth = (a: number[]) => a.map((v, i) => (a[Math.max(0, i - 1)] + v + a[Math.min(a.length - 1, i + 1)]) / 3);
-    const zhS = smooth(smooth(smooth(zhs))), zteS = smooth(smooth(smooth(smooth(zte))));
-    const at = (arr: number[], y: number) => { const t = THREE.MathUtils.clamp((y - ymin) / (ymax - ymin), 0, 1) * N; const i = Math.min(N - 1, Math.floor(t)); return arr[i] + (arr[i + 1] - arr[i]) * (t - i); };
+    const N = 12;
+    // The fin's edges are straight, so fit straight lines (least squares) to the measured trailing edge and
+    // thickness; the hinge line sits a fixed fraction of the local chord forward of the trailing edge.
+    const fit = (f: (y: number) => number) => {
+      let n = 0, sy = 0, sv = 0, syy = 0, syv = 0;
+      for (let i = 0; i <= N; i++) { const y = ymin + (ymax - ymin) * (i / N), v = f(y); n++; sy += y; sv += v; syy += y * y; syv += y * v; }
+      const k = (n * syv - sy * sv) / (n * syy - sy * sy), c0 = (sv - k * sy) / n;
+      return (y: number) => c0 + k * y;
+    };
+    const teFit = fit((y) => edge(y).zmin);
+    const leFit = fit((y) => edge(y).zmax);
+    const hingeFit = (y: number) => teFit(y) + 0.30 * (leFit(y) - teFit(y));
+    const halfW = fit((y) => {
+      const z = hingeFit(y);
+      const near = verts.filter((p) => Math.abs(p.y - y) < 9 && Math.abs(p.z - z) < 12);
+      return near.length ? Math.max(1.5, Math.max(...near.map((p) => Math.abs(p.x)))) : 3;
+    });
+    const zhS: number[] = [], zteS: number[] = [];
     const sec: { A: THREE.Vector3; B: THREE.Vector3; C: THREE.Vector3 }[] = [];
     for (let i = 0; i <= N; i++) {
-      const y = ymin + (ymax - ymin) * (i / N), z = zhS[i];
-      const near = verts.filter((p) => Math.abs(p.y - y) < 9 && Math.abs(p.z - z) < 12);
-      const w = near.length ? Math.max(1.5, Math.max(...near.map((p) => Math.abs(p.x)))) : 4;
-      sec.push({ A: new THREE.Vector3(-w, y, z), B: new THREE.Vector3(w, y, z), C: new THREE.Vector3(0, y, zteS[i]) });
+      const y = ymin + (ymax - ymin) * (i / N), z = hingeFit(y), w = Math.max(1.2, halfW(y));
+      zhS.push(z); zteS.push(teFit(y));
+      sec.push({ A: new THREE.Vector3(-w, y, z), B: new THREE.Vector3(w, y, z), C: new THREE.Vector3(0, y, teFit(y)) });
     }
+    const at = (arr: number[], y: number) => { const t = THREE.MathUtils.clamp((y - ymin) / (ymax - ymin), 0, 1) * N; const i = Math.min(N - 1, Math.floor(t)); return arr[i] + (arr[i + 1] - arr[i]) * (t - i); };
     this.removeTriangles(fin, (c) => c.y >= ymin && c.y <= ymax && c.z < at(zhS, c.y));
     const mesh = this.wedge(sec, mat);
     const p0 = new THREE.Vector3(0, ymin, zhS[0]), p1 = new THREE.Vector3(0, ymax, zhS[N]);
