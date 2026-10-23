@@ -235,6 +235,7 @@ export class AirportRenderer {
   private h(e: number, n: number) { return this.terrain.heightAt(e, n); }
 
   private buildRunway(rw: Runway) {
+    if (rw.surface === 'grass') return; // gliding field: the mown meadow is visible in the imagery, no painted strip
     const [a, b] = rw.ends;
     const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
     const ux = dx / L, uy = dy / L, px = uy, py = -ux; // right-hand perpendicular

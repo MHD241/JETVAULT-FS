@@ -58,13 +58,14 @@ RUNWAYS = [
                dict(ident="24", lat=55.955898, lon=-3.35506, elev_ft=100, hdg_true=239, displaced_ft=700)]),
 ]
 if REGION == "egpm":
-    # Portmoak (Scottish Gliding Centre): OurAirports has the airfield point only, no runways. The strip
-    # geometry is the longer OpenStreetMap runway way (via Overture); designators come from the heading.
-    # Elevation ~350 ft AMSL (Loch Leven basin). Surface: grass.
+    # Portmoak (Scottish Gliding Centre): OurAirports has the airfield point only, no runways. The launch line
+    # follows the worn track visible in the Sentinel-2 imagery (found by a line-contrast search along headings
+    # 88-112 deg, ~1,000 m long, heading 103 deg true, ~84 m south of the OpenStreetMap strip); designators come
+    # from the heading. Elevation ~350 ft AMSL (Loch Leven basin). Surface: grass.
     RUNWAYS = [
         dict(id="10/28", width_ft=100, surface="grass",
-             ends=[dict(ident="10", lat=56.19181, lon=-3.33823, elev_ft=350, hdg_true=99, displaced_ft=0),
-                   dict(ident="28", lat=56.19037, lon=-3.32239, elev_ft=350, hdg_true=279, displaced_ft=0)]),
+             ends=[dict(ident="10", lat=56.191244, lon=-3.33752, elev_ft=350, hdg_true=103, displaced_ft=0),
+                   dict(ident="28", lat=56.189224, lon=-3.321826, elev_ft=350, hdg_true=283, displaced_ft=0)]),
     ]
 ILS = []  # not sourced yet; see PROJECT_STATE (do not invent frequencies)
 

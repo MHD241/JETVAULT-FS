@@ -118,6 +118,10 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - Glider options at Portmoak: winch launch from either end, airborne at the Lomond Hills ridge (the hills rise north of the airfield: 335-430 m within 3 km), final approach. The ridge faces south, so ridge lift needs a southerly wind (Weather tab); ridge lift comes from the real terrain slope.
 - Not done: the real airfield layout (hangars, clubhouse detail, second runway, winch sites), thermals tied to ground type, aerotow, the other aircraft's start positions at Portmoak are generic. Real-device behaviour NOT TESTED.
 
+## Update 17 — Portmoak airfield look
+- Removed the painted grass strip (the mown field in the Sentinel-2 imagery now shows). The launch line was moved from the OpenStreetMap runway way onto the worn track visible in the imagery: found by a line-contrast search (heading 103° true, ~84 m south of the OSM strip, ~1,000 m long, strongest contrast from -440 m to +560 m along the line). That is an inference from 6 m/px imagery plus the user's Google Earth reference; it is NOT a surveyed runway. The user's reference image was used only to check layout, not as a texture (licence).
+- Still to do: hangar/clubhouse appearance, windsock, launch cones, trees, trailer park.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
