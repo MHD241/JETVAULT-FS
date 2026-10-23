@@ -3,8 +3,8 @@
 //
 // The mesh has no skeleton and its control surfaces are only partly separate, so the rig:
 //   - uses separate meshes where they exist (flap panels, slats, elevators, landing gear),
-//   - carves duplicate triangles out of the wing skin (ailerons, spoilers) and the fin (rudder); the
-//     original skin stays underneath so no hole opens when a carved surface moves,
+//   - cuts the aileron and rudder regions out of the wing skin / fin and replaces them with closed wedge
+//     bodies lofted through the local cross-sections, so the surface itself moves (spoilers are plates on the skin),
 //   - computes each hinge line from the part's own geometry (principal axis of its vertices in plan).
 // Deflections come straight from the flight model's actual surface positions (after actuator lag), flap
 // extension includes Fowler travel, slats extend with the flaps, flight spoilers help the ailerons, and the
@@ -92,53 +92,110 @@ export class B737Rig {
     return { g, pivot: h.pivot, u: h.u, v: h.v, tedown: dy > 0 ? -1 : 1 };
   }
 
-  /** Duplicates the triangles of `src` that satisfy `pred` (world-space centroid and normal) into a new mesh. */
-  private carve(src: THREE.Mesh, pred: (c: THREE.Vector3, n: THREE.Vector3) => boolean): THREE.Mesh | null {
+  /** Moves the triangles of `src` that satisfy `pred` (world-space centroid) into a new mesh (the originals are removed from `src`). */
+  private extract(src: THREE.Mesh, pred: (c: THREE.Vector3) => boolean): THREE.Mesh | null {
     src.updateWorldMatrix(true, false);
     const g = src.geometry;
     const pos = g.getAttribute('position'), nor = g.getAttribute('normal'), uv = g.getAttribute('uv');
     const index = g.index ? Array.from(g.index.array as ArrayLike<number>) : Array.from({ length: pos.count }, (_, i) => i);
     const mats = Array.isArray(src.material) ? src.material : [src.material];
-    const groupOf = (tri: number) => {
-      if (!g.groups.length || mats.length === 1) return 0;
-      for (const gr of g.groups) if (tri * 3 >= gr.start && tri * 3 < gr.start + gr.count) return gr.materialIndex ?? 0;
-      return 0;
-    };
-    const per: number[][] = mats.map(() => []);
-    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), cen = new THREE.Vector3(), n = new THREE.Vector3();
-    for (let t = 0; t < index.length / 3; t++) {
-      a.fromBufferAttribute(pos, index[3 * t]).applyMatrix4(src.matrixWorld);
-      b.fromBufferAttribute(pos, index[3 * t + 1]).applyMatrix4(src.matrixWorld);
-      c.fromBufferAttribute(pos, index[3 * t + 2]).applyMatrix4(src.matrixWorld);
-      cen.copy(a).add(b).add(c).multiplyScalar(1 / 3);
-      n.copy(b).sub(a).cross(c.clone().sub(a)).normalize();
-      if (pred(cen, n)) per[groupOf(t)].push(3 * t);
-    }
+    const groups = g.groups.length ? g.groups : [{ start: 0, count: index.length, materialIndex: 0 }];
     const P: number[] = [], N: number[] = [], U: number[] = [];
-    const groups: { start: number; count: number; materialIndex: number }[] = [];
+    const ng: { start: number; count: number; materialIndex: number }[] = [];
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
     const nm = new THREE.Matrix3().getNormalMatrix(src.matrixWorld);
-    per.forEach((starts, mi) => {
+    for (const gr of groups) {
       const start = P.length / 3;
-      for (const s of starts) for (let k = 0; k < 3; k++) {
-        const vi = index[s + k];
-        const w = new THREE.Vector3().fromBufferAttribute(pos, vi).applyMatrix4(src.matrixWorld);
-        P.push(w.x, w.y, w.z);
-        if (nor) { const nv = new THREE.Vector3().fromBufferAttribute(nor, vi).applyMatrix3(nm).normalize(); N.push(nv.x, nv.y, nv.z); }
-        if (uv) U.push(uv.getX(vi), uv.getY(vi));
+      for (let i = gr.start; i < gr.start + gr.count; i += 3) {
+        a.fromBufferAttribute(pos, index[i]).applyMatrix4(src.matrixWorld);
+        b.fromBufferAttribute(pos, index[i + 1]).applyMatrix4(src.matrixWorld);
+        c.fromBufferAttribute(pos, index[i + 2]).applyMatrix4(src.matrixWorld);
+        if (!pred(a.clone().add(b).add(c).multiplyScalar(1 / 3))) continue;
+        for (let k = 0; k < 3; k++) {
+          const vi = index[i + k];
+          const w = new THREE.Vector3().fromBufferAttribute(pos, vi).applyMatrix4(src.matrixWorld);
+          P.push(w.x, w.y, w.z);
+          if (nor) { const nv = new THREE.Vector3().fromBufferAttribute(nor, vi).applyMatrix3(nm).normalize(); N.push(nv.x, nv.y, nv.z); }
+          if (uv) U.push(uv.getX(vi), uv.getY(vi));
+        }
       }
-      if (P.length / 3 > start) groups.push({ start, count: P.length / 3 - start, materialIndex: mi });
-    });
+      if (P.length / 3 > start) ng.push({ start, count: P.length / 3 - start, materialIndex: gr.materialIndex ?? 0 });
+    }
     if (!P.length) return null;
-    const ng = new THREE.BufferGeometry();
-    ng.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
-    if (nor) ng.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); else ng.computeVertexNormals();
-    if (uv) ng.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
-    groups.forEach((gr) => ng.addGroup(gr.start, gr.count, gr.materialIndex));
-    const dup = mats.map((m) => { const q = m.clone(); q.polygonOffset = true; q.polygonOffsetFactor = -1; q.polygonOffsetUnits = -2; return q; });
-    const mesh = new THREE.Mesh(ng, Array.isArray(src.material) ? dup : dup[0]);
+    this.removeTriangles(src, pred);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    if (nor) geo.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3)); else geo.computeVertexNormals();
+    if (uv) geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2));
+    ng.forEach((x) => geo.addGroup(x.start, x.count, x.materialIndex));
+    const mesh = new THREE.Mesh(geo, Array.isArray(src.material) ? mats : mats[0]);
     mesh.castShadow = true; mesh.receiveShadow = true;
     this.root.add(mesh);
     return mesh;
+  }
+
+  /** Removes the triangles of `mesh` whose world-space centroid satisfies `pred` (the geometry is edited in place). */
+  private removeTriangles(mesh: THREE.Mesh, pred: (c: THREE.Vector3) => boolean) {
+    mesh.updateWorldMatrix(true, false);
+    const g = mesh.geometry;
+    const pos = g.getAttribute('position');
+    const idx = g.index ? Array.from(g.index.array as ArrayLike<number>) : Array.from({ length: pos.count }, (_, i) => i);
+    const groups = g.groups.length ? g.groups : [{ start: 0, count: idx.length, materialIndex: 0 }];
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    const out: number[] = []; const ng: { start: number; count: number; materialIndex: number }[] = [];
+    for (const gr of groups) {
+      const start = out.length;
+      for (let i = gr.start; i < gr.start + gr.count; i += 3) {
+        a.fromBufferAttribute(pos, idx[i]).applyMatrix4(mesh.matrixWorld);
+        b.fromBufferAttribute(pos, idx[i + 1]).applyMatrix4(mesh.matrixWorld);
+        c.fromBufferAttribute(pos, idx[i + 2]).applyMatrix4(mesh.matrixWorld);
+        if (!pred(a.add(b).add(c).multiplyScalar(1 / 3))) out.push(idx[i], idx[i + 1], idx[i + 2]);
+      }
+      if (out.length > start) ng.push({ start, count: out.length - start, materialIndex: gr.materialIndex ?? 0 });
+    }
+    g.setIndex(out);
+    g.clearGroups();
+    if (g.groups.length === 0 && ng.length) ng.forEach((x) => g.addGroup(x.start, x.count, x.materialIndex));
+  }
+
+  /** Closed wedge (top, bottom, hinge wall, end caps) lofted through cross-sections A (top hinge), B (bottom hinge), C (trailing edge). */
+  private wedge(sec: { A: THREE.Vector3; B: THREE.Vector3; C: THREE.Vector3 }[], material: THREE.Material): THREE.Mesh {
+    const P: number[] = [];
+    const cen = new THREE.Vector3();
+    sec.forEach((q) => cen.add(q.A).add(q.B).add(q.C));
+    cen.multiplyScalar(1 / (sec.length * 3));
+    const tri = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3) => {
+      const n = b.clone().sub(a).cross(c.clone().sub(a));
+      const m = a.clone().add(b).add(c).multiplyScalar(1 / 3).sub(cen);
+      if (n.dot(m) < 0) { P.push(a.x, a.y, a.z, c.x, c.y, c.z, b.x, b.y, b.z); } else P.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    };
+    const quad = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3) => { tri(a, b, c); tri(a, c, d); };
+    for (let i = 0; i + 1 < sec.length; i++) {
+      const s0 = sec[i], s1 = sec[i + 1];
+      quad(s0.A, s1.A, s1.C, s0.C); // top
+      quad(s0.B, s0.C, s1.C, s1.B); // bottom
+      quad(s0.A, s0.B, s1.B, s1.A); // hinge wall
+    }
+    const f = sec[0], l = sec[sec.length - 1];
+    tri(f.A, f.B, f.C); tri(l.A, l.B, l.C);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    g.computeVertexNormals();
+    const mesh = new THREE.Mesh(g, material);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    this.root.add(mesh);
+    return mesh;
+  }
+
+  /** Vertical extent of a mesh at a plan position (model space), by ray casting. */
+  private heights(mesh: THREE.Mesh, x: number, z: number): { top: number; bottom: number } | null {
+    const rc = new THREE.Raycaster();
+    rc.set(new THREE.Vector3(x, 2000, z), new THREE.Vector3(0, -1, 0));
+    const down = rc.intersectObject(mesh, false);
+    if (!down.length) return null;
+    rc.set(new THREE.Vector3(x, -2000, z), new THREE.Vector3(0, 1, 0));
+    const up = rc.intersectObject(mesh, false);
+    return { top: down[0].point.y, bottom: up.length ? up[0].point.y : down[down.length - 1].point.y };
   }
 
   private mirror(name: string): THREE.Mesh | null {
@@ -170,15 +227,44 @@ export class B737Rig {
     }
     const te = (x: number) => bins.get(Math.round(Math.abs(x) / 20))?.zmin ?? 0;
     const ch = (x: number) => { const e = bins.get(Math.round(Math.abs(x) / 20)); return e ? e.zmax - e.zmin : 100; };
+    const skinMat = (Array.isArray(skin.material) ? skin.material[0] : skin.material).clone();
+    skinMat.side = THREE.DoubleSide;
+    const A0 = 548, A1 = 646; // aileron span (model units from the centreline)
     for (const side of [1, -1]) { // +x = the aircraft's left, -x = right
       const sx = (x: number) => Math.abs(x);
-      const ailMesh = this.carve(skin, (c) => Math.sign(c.x) === side && sx(c.x) > 560 && sx(c.x) < 648 && c.z < te(c.x) + 0.27 * ch(c.x));
-      const inMesh = this.carve(skin, (c, n) => Math.sign(c.x) === side && sx(c.x) > 215 && sx(c.x) < 372 && n.y > 0.3 && c.z > te(c.x) + 0.30 * ch(c.x) && c.z < te(c.x) + 0.50 * ch(c.x));
-      const outMesh = this.carve(skin, (c, n) => Math.sign(c.x) === side && sx(c.x) > 378 && sx(c.x) < 545 && n.y > 0.3 && c.z > te(c.x) + 0.30 * ch(c.x) && c.z < te(c.x) + 0.50 * ch(c.x));
-      const a = ailMesh && this.makeSurface([ailMesh], true), i = inMesh && this.makeSurface([inMesh], true), o = outMesh && this.makeSurface([outMesh], true);
-      if (a) this.ail[side > 0 ? 1 : 0] = a;
-      if (i) this.spoilIn[side > 0 ? 1 : 0] = i;
-      if (o) this.spoilOut[side > 0 ? 1 : 0] = o;
+      // ---- aileron: a closed wedge replaces the skin aft of the hinge line (so the surface itself moves)
+      const stations: { A: THREE.Vector3; B: THREE.Vector3; C: THREE.Vector3 }[] = [];
+      for (let i = 0; i <= 6; i++) {
+        const x = side * (A0 + (A1 - A0) * (i / 6));
+        const zh = te(x) + 0.26 * ch(x);
+        const hh = this.heights(skin, x, zh), ht = this.heights(skin, x, te(x) + 3);
+        if (!hh || !ht) continue;
+        const yc = (ht.top + ht.bottom) / 2;
+        stations.push({ A: new THREE.Vector3(x, hh.top, zh), B: new THREE.Vector3(x, hh.bottom, zh), C: new THREE.Vector3(x, yc, te(x)) });
+      }
+      if (stations.length >= 3) {
+        this.removeTriangles(skin, (c) => Math.sign(c.x) === side && sx(c.x) >= A0 && sx(c.x) <= A1 && c.z < te(c.x) + 0.26 * ch(c.x));
+        const wm = this.wedge(stations, skinMat);
+        const sf = this.makeSurface([wm], true);
+        if (sf) this.ail[side > 0 ? 1 : 0] = sf;
+      }
+      // ---- spoilers: thin plates on the upper skin, hinged at their forward edge
+      for (const [x0, x1, set] of [[215, 372, this.spoilIn], [380, 540, this.spoilOut]] as const) {
+        const A: THREE.Vector3[] = [], B: THREE.Vector3[] = [], C: THREE.Vector3[] = [];
+        for (let i = 0; i <= 4; i++) {
+          const x = side * (x0 + (x1 - x0) * (i / 4));
+          const zf = te(x) + 0.53 * ch(x), zb = te(x) + 0.33 * ch(x);
+          const hf = this.heights(skin, x, zf), hb = this.heights(skin, x, zb);
+          if (!hf || !hb) continue;
+          A.push(new THREE.Vector3(x, hf.top + 0.5, zf)); B.push(new THREE.Vector3(x, hf.top - 0.6, zf)); C.push(new THREE.Vector3(x, hb.top + 0.5, zb));
+        }
+        if (A.length < 3) continue;
+        // plate: top face from forward edge A to aft edge C; bottom face 1.1 units below
+        const sec = A.map((a, i) => ({ A: a, B: B[i], C: C[i].clone().setY(C[i].y - 0.6) }));
+        const pm = this.wedge(sec, skinMat);
+        const sf = this.makeSurface([pm], true);
+        if (sf) set[side > 0 ? 1 : 0] = sf;
+      }
     }
     this.report.push(`aileron ${this.ail.filter(Boolean).length}/2, spoilers ${this.spoilIn.filter(Boolean).length + this.spoilOut.filter(Boolean).length}/4`);
   }
@@ -214,50 +300,71 @@ export class B737Rig {
     const fin = this.meshes.get('Group_082');
     if (!fin) return;
     const verts = worldVerts(fin);
-    const bandOf = (y: number) => Math.round(y / 25);
-    const bins = new Map<number, { zmin: number; zmax: number }>();
-    for (const p of verts) { const k = bandOf(p.y); const e = bins.get(k) ?? { zmin: Infinity, zmax: -Infinity }; e.zmin = Math.min(e.zmin, p.z); e.zmax = Math.max(e.zmax, p.z); bins.set(k, e); }
-    const e = (y: number) => bins.get(bandOf(y)) ?? { zmin: -700, zmax: -400 };
-    const mesh = this.carve(fin, (c) => c.y > 235 && c.z < e(c.y).zmin + 0.30 * (e(c.y).zmax - e(c.y).zmin));
-    if (!mesh) return;
-    // hinge: vertical-ish line along the forward edge of the carved part (bottom and top points)
-    const vv = worldVerts(mesh);
-    let lo: THREE.Vector3 | null = null, hi: THREE.Vector3 | null = null;
-    for (const p of vv) { if (!lo || p.y < lo.y) lo = p; if (!hi || p.y > hi.y) hi = p; }
-    const fwdAt = (y: number) => Math.max(...vv.filter((p) => Math.abs(p.y - y) < 12).map((p) => p.z));
-    const p0 = new THREE.Vector3(0, lo!.y, fwdAt(lo!.y + 12)), p1 = new THREE.Vector3(0, hi!.y, fwdAt(hi!.y - 12));
+    const yBase = Math.min(...verts.map((p) => p.y)), yTop = Math.max(...verts.map((p) => p.y));
+    // trailing / leading edge of the fin at height y, from the vertices in a thin band around it
+    const edge = (y: number) => {
+      const band = verts.filter((p) => Math.abs(p.y - y) < 7);
+      if (!band.length) return { zmin: -700, zmax: -400 };
+      return { zmin: Math.min(...band.map((p) => p.z)), zmax: Math.max(...band.map((p) => p.z)) };
+    };
+    const zh = (y: number) => { const q = edge(y); return q.zmin + 0.30 * (q.zmax - q.zmin); };
+    const mat = (Array.isArray(fin.material) ? fin.material[0] : fin.material).clone();
+    mat.side = THREE.DoubleSide;
+    const ymin = yBase + 40, ymax = yTop - 4;
+    const N = 24;
+    const zhs: number[] = [], zte: number[] = [];
+    for (let i = 0; i <= N; i++) { const y = ymin + (ymax - ymin) * (i / N); zhs.push(zh(y)); zte.push(edge(y).zmin); }
+    // light smoothing so the hinge line and trailing edge are clean
+    const smooth = (a: number[]) => a.map((v, i) => (a[Math.max(0, i - 1)] + v + a[Math.min(a.length - 1, i + 1)]) / 3);
+    const zhS = smooth(smooth(smooth(zhs))), zteS = smooth(smooth(smooth(smooth(zte))));
+    const at = (arr: number[], y: number) => { const t = THREE.MathUtils.clamp((y - ymin) / (ymax - ymin), 0, 1) * N; const i = Math.min(N - 1, Math.floor(t)); return arr[i] + (arr[i + 1] - arr[i]) * (t - i); };
+    const sec: { A: THREE.Vector3; B: THREE.Vector3; C: THREE.Vector3 }[] = [];
+    for (let i = 0; i <= N; i++) {
+      const y = ymin + (ymax - ymin) * (i / N), z = zhS[i];
+      const near = verts.filter((p) => Math.abs(p.y - y) < 9 && Math.abs(p.z - z) < 12);
+      const w = near.length ? Math.max(1.5, Math.max(...near.map((p) => Math.abs(p.x)))) : 4;
+      sec.push({ A: new THREE.Vector3(-w, y, z), B: new THREE.Vector3(w, y, z), C: new THREE.Vector3(0, y, zteS[i]) });
+    }
+    this.removeTriangles(fin, (c) => c.y >= ymin && c.y <= ymax && c.z < at(zhS, c.y));
+    const mesh = this.wedge(sec, mat);
+    const p0 = new THREE.Vector3(0, ymin, zhS[0]), p1 = new THREE.Vector3(0, ymax, zhS[N]);
     const u = p1.clone().sub(p0).normalize();
     const g = new THREE.Group(); g.position.copy(p0); this.root.add(g); g.updateMatrixWorld(true); g.attach(mesh);
-    const pv = new THREE.Vector3(0, 0, -1); // aft point
+    const pv = new THREE.Vector3(0, 0, -1);
     const dx = u.y * pv.z - u.z * pv.y; // x component of u x p
     this.rudder = { g, pivot: p0, u, v: new THREE.Vector3(0, 0, 1), tedown: dx > 0 ? 1 : -1 };
     this.report.push('rudder 1/1');
   }
 
   private landingGear() {
-    const low: THREE.Mesh[] = [];
-    for (const m of this.meshes.values()) {
-      const b = new THREE.Box3().setFromObject(m), c = b.getCenter(new THREE.Vector3());
-      if (Math.abs(c.x) <= 160 && c.y <= 110 && b.max.y <= 125 && (Math.abs(c.z) <= 40 || c.z > 550)) low.push(m);
-    }
-    const nose = low.filter((m) => new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()).z > 550);
-    if (nose.length) {
-      const bb = new THREE.Box3(); nose.forEach((m) => bb.expandByObject(m));
+    // Named parts of the supplied mesh: nose strut+wheels is one mesh; each main gear is a leg (with drag brace),
+    // a wheel/axle assembly and two small axle parts. The inboard doors and belly fairings stay fixed.
+    const nose = this.meshes.get('Group_102');
+    if (nose) {
+      const bb = new THREE.Box3().setFromObject(nose);
       const pivot = new THREE.Vector3(0, bb.max.y, (bb.min.z + bb.max.z) / 2);
-      const g = new THREE.Group(); g.position.copy(pivot); this.root.add(g); g.updateMatrixWorld(true);
-      nose.forEach((m) => g.attach(m));
+      const g = new THREE.Group(); g.position.copy(pivot); this.root.add(g); g.updateMatrixWorld(true); g.attach(nose);
       this.noseGear = { g, pivot };
     }
-    for (const side of [1, -1]) {
-      const set = low.filter((m) => !nose.includes(m) && Math.sign(new THREE.Box3().setFromObject(m).getCenter(new THREE.Vector3()).x) === side);
+    // the tyres of both main gears are one mesh (Group_001): split it into a left and a right half
+    const tyres = this.meshes.get('Group_001');
+    const tyreSides = new Map<number, THREE.Mesh>();
+    if (tyres) {
+      const right = this.extract(tyres, (c) => c.x > 0), left = this.extract(tyres, (c) => c.x < 0);
+      if (right) tyreSides.set(1, right);
+      if (left) tyreSides.set(-1, left);
+    }
+    for (const [side, names] of [[-1, ['Component#5_001', 'Group_098', 'Group_100']], [1, ['Component#5_002', 'Group_093', 'Group_101']]] as const) {
+      const set = names.map((n) => this.meshes.get(n)).filter(Boolean) as THREE.Mesh[];
+      if (tyreSides.get(side)) set.push(tyreSides.get(side)!);
       if (!set.length) continue;
-      const bb = new THREE.Box3(); set.forEach((m) => bb.expandByObject(m));
-      const pivot = new THREE.Vector3((bb.min.x + bb.max.x) / 2, bb.max.y, (bb.min.z + bb.max.z) / 2);
+      const leg = new THREE.Box3().setFromObject(set[0]); // strut + brace: its top is the attachment to the wing
+      const pivot = new THREE.Vector3((leg.min.x + leg.max.x) / 2, leg.max.y, (leg.min.z + leg.max.z) / 2);
       const g = new THREE.Group(); g.position.copy(pivot); this.root.add(g); g.updateMatrixWorld(true);
       set.forEach((m) => g.attach(m));
       this.mainGear.push({ g, pivot, side });
     }
-    this.report.push(`gear nose ${nose.length} parts, mains ${this.mainGear.map((m) => m.g.children.length).join('+')}`);
+    this.report.push(`gear nose ${nose ? 1 : 0}, mains ${this.mainGear.length}`);
   }
 
   // ------------------------------------------------------------------ animation

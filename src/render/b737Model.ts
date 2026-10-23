@@ -100,6 +100,7 @@ export class B737Model {
   /** Real 737-800 mesh (public/models/b738.fbx) once loaded; replaces the procedural exterior. */
   private real: THREE.Group | null = null;
   private rig: B737Rig | null = null;
+  private restMatrix = new THREE.Matrix4();
 
   constructor() {
     this.root.name = 'B738';
@@ -330,6 +331,16 @@ export class B737Model {
     // gear: retract inboard (mains) and forward (nose)
     const ret = 1 - ac.gearExt;
     if (this.rig) this.rig.update(ac);
+    if (this.real) {
+      // keep the wheels on the ground: the flight model's tyre contact is gear bottom (z = 4.05 m below the datum)
+      // minus strut compression; tilt the mesh so nose and main wheels meet the same plane
+      const cn = ac.gearStates[0]?.compression ?? 0;
+      const cm = ((ac.gearStates[1]?.compression ?? 0) + (ac.gearStates[2]?.compression ?? 0)) / 2;
+      const down = ac.gearExt > 0.99 ? 1 : 0;
+      const tilt = down * (cn - cm) / 15.6;
+      this.real.matrix.copy(new THREE.Matrix4().makeTranslation(-1.5, 0, 4.05 - down * cm)).multiply(new THREE.Matrix4().makeRotationY(tilt)).multiply(this.restMatrix);
+      this.real.matrixWorldNeedsUpdate = true;
+    }
     this.mainGear.forEach((g, i) => {
       g.rotation.x = (i === 0 ? -1 : 1) * ret * (Math.PI / 2); // mains fold inboard
       const comp = ac.gearStates[i + 1]?.compression ?? 0;
@@ -398,6 +409,7 @@ export class B737Model {
       .multiply(new THREE.Matrix4().makeTranslation(0, -22, 3));
     // rig the control surfaces in model space (before the model is placed under the scaling wrapper)
     try { this.rig = new B737Rig(root); console.info('737 rig:', this.rig.report.join('; ')); } catch (e) { console.warn('737 rig failed; model stays static', e); }
+    this.restMatrix.copy(new THREE.Matrix4().makeScale(s, s, s).multiply(P).multiply(new THREE.Matrix4().makeRotationX(-2.06 * Math.PI / 180)).multiply(new THREE.Matrix4().makeTranslation(0, -22, 3)));
     const wrap = new THREE.Group();
     wrap.matrixAutoUpdate = false; wrap.matrix.copy(m);
     wrap.add(root);

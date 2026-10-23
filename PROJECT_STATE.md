@@ -1,6 +1,6 @@
 # JetVault Flight Simulator — Project State
 
-_Last updated: update 20 (737 control-surface animation, desktop camera controls). This file is regenerated and handed over at the end of every piece of work._
+_Last updated: update 21 (737 animation fixes: ground contact, flaps, ailerons, spoilers, gear). This file is regenerated and handed over at the end of every piece of work._
 
 ## Engine and architecture
 - **Platform:** browser, TypeScript + three.js (WebGL2), built with Vite. Chosen because the dev environment has no GPU and no native engine; the user plays in a browser. Fallback/native path: Godot 4 (the flight model is engine-independent TypeScript and can be ported).
@@ -137,6 +137,14 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - **Realism of the motion:** deflections are the flight model's actual surface positions after actuator lag (ailerons, elevator, rudder); flaps rotate and also move aft and down (Fowler travel, up to ~0.4 m); slats extend intermediate for flaps 1-5 and fully beyond; ground spoilers rise only on the ground, flight spoilers follow the speedbrake and also rise on the up-going aileron side; the gear folds smoothly (nose forward, mains inboard) in step with the gear position, and the nose wheel steers with the tiller. Verified in headless screenshots (flaps 40° with gap, spoilers/ailerons, gear in transit). **Not done:** thrust reversers, engine fan rotation, gear doors, wheel spin and strut compression (the mesh does not separate them); the rudder deflection is small to see and was only checked in one view; the livery patches are now exactly the fuselage white.
 - **Desktop camera:** mouse wheel or trackpad pinch = zoom (pinch arrives as ctrl+wheel); hold the right mouse button and move = look/orbit; two-finger trackpad scroll = look/orbit (a mouse wheel is told apart by whole notches/line mode). Touch gestures unchanged. Not tested with a physical trackpad (headless only).
 - Renamed `PROJECT_STATE_JETVAULT.md` to `PROJECT_STATE.md` at the user's request.
+
+## Update 21 — 737 fixes after the first animation pass (user feedback)
+- **Wheels in the ground:** the mesh is now placed each frame from the flight model's real tyre contact (gear bottom 4.05 m below the datum minus strut compression, nose and mains separately, tilting the mesh to match), instead of a fixed offset. Verified: wheels rest on the apron.
+- **Flaps too slow:** flap rate raised from 1.3°/s to 3.0°/s (about 13 s for 0 to 40°; real aircraft take roughly 20-30 s, shortened on request).
+- **Ailerons not part of the wing:** the aileron regions are now cut out of the wing skin and replaced by closed wedge bodies lofted through the local cross-sections (hinge wall, top, bottom, end caps), so the surface of the wing itself moves. The rudder is built the same way from the fin (smoothed hinge and trailing edge).
+- **Spoilers looked wrong:** they are now thin plates lying on the upper skin, hinged at their forward edge (4 per aircraft: 2 inboard ground spoilers that rise only on the ground, 2 outboard flight spoilers that follow the speedbrake and the roll command), instead of ragged groups of triangles.
+- **Gear:** the earlier version grouped the wrong parts (nose cone parts, door fairings) and pivoted around the wrong point. The supplied mesh's gear parts were identified individually: nose strut+wheels (`Group_102`), each main leg with drag brace (`Component#5_00x`), wheel/axle assemblies, and the tyres of both mains, which are one merged mesh (`Group_001`) that is now split into left and right halves. Each main gear swings inboard about the top of its strut; the nose gear folds forward about its attachment, steering when down. Headless frames at 70 %, 45 % and 20 % extension show a continuous fold. Still simplified: the thin outboard door panels travel with the leg and the inboard doors stay fixed (no door sequencing).
+- Remaining known gaps: engine fans, reversers and wheel spin do not animate; rudder deflection is subtle on screen.
 
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |

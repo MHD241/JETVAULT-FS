@@ -113,7 +113,7 @@ export const B738: AircraftDef = {
     aileronRig: 0,
     // flap lever detents 0,1,2,5,10,15,25,30,40 (flap angle equals the detent in degrees)
     flapDetents: [0, 1, 2, 5, 10, 15, 25, 30, 40].map((d) => d * DEG),
-    flapRate: 1.3 * DEG,
+    flapRate: 3.0 * DEG, // ~13 s from 0 to 40 (real flaps take roughly 20-30 s; shortened on request)
     surfaceTau: 0.15,
   },
   fuselage: { pos: new Vec3(-1.0, 0, 0), dragArea: 1.55, sideArea: 125, planArea: 120, munkVolume: 340, munkVolumeYaw: 350 },
