@@ -1,6 +1,6 @@
 # JetVault Flight Simulator — Project State
 
-_Last updated: update 24 (patch streaming). This file is regenerated and handed over at the end of every piece of work._
+_Last updated: update 25 (landing assist removed; cockpit model pending licence/performance decision). This file is regenerated and handed over at the end of every piece of work._
 
 ## Engine and architecture
 - **Platform:** browser, TypeScript + three.js (WebGL2), built with Vite. Chosen because the dev environment has no GPU and no native engine; the user plays in a browser. Fallback/native path: Godot 4 (the flight model is engine-independent TypeScript and can be ported).
@@ -163,6 +163,10 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - Overlapping patches (Edinburgh/Portmoak overlap by ~10 km): the later patch wins; covered chunks of the earlier patch are hidden. Physics and rendering use the same priority.
 - Resolution cap: the renderer pixel ratio is capped at 1.5 (was 2) because retina screens at 2x cost a lot of fill rate with the terrain shader; Settings -> render scale still applies on top.
 - Headless check: Edinburgh -> Glasgow -> Edinburgh -> Portmoak transitions load/unload exactly as above with no errors; `tests/scotland.test.ts` checks unload/reload restores terrain and buildings (95 tests pass). **Frame rate was NOT measured on a real GPU** (software rendering only), so how much smoother it is on your machine is unconfirmed. Loading a patch builds its meshes in one go, so a short hitch is possible when you cross into a new airport area.
+
+## Update 25 — landing flare assist removed; cockpit model received (not integrated)
+- **Removed** the landing flare in the auto-trim (powered aircraft: descent easing below ~60 ft AGL; glider: below 10 m) and its test; the auto-trim itself (hold vertical speed / airspeed at stick release) and the mobile wings-level assist are unchanged. Hard landings are no longer softened: a 600 fpm arrival stays at ~600 fpm. 93 tests pass.
+- **737 cockpit model (`B737-800 Cockpit Final Product for sale.fbx`, 35 MB) is NOT integrated yet.** Findings: 1,679 meshes and 1.75 M triangles (far too heavy for phones and heavy for desktop without merging/decimating); generic part names (Cube847, Cylinder738 ...) so yoke, throttle, switches and screens would have to be identified by position; Blender-origin texture paths only (embedded textures not found); the file name says "for sale", so its licence is **unknown** and it must not be added to the public repository or the published page until the user confirms the right to use it.
 
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |

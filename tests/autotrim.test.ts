@@ -3,7 +3,7 @@
 // auto-trim assist moves the trim wheel so a released stick holds level flight.
 import { describe, it, expect } from 'vitest';
 import { flatWorld, newSim, run } from './helpers';
-import { FT, KT, DEG } from '../src/core/math';
+import { FT, DEG } from '../src/core/math';
 import { AutoTrim } from '../src/sim/assists';
 import { C172 } from '../src/sim/aircraft/c172';
 import { B738 } from '../src/sim/aircraft/b738';
@@ -40,33 +40,6 @@ for (const def of [C172, B738]) {
     });
   });
 }
-
-describe('landing assist (flare with the stick released)', () => {
-  for (const def of [C172, B738]) {
-    it(`${def.id}: a ~600 fpm descent released at 120 ft touches down without crashing`, () => {
-      const sim = newSim(flatWorld(0), undefined, def);
-      sim.spawn({ kind: 'runway', ident: '36' });
-      sim.controls.throttle = 0.05;
-      const ac = sim.aircraft;
-      ac.placeInFlight(0, 0, 40, 0, def.profile.approachKias * KT, def.profile.approachPitchDeg * DEG);
-      sim.controls.flapLever = def.profile.approachFlapLever;
-      sim.controls.trim = def.profile.approachTrim;
-      sim.controls.gearDown = true;
-      ac.flap = def.controls.flapDetents[def.profile.approachFlapLever];
-      ac.vel.z += 3.0; // ~600 fpm descent when the stick is released
-      const at = new AutoTrim();
-      let touch = 0;
-      run(sim, 40, () => {
-        sim.controls.roll = -ac.euler[0];
-        if (!ac.onGround) { sim.controls.pitch = at.update(1 / 240, ac, sim.controls, 0); touch = -ac.vel.z; }
-      });
-      console.log(`${def.id} touchdown sink ${(touch * 196.85).toFixed(0)} fpm, on ground ${ac.onGround}`);
-      expect(ac.onGround).toBe(true);
-      expect(touch).toBeGreaterThan((def === C172 ? -450 : -900) / 196.85); // unassisted: ~600 fpm
-      expect(ac.crashed).toBe(false);
-    });
-  }
-});
 
 describe('pushback tug', () => {
   it('b738: a 90 kN speed-limited tug pushes the aircraft backwards straight at ~1.5 m/s, then it holds with the parking brake', () => {
