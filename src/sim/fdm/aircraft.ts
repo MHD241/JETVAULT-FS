@@ -140,6 +140,8 @@ export class Aircraft {
   fuel: number[]; // kg per tank
   flap = 0; // rad actual
   elevator = 0; aileronL = 0; aileronR = 0; rudder = 0; // rad actual
+  /** Pushback tug: target reverse speed (m/s) or null. The tug pulls on the nose gear with a limited force. */
+  tugSpeed: number | null = null;
   crashed = false;
   crashReason = '';
   events: ContactEvent[] = [];
@@ -399,6 +401,15 @@ export class Aircraft {
       const ca = Math.cos(this.alpha), cb = Math.cos(this.beta);
       M.y += this.qbar * 2 * fu.munkVolume * Math.sin(this.alpha) * ca * cb;
       M.z -= this.qbar * 2 * fu.munkVolumeYaw * Math.sin(this.beta) * cb;
+    }
+
+    // Pushback tug: speed-controlled horizontal force at the nose gear, limited to 90 kN.
+    if (this.tugSpeed !== null && this.onGround) {
+      const vx = this.q.invRotate(this.vel).x;
+      const fx = Math.max(-90000, Math.min(90000, 80000 * (-this.tugSpeed - vx)));
+      const tf = new Vec3(fx, 0, 0);
+      F.addIn(tf);
+      M.addIn(d.gear[0].attach.cross(tf));
     }
 
     // Flight (aerodynamic + thrust) load factor, for structural limits. Ground reactions

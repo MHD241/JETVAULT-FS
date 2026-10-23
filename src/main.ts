@@ -72,6 +72,8 @@ class App implements MenuHost {
   private jetBridges!: JetBridges;
   private bridgeBtn!: HTMLButtonElement;
   private parkBtn!: HTMLButtonElement;
+  private pushBtn!: HTMLButtonElement;
+  private tug!: THREE.Group;
   private lastVel = new THREE.Vector3();
   private crashShown = false;
   graphics: GraphicsSettings = loadGraphics();
@@ -142,6 +144,21 @@ class App implements MenuHost {
     this.bridgeBtn.style.display = 'none';
     document.body.appendChild(this.bridgeBtn);
     this.bridgeBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('bridge'); });
+    this.pushBtn = document.createElement('button');
+    this.pushBtn.className = 'jv-bridge';
+    this.pushBtn.style.cssText = 'display:none;top:112px';
+    document.body.appendChild(this.pushBtn);
+    this.pushBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('push'); });
+    this.tug = new THREE.Group();
+    {
+      const m = new THREE.MeshStandardMaterial({ color: 0xe0b020, roughness: 0.6 }), d = new THREE.MeshStandardMaterial({ color: 0x23272e, roughness: 0.8 });
+      const body = new THREE.Mesh(new THREE.BoxGeometry(5, 2.4, 1.2), m); body.position.set(19.8, 0, 3.0);
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.0, 0.9), d); cab.position.set(20.6, 0, 2.2);
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.18, 0.18), d); bar.position.set(16.4, 0, 3.4);
+      this.tug.add(body, cab, bar);
+      this.tug.visible = false;
+      this.aircraftGroup.add(this.tug);
+    }
     this.parkBtn = document.createElement('button');
     this.parkBtn.className = 'jv-park';
     document.body.appendChild(this.parkBtn);
@@ -257,6 +274,8 @@ class App implements MenuHost {
     if (spawn.kind === 'air') this.sim.spawnAir(spawn.east, spawn.north, spawn.altFt, spawn.hdg);
     else this.sim.spawn(spawn);
     this.crashFx.clear();
+    this.sim.aircraft.tugSpeed = null;
+    if (this.tug) this.tug.visible = false;
     this.crashShown = false;
     this.aircraftGroup.visible = true;
     this.simple.setThrottle(this.sim.controls.throttle);
@@ -304,8 +323,20 @@ class App implements MenuHost {
       if (this.jetBridges.connected) this.simple.parking = true; // park the aircraft when the bridge connects
       this.hud.toast(msg);
     }
+    if (ev === 'push') {
+      if (ac.tugSpeed !== null) { this.stopPushback(); this.hud.toast('Pushback complete - tug disconnected'); }
+      else if (!ac.def.retractableGear || !ac.onGround || Math.hypot(ac.vel.x, ac.vel.y) > 0.5) this.hud.toast('Pushback needs a stopped airliner on the ground');
+      else if (this.jetBridges.connected) this.hud.toast('Retract the jet bridge first');
+      else { ac.tugSpeed = 1.5; this.simple.parking = false; this.tug.visible = true; this.hud.toast('Pushback: steer with left/right, press again to stop'); }
+    }
     if (ev === 'park') { this.simple.parking = !this.simple.parking; this.hud.toast(this.simple.parking ? 'Parking brake ON' : 'Parking brake OFF'); }
     if (ev === 'camera') this.rig.setMode(this.rig.mode === 'cockpit' ? 'chase' : 'cockpit', ac);
+  }
+
+  private stopPushback() {
+    this.sim.aircraft.tugSpeed = null;
+    this.tug.visible = false;
+    this.simple.parking = true;
   }
 
   /** Flight-control diagnostics (part of the F10 overlay). */
@@ -358,6 +389,10 @@ class App implements MenuHost {
     this.jetBridges.update(dt, ac);
     const showBridge = !this.menu.open && !ac.crashed && this.jetBridges.canConnect(ac);
     this.bridgeBtn.style.display = showBridge ? 'block' : 'none';
+    if (ac.tugSpeed !== null && (sim.controls.throttle > 0.4 || !ac.onGround)) this.stopPushback();
+    const showPush = !this.menu.open && !ac.crashed && ac.def.retractableGear && ac.onGround && (ac.tugSpeed !== null || Math.hypot(ac.vel.x, ac.vel.y) < 0.5);
+    this.pushBtn.style.display = showPush ? 'block' : 'none';
+    if (showPush) this.pushBtn.textContent = ac.tugSpeed !== null ? 'STOP PUSHBACK' : 'START PUSHBACK';
     const showPark = !this.menu.open && !ac.crashed && ac.onGround;
     this.parkBtn.style.display = showPark ? 'block' : 'none';
     if (showPark) { this.parkBtn.textContent = this.simple.parking ? 'PARK BRAKE ON' : 'PARK BRAKE OFF'; this.parkBtn.classList.toggle('on', this.simple.parking); }

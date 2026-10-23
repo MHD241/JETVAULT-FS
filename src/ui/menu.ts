@@ -161,7 +161,7 @@ export class Menu {
     }
     s.appendChild(act);
     const help = document.createElement('p');
-    help.innerHTML = 'Controls: mouse = fly (move from the centre of the screen) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · C = cockpit/outside view · mouse wheel = zoom · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
+    help.innerHTML = 'Controls: mouse = fly (move from the centre of the screen) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · U = pushback · C = cockpit/outside view · mouse wheel = zoom · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
     s.appendChild(help);
   }
 

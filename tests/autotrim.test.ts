@@ -67,3 +67,28 @@ describe('landing assist (flare with the stick released)', () => {
     });
   }
 });
+
+describe('pushback tug', () => {
+  it('b738: a 90 kN speed-limited tug pushes the aircraft backwards straight at ~1.5 m/s, then it holds with the parking brake', () => {
+    const sim = newSim(flatWorld(0), undefined, B738);
+    sim.spawn({ kind: 'runway', ident: '36' });
+    const ac = sim.aircraft;
+    sim.controls.throttle = 0.0;
+    sim.controls.parkingBrake = false;
+    run(sim, 2, () => {});
+    const x0 = ac.pos.x, h0 = ac.euler[2];
+    ac.tugSpeed = 1.5;
+    run(sim, 30, () => {});
+    const back = x0 - ac.pos.x, vx = ac.q.invRotate(ac.vel).x;
+    console.log(`pushback: ${back.toFixed(1)} m back, body speed ${vx.toFixed(2)} m/s, heading change ${((ac.euler[2] - h0) / DEG).toFixed(2)} deg`);
+    expect(back).toBeGreaterThan(30);
+    expect(vx).toBeLessThan(-1.2);
+    expect(Math.abs(ac.euler[2] - h0)).toBeLessThan(2 * DEG);
+    ac.tugSpeed = null; sim.controls.parkingBrake = true;
+    const sp: string[] = [];
+    for (let i = 0; i < 4; i++) { run(sim, 10, () => {}); sp.push(Math.hypot(ac.vel.x, ac.vel.y).toFixed(3)); }
+    console.log('after release, ground speed every 10 s:', sp.join(' '));
+    expect(Math.hypot(ac.vel.x, ac.vel.y)).toBeLessThan(0.1);
+    expect(ac.crashed).toBe(false);
+  });
+});

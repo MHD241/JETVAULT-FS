@@ -86,6 +86,10 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - Airliner stands are now gate stands: `findGateSites`/`spacedStands` (`src/world/obstacles.ts`) snap each gate to the nearest terminal/pier wall and place the 737 nose-in so its front-left door (estimated position) lines up with the stowed bridge; 17 stands, spaced ≥42 m, replace the 3 derived apron stands for the 737. Yellow lead-in line and stop bar follow the aircraft's centreline. Spawn is parking-brake-on. Checked in a headless top-down screenshot (bridge connects to the door).
 - Parking brake: on-screen PARK BRAKE button (top-right, on the ground) and K key; HUD BRK shows PARK; connecting a bridge sets it automatically. Gate positions are from OSM points, so some gate stands may overlap neighbouring structures or fall short of the real stand layout (not surveyed).
 
+## Update 11 — pushback
+- START/STOP PUSHBACK button (airliner stopped on the ground; key U). A tug pulls on the nose gear with a speed-controlled horizontal force (max 90 kN, target 1.5 m/s reverse) - a real force in the flight model (`Aircraft.tugSpeed`), not a position override. Steer with left/right (nosewheel). Stop re-sets the parking brake; bridge must be retracted first; advancing the throttle >40 % also releases the tug.
+- Test: 737 pushed back 36.5 m in 30 s at ~1.3 m/s with 0.00° heading change; after release it creeps to rest in ~30 s with the parking brake. Browser: aircraft moves backwards, no page errors. Tug is a simple box model; steered pushback curves not tuned/tested.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
