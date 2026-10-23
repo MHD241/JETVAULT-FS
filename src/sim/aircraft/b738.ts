@@ -118,8 +118,9 @@ export const B738: AircraftDef = {
   },
   fuselage: { pos: new Vec3(-1.0, 0, 0), dragArea: 1.55, sideArea: 125, planArea: 120, munkVolume: 340, munkVolumeYaw: 350 },
   turbofans: [
-    { def: { ratedThrust: 117000, idleN1: 21, maxN1: 101, reverseFraction: 0.4, tsfc: 1.0e-5, idleFuelFlow: 0.07 }, pos: new Vec3(6.0, -4.9, 2.3) },
-    { def: { ratedThrust: 117000, idleN1: 21, maxN1: 101, reverseFraction: 0.4, tsfc: 1.0e-5, idleFuelFlow: 0.07 }, pos: new Vec3(6.0, 4.9, 2.3) },
+    // GAME TUNING: 131 kN static thrust per engine, ~12 % above the CFM56-7B26's published 117 kN, for a brisker climb.
+    { def: { ratedThrust: 131000, idleN1: 21, maxN1: 101, reverseFraction: 0.4, tsfc: 1.0e-5, idleFuelFlow: 0.07 }, pos: new Vec3(6.0, -4.9, 2.3) },
+    { def: { ratedThrust: 131000, idleN1: 21, maxN1: 101, reverseFraction: 0.4, tsfc: 1.0e-5, idleFuelFlow: 0.07 }, pos: new Vec3(6.0, 4.9, 2.3) },
   ],
   retractableGear: { time: 8, dragArea: 2.5 },
   gear: [

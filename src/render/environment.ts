@@ -3,6 +3,7 @@
 
 import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
+import { CloudField } from './cloudField';
 import { WeatherSettings, CloudCover } from '../sim/weather';
 import { EGPH_ORIGIN } from '../world/geo';
 import { FT } from '../core/math';
@@ -30,6 +31,7 @@ export class EnvironmentRenderer {
   readonly hemi: THREE.HemisphereLight;
   readonly fog: THREE.FogExp2;
   private clouds: THREE.Mesh[] = [];
+  private field!: CloudField;
   private cloudMat: THREE.ShaderMaterial;
   private rain: THREE.LineSegments;
   private pmrem: THREE.PMREMGenerator;
@@ -118,6 +120,7 @@ export class EnvironmentRenderer {
       this.clouds.push(m);
       scene.add(m);
     }
+    this.field = new CloudField(scene, noiseTex);
     // rain streaks
     const N = 6000;
     const rp = new Float32Array(N * 6);
@@ -184,13 +187,14 @@ export class EnvironmentRenderer {
     const camAlt = cam.y;
     const base = w.cloudBaseFt * FT;
     let inCloud = 0;
-    if (this.coverage > 0) {
+    if (this.coverage >= 0.9) {
       for (let l = 0; l < 2; l++) {
         const h = base + l * 150;
         const thick = 120 + 500 * this.coverage;
         if (camAlt > h - 20 && camAlt < h + thick) inCloud = Math.max(inCloud, this.cloudDensityAt(cam.x, cam.z, simTime, l));
       }
     }
+    else if (this.coverage > 0.05) inCloud = this.field.densityAt(cam);
     this.inCloud = inCloud;
     const vis = Math.max(50, Math.min(w.visibility, 80000) * (1 - 0.97 * inCloud));
     this.fog.density = Math.sqrt(3) / vis * 0.9;
@@ -198,10 +202,12 @@ export class EnvironmentRenderer {
     this.fog.color.setRGB(0.70 * fogBright, 0.76 * fogBright, 0.84 * fogBright).lerp(new THREE.Color(0.8, 0.8, 0.82).multiplyScalar(fogBright), overcast * 0.6 + inCloud);
     this.lightLevel = Math.max(this.night, w.visibility < 5000 ? 1 : 0, overcast * 0.4);
 
-    // clouds
+    // clouds: scattered 3D puff cumulus below overcast, flat noise layers for overcast
+    this.field.update(cam, w.cloudBaseFt, this.coverage, simTime, this.sunDir,
+      this.sun.color.clone().multiplyScalar(0.55 * dayLight + 0.03), new THREE.Color(0.45, 0.5, 0.58).multiplyScalar(0.12 + 0.6 * dayLight), this.fog.color, this.fog.density);
     for (let l = 0; l < this.clouds.length; l++) {
       const m = this.clouds[l];
-      m.visible = this.coverage > 0;
+      m.visible = this.coverage >= 0.9;
       m.position.set(Math.round(cam.x / 100) * 100, base + l * (120 + 500 * this.coverage) * 0.5, Math.round(cam.z / 100) * 100);
       const u = (m.material as THREE.ShaderMaterial).uniforms;
       u.uCover.value = this.coverage;

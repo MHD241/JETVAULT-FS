@@ -38,6 +38,12 @@ export class AutoTrim {
     let target = this.holdVs;
     let maxTheta = 15 * DEG;
     if (target < -0.3 && ac.agl < 18) { target = Math.max(target, -(0.45 + 0.1 * Math.max(ac.agl, 0))); maxTheta = 7 * DEG; } // never over-rotate into a tail strike
+    // jets: do not hold a climb rate that bleeds the speed below a safe climb speed (reduces the held VS)
+    if (ac.def.turbofans && target > 0) {
+      const vMin = ac.def.profile.approachKias * (ac.flap > 1 * DEG ? 1.15 : 1.3);
+      const deficit = vMin - ac.cas / 0.514444;
+      if (deficit > 0) target = Math.max(0, target - deficit * 0.25);
+    }
     const errVs = target - vs;
     this.vsInt = clamp(this.vsInt + errVs * 0.25 * DEG * dt, -12 * DEG, 15 * DEG);
     const thetaCmd = clamp(this.thetaRef + this.vsInt + errVs * 1.2 * DEG, -10 * DEG, maxTheta);

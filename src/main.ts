@@ -344,11 +344,11 @@ class App implements MenuHost {
       else {
         this.pushing = true;
         this.prevView = this.rig.mode === 'cockpit' ? 'cockpit' : 'chase';
-        this.simple.tugMode = true; this.simple.parking = false; this.simple.setThrottle(0);
+        this.simple.tugMode = true; this.simple.tugSteer = 0; this.simple.parking = false; this.simple.setThrottle(0);
         ac.tugSpeed = 0; ac.tugSteer = 0;
         this.tug.visible = true; this.tugCab.visible = false; this.tugDash.visible = true;
         this.rig.setMode('cockpit', ac); this.rig.tug.on = true; this.rig.headYaw = 0; this.rig.headPitch = -0.1;
-        this.hud.toast('You are the tug driver: 1-9 speed (1 = stop), steer with mouse/arrows, Space brakes');
+        this.hud.toast('You are the tug driver: 1-9 speed (1 = stop), steer with mouse/arrows (the wheel stays turned; Up = straight), Space brakes');
       }
     }
     if (ev === 'park') { this.simple.parking = !this.simple.parking; this.hud.toast(this.simple.parking ? 'Parking brake ON' : 'Parking brake OFF'); }

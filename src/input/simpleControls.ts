@@ -134,7 +134,8 @@ export class SimpleControls {
     const k = (this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('ArrowLeft') ? 1 : 0);
     this.pedal = k ? clamp(this.pedal + k * 2 * dt, -1, 1) : this.pedal * Math.max(0, 1 - 6 * dt);
     if (this.tugMode) {
-      this.tugSteer = clamp(this.pedal + roll, -1, 1);
+      // the steering wheel stays where you leave it (no self-centring); Up arrow or X re-centres it
+      this.tugSteer = this.keys.has('ArrowUp') || this.keys.has('KeyX') ? 0 : clamp(this.tugSteer + (k + roll) * 0.4 * dt, -1, 1);
       c.pitch = 0; c.roll = 0; c.yaw = 0.5 * this.tugSteer;
       c.throttle = 0.1;
       const brk = this.keys.has('Space') || this.touchBrake ? 1 : 0;

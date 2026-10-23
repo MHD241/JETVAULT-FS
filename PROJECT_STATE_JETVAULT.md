@@ -94,6 +94,11 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - START PUSHBACK now puts you in the tug cab (tug driver view with dashboard and steering wheel; swipe/look works). 1-9 (or the throttle slider) sets tug speed 0-5 m/s (1 = stop), mouse/arrows/joystick steer the tug, Space/BRAKE brakes. The aircraft is neutral and its engines stay at idle. **FINISHED - BACK TO AIRCRAFT** disconnects the tug, sets the parking brake and restores your previous view.
 - Physics: the tug is a real force at the nose gear along the towbar (max 90 kN, towbar swings up to 35°; nosewheel follows), so steering swings the tail. Browser check: at 3.2 m/s the aircraft turned from 089° to 073° with right steer, no page errors. Not tested on a touch device; the tug is simplified geometry and the HUD speed cell still shows airspeed (0 kt) while pushing.
 
+## Update 13
+- **Volumetric clouds** (`src/render/cloudField.ts`): FEW/SCT/BKN weather now renders scattered 3D cumulus: world-anchored clusters of ~8–14 soft, sun- and height-shaded instanced puffs (1 draw call, ~2,800–4,500 puffs within 20 km), which you can fly through (whiteout inside, CPU-tested) and above (ground partly hidden, gaps remain). OVC keeps the flat layers. It is a stacked-billboard approximation, not ray-marched; real-GPU/phone performance NOT TESTED (software render only). Needed log-depth chunks in the shader (the renderer uses a logarithmic depth buffer).
+- **737 engines:** measured first: the CFM56-class model already gives ~3,000 fpm at 195 kt (pitch 12°, 3,000-ft start) and ~215 kt at pitch 8°; the 140 kt climbs came from pitching too high / the VS-hold assist. Changes: static thrust raised ~12 % to 131 kN per engine (GAME TUNING, above the published 117 kN) and the auto-trim VS hold now reduces a climb rate that would bleed a jet below ~1.15–1.3 x approach speed.
+- **Pushback steering** stays where you leave it (no self-centring); Up arrow / X centres it.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
