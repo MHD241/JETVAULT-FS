@@ -96,6 +96,9 @@ export class B737Model {
   private navs: THREE.Mesh[] = [];
   landingLight: THREE.SpotLight;
   private t = 0;
+  /** Real 737-800 mesh (public/models/b738.fbx) once loaded; replaces the procedural exterior. */
+  private real: THREE.Group | null = null;
+  private realGear: THREE.Object3D[] = [];
 
   constructor() {
     this.root.name = 'B738';
@@ -325,6 +328,7 @@ export class B737Model {
     });
     // gear: retract inboard (mains) and forward (nose)
     const ret = 1 - ac.gearExt;
+    for (const g of this.realGear) g.visible = ac.gearExt > 0.5;
     this.mainGear.forEach((g, i) => {
       g.rotation.x = (i === 0 ? -1 : 1) * ret * (Math.PI / 2); // mains fold inboard
       const comp = ac.gearStates[i + 1]?.compression ?? 0;
@@ -346,5 +350,53 @@ export class B737Model {
 
   setCockpitView(inCockpit: boolean) {
     this.fuselageMesh.visible = !inCockpit;
+    if (this.real) this.real.visible = !inCockpit;
+  }
+
+  /**
+   * Loads the supplied 737-800 FBX (SketchUp-derived, units ~39.2 per metre, y up, nose +z, textures not
+   * supplied) and swaps it in for the procedural exterior. Parts are static except the landing gear, which
+   * is picked out by position (low, near the main or nose gear) and hidden when the gear is up.
+   */
+  async loadReal(url: string) {
+    const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js');
+    const mgr = new THREE.LoadingManager();
+    mgr.setURLModifier(() => 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==');
+    const root = new FBXLoader(mgr).parse(await (await fetch(url)).arrayBuffer(), '');
+    root.updateMatrixWorld(true);
+    const gear: THREE.Object3D[] = [];
+    root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      for (const mat of ([] as THREE.Material[]).concat(m.material)) {
+        const mm = mat as THREE.MeshPhongMaterial;
+        mm.map = null; mm.side = THREE.DoubleSide;
+        if (['Material10', 'Material11', 'Material14', 'Material15', 'Material18'].includes(mm.name)) mm.color.set(0xf1f3f5);
+        if ('shininess' in mm) mm.shininess = Math.min(mm.shininess, 40);
+      }
+      m.castShadow = true; m.receiveShadow = true;
+      // The supplied model is painted in a real airline's livery (geometry patches, not textures). Neutralise it:
+      // the tail becomes plain navy and the colour patches (lettering, tail art, swooshes, engine lips) become white.
+      if (m.name === 'Group_082') m.material = new THREE.MeshPhongMaterial({ color: 0x14254a, shininess: 40, side: THREE.DoubleSide });
+      const b = new THREE.Box3().setFromObject(m), c = b.getCenter(new THREE.Vector3());
+      if (Math.abs(c.x) <= 160 && c.y <= 110 && (Math.abs(c.z) <= 40 || c.z > 550)) gear.push(m);
+    });
+    // model (x span, y up, z nose) -> body FRD metres; pitched ~2 deg nose-up about the main wheels so the
+    // nose and main wheels sit on the same plane as the flight model's gear
+    const s = 35.79 / 1404.4;
+    const P = new THREE.Matrix4().set(0, 0, 1, 0, -1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 1);
+    const m = new THREE.Matrix4()
+      .makeTranslation(-1.5, 0, 4.0)
+      .multiply(new THREE.Matrix4().makeScale(s, s, s))
+      .multiply(P)
+      .multiply(new THREE.Matrix4().makeRotationX(-2.06 * Math.PI / 180))
+      .multiply(new THREE.Matrix4().makeTranslation(0, -22, 3));
+    const wrap = new THREE.Group();
+    wrap.matrixAutoUpdate = false; wrap.matrix.copy(m);
+    wrap.add(root);
+    this.exterior.visible = false;
+    this.root.add(wrap);
+    this.real = wrap; this.realGear = gear;
+    wrap.visible = true;
   }
 }

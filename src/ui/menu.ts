@@ -116,7 +116,7 @@ export class Menu {
       lifting-surface aerodynamics, a piston engine and propeller model, and spring-damper landing gear on real terrain.
       The Cessna 172S model is validated against its Pilot's Operating Handbook in an automated test suite.</p>
       <h3>Data and licences</h3><p>${h.attribution.map((a) => `${a}`).join('<br>')}</p>
-      <p>All 3D models, textures and instrument artwork are original procedural assets created for JetVault.
+      <p>The 737-800 exterior mesh was supplied by the project owner as a free-to-use public model; its author and licence terms are NOT yet verified, and its original airline livery has been recoloured to a neutral scheme. All other 3D models, textures and instrument artwork are original procedural assets created for JetVault.
       JetVault is not affiliated with Microsoft, Asobo, Textron Aviation or any airport operator.</p>`;
     }
   }

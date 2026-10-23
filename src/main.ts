@@ -250,6 +250,10 @@ class App implements MenuHost {
     const jet = this.sim.def.id === 'b738';
     const glider = !!this.sim.def.glider;
     this.model = glider ? new GliderModel() : jet ? new B737Model() : new C172Model();
+    if (this.model instanceof B737Model) {
+      const m = this.model;
+      m.loadReal('./models/b738.fbx').catch((e) => console.warn('737 model not loaded, using the procedural one', e));
+    }
     this.cockpit = glider ? new GliderCockpit() : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
     this.aircraftGroup.add(this.model.root, this.cockpit.root);
     if (this.rig) {

@@ -126,6 +126,12 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - **Cause:** the always-on air assist drove the rudder from sideslip (beta x 4), which excited a sustained yaw/roll wobble. Headless, hands off at 150/250/280 kt: rms yaw rate 0.4-0.7 deg/s and bank up to 6 deg with it, vs 0.03-0.1 deg/s without. The bare aircraft is stable.
 - **Fix:** jets now get a yaw damper (rudder against yaw rate, gain 4.6 per rad/s) in place of the sideslip assist: rms yaw rate 0.06-0.07 deg/s with light turbulence (0.08-0.11 with no assist). Piston aircraft and the glider keep the old coordination assist (not re-tuned).
 
+## Update 19 — real 737-800 model
+- `public/models/b738.fbx` (2.9 MB, supplied by the user as free for public use; **author and licence NOT verified**) now replaces the procedural exterior (`B737Model.loadReal`, falls back to the procedural model if it fails to load). It is a SketchUp/3ds Max-derived 737-800 with blended winglets, ~98k triangles; scaled by wingspan (35.79 m), mapped to the body frame and pitched 2.06° about the main wheels so the nose and main wheels match the flight model's gear (nose gear lands at the FDM's x = 14.1 m).
+- It arrived painted in a real airline's livery (geometry patches, not textures). That branding is removed: tail plain navy, lettering/swooshes/engine lips recoloured white. Embedded textures are dropped. About screen notes the unverified licence.
+- Static parts: the control surfaces, flaps, spoilers, thrust reversers and engine fans are not separate animated parts (they are merged into groups), so they do not move. Landing-gear parts are picked out by position and hidden when the gear is up (no folding animation). Gear selection is a heuristic; the transit look is unchecked.
+- Cockpit view still uses the existing procedural flight deck (the model has no interior).
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
