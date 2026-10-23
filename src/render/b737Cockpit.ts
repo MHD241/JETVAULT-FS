@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { Simulation } from '../sim/simulation';
 import { Region } from './cockpit';
 import { AirportData } from '../world/airport';
+import { Cockpit737Model } from './cockpit737';
 
 const PX = 1400; // px per metre
 const W = 1.6, H = 0.62;
@@ -26,6 +27,7 @@ export class B737Cockpit {
   private timer = 0;
   private yoke = new THREE.Group();
   private thrustLevers: THREE.Mesh[] = [];
+  private detail: Cockpit737Model | null = null;
 
   constructor(private sim: Simulation, private airport: AirportData) {
     const cv = document.createElement('canvas');
@@ -124,9 +126,26 @@ export class B737Cockpit {
   }
   releaseAll() { if (this.pressed) { this.pressed.act(0, 'up'); this.pressed = null; } }
 
+  /** Replace the simple procedural deck with the detailed model (desktop); the displays are mapped onto its screens. */
+  async useDetailed(url: string) {
+    const m = await Cockpit737Model.load(url);
+    for (const ch of [...this.root.children]) ch.visible = false;
+    const t = this.tex, z = 86.4, [px, py, pw, ph] = this.L.pfd, [nx, ny, nw, nh] = this.L.nd, [ex, ey, ew, eh] = this.L.eng;
+    m.addScreen(t, 21.9, 16.0, 108.6, 114.7, z, [px, py, pw, ph], CW, CH);
+    m.addScreen(t, 14.5, 8.6, 108.6, 114.7, z, [nx, ny, nw, nh], CW, CH);
+    m.addScreen(t, 3.5, -2.8, 108.6, 114.7, z, [ex, ey, ew, eh], CW, CH);
+    m.addScreen(t, -5.8, -12.5, 108.6, 114.7, z, [nx, ny, nw, nh], CW, CH);
+    m.addScreen(t, -13.0, -20.0, 108.6, 114.7, z, [px, py, pw, ph], CW, CH);
+    const [mx, my, mw, mh] = this.L.mcp;
+    m.addScreen(t, 6.5, -4.2, 119.9, 123.8, z - 0.1, [mx, my, mw, mh], CW, CH);
+    this.root.add(m.root);
+    this.detail = m;
+  }
+
   update(dt: number, _night: number) {
     const c = this.sim.controls;
     const eff = this.sim.autopilot.effectiveControls(c);
+    if (this.detail) this.detail.update(dt, c, eff);
     this.yoke.position.x = 14.55 - eff.pitch * 0.08;
     this.yoke.rotation.x = eff.roll * 1.1;
     for (const t of this.thrustLevers) t.rotation.y = -0.6 + c.throttle * 1.0;

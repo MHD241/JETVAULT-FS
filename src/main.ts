@@ -329,6 +329,7 @@ class App implements MenuHost {
       m.loadReal('./models/b738.fbx').catch((e) => console.warn('737 model not loaded, using the procedural one', e));
     }
     this.cockpit = glider ? new GliderCockpit() : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
+    if (jet && !IS_TOUCH) (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e));
     this.aircraftGroup.add(this.model.root, this.cockpit.root);
     if (this.rig) {
       this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
