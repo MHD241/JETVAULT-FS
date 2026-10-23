@@ -122,6 +122,10 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - Removed the painted grass strip (the mown field in the Sentinel-2 imagery now shows). The launch line was moved from the OpenStreetMap runway way onto the worn track visible in the imagery: found by a line-contrast search (heading 103° true, ~84 m south of the OSM strip, ~1,000 m long, strongest contrast from -440 m to +560 m along the line). That is an inference from 6 m/px imagery plus the user's Google Earth reference; it is NOT a surveyed runway. The user's reference image was used only to check layout, not as a texture (licence).
 - Still to do: hangar/clubhouse appearance, windsock, launch cones, trees, trailer park.
 
+## Update 18 — 737 wiggle ("fish-tail")
+- **Cause:** the always-on air assist drove the rudder from sideslip (beta x 4), which excited a sustained yaw/roll wobble. Headless, hands off at 150/250/280 kt: rms yaw rate 0.4-0.7 deg/s and bank up to 6 deg with it, vs 0.03-0.1 deg/s without. The bare aircraft is stable.
+- **Fix:** jets now get a yaw damper (rudder against yaw rate, gain 4.6 per rad/s) in place of the sideslip assist: rms yaw rate 0.06-0.07 deg/s with light turbulence (0.08-0.11 with no assist). Piston aircraft and the glider keep the old coordination assist (not re-tuned).
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

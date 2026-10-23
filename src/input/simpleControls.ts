@@ -147,7 +147,12 @@ export class SimpleControls {
     // on the ground the stick's roll axis steers (nosewheel/rudder), as with a mouse or joystick tiller
     const steer = ac.onGround ? c.roll : 0;
     const heading = ac.euler[2];
-    if (!ac.onGround) { assist = ac.beta * 4; this.holdHdg = null; }
+    if (!ac.onGround) {
+      // jets: yaw damper (rudder against yaw rate); the old sideslip-driven rudder made the 737 wallow
+      // (headless, hands off: rms yaw rate 0.5 deg/s with it vs 0.07 deg/s with the damper)
+      assist = ac.def.turbofans ? -4.6 * ac.q.invRotate(ac.omega).z : ac.beta * 4;
+      this.holdHdg = null;
+    }
     else if (Math.hypot(ac.vel.x, ac.vel.y) > 1.5 && !k && Math.abs(steer) < 0.05) {
       if (this.holdHdg === null) this.holdHdg = heading;
       let e = this.holdHdg - heading; e = Math.atan2(Math.sin(e), Math.cos(e));
