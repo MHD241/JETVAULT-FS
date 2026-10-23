@@ -122,7 +122,7 @@ export class SimpleControls {
         this.knobEl.style.transform = `translate(${this.joySmooth.x * R * 0.62}px, ${this.joySmooth.y * R * 0.62}px)`;
       }
     }
-    else if (this.mouse.active) { pitch = -dz(this.mouse.y, 0.06) * 1.3; roll = dz(this.mouse.x, 0.06) * 1.3; }
+    else if (this.mouse.active) { pitch = dz(this.mouse.y, 0.06) * 1.3; roll = dz(this.mouse.x, 0.06) * 1.3; }
     // touch: with the stick released in the air, gently level the wings (aileron input only)
     if (IS_TOUCH && !ac.onGround && Math.abs(this.joy.x) < 0.05) {
       const bank = ac.euler[0];

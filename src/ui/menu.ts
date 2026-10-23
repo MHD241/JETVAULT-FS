@@ -3,7 +3,7 @@
 
 import { SpawnKind } from '../sim/simulation';
 import { WeatherSettings, CloudCover } from '../sim/weather';
-import { Action, InputSettings, DEFAULT_BINDINGS, saveInputSettings } from '../input/input';
+import { InputSettings, saveInputSettings } from '../input/input';
 import { World } from '../world/world';
 import { Aircraft, AircraftDef } from '../sim/fdm/aircraft';
 
@@ -47,19 +47,6 @@ export interface MenuHost {
 
 type Tab = 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'controls' | 'training' | 'about';
 
-const ACTION_LABELS: Partial<Record<Action, string>> = {
-  pitchUp: 'Pitch up (pull)', pitchDown: 'Pitch down (push)', rollLeft: 'Roll left', rollRight: 'Roll right',
-  yawLeft: 'Rudder left', yawRight: 'Rudder right', throttleUp: 'Throttle increase', throttleDown: 'Throttle decrease',
-  throttleFull: 'Throttle full', throttleIdle: 'Throttle idle', mixtureRich: 'Mixture richer', mixtureLean: 'Mixture leaner',
-  flapsUp: 'Flaps retract one notch', flapsDown: 'Flaps extend one notch', trimUp: 'Elevator trim nose up', trimDown: 'Elevator trim nose down',
-  brakes: 'Brakes (both)', brakeLeft: 'Left brake', brakeRight: 'Right brake', parkingBrake: 'Parking brake',
-  viewCockpit: 'Cockpit view', viewChase: 'Chase view', viewWing: 'Wing view', viewTower: 'Tower view', viewFree: 'Free camera (WASD/QE)',
-  pause: 'Pause', simRate: 'Simulation rate 1x/2x/4x', menu: 'Menu', autoStart: 'Automatic engine start sequence',
-  apToggle: 'Autopilot engage/disengage', apHdg: 'Autopilot HDG mode', apAlt: 'Autopilot ALT hold', apUp: 'Autopilot UP', apDown: 'Autopilot DN',
-  gearToggle: 'Landing gear up/down (737)', speedbrake: 'Speedbrake extend/retract (737)', reverse: 'Thrust reversers (hold, on ground, 737)',
-  hdgBugSync: 'Heading bug to current heading', debugCollision: 'Collision debug view + editor', perfOverlay: 'Performance overlay',
-  hud: 'HUD on/off', mouseYoke: 'Mouse yoke on/off', reset: 'Restart flight', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
-};
 
 export class Menu {
   readonly el: HTMLDivElement;
@@ -76,7 +63,10 @@ export class Menu {
     const nav = document.createElement('nav');
     nav.innerHTML = `<div class="jv-brand"><span class="jv-logo"></span>JETVAULT</div>`;
     const items: [Tab, string, boolean, string?][] = [
-      ['fly', 'Fly', true],
+      ['fly', 'Fly Now', true], ['map', 'World Map', true], ['aircraft', 'Aircraft Selection', true],
+      ['airports', 'Airport Selection', true], ['planner', 'Flight Planner', false, 'Not yet available'],
+      ['weather', 'Weather', true], ['settings', 'Settings', true], ['controls', 'Controls', true],
+      ['training', 'Training', false, 'Not yet available'], ['about', 'About JetVault', true],
     ];
     for (const [t, name, enabled, note] of items) {
       const b = document.createElement('button');
@@ -170,7 +160,7 @@ export class Menu {
     }
     s.appendChild(act);
     const help = document.createElement('p');
-    help.innerHTML = 'Controls: mouse = fly (move from the centre of the screen) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · U = pushback · gliders: L/R = winch launch / release cable, V = vario sound · C = cockpit/outside view · mouse wheel = zoom · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
+    help.innerHTML = 'Controls: mouse = fly, inverted (move from the centre of the screen; mouse up = nose down) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · U = pushback · gliders: L/R = winch launch / release cable, V = vario sound · C = cockpit/outside view · mouse wheel = zoom · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
     s.appendChild(help);
   }
 
@@ -377,37 +367,22 @@ export class Menu {
   }
 
   private renderControls(s: HTMLElement) {
-    const inp = this.host.inputSettings;
-    s.innerHTML = `<h2>Controls</h2><p>Click a key to rebind it, then press the new key (Esc cancels). Bindings are saved in this browser.
-      Joysticks, yokes and game controllers are read through the browser Gamepad API (press a button on the device once to activate it).
-      Mouse: drag to look around; click switches, knobs and buttons on the instrument panel; mouse wheel over a knob turns it.</p>`;
-    const t = document.createElement('table'); t.className = 'jv-keys';
-    for (const a of Object.keys(DEFAULT_BINDINGS) as Action[]) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${ACTION_LABELS[a] ?? a}</td><td>${inp.bindings[a].map((k, i) => `<kbd data-a="${a}" data-i="${i}">${k.replace('Key', '').replace('Digit', '')}</kbd>`).join('')}</td>`;
-      t.appendChild(tr);
-    }
-    t.addEventListener('click', (e) => {
-      const k = e.target as HTMLElement;
-      if (k.tagName !== 'KBD') return;
-      k.classList.add('listen'); k.textContent = '...';
-      const on = (ev: KeyboardEvent) => {
-        ev.preventDefault(); ev.stopPropagation();
-        window.removeEventListener('keydown', on, true);
-        if (ev.code !== 'Escape') {
-          const code = `${ev.ctrlKey ? 'Ctrl+' : ''}${ev.shiftKey && !ev.code.startsWith('Shift') ? 'Shift+' : ''}${ev.code}`;
-          inp.bindings[k.dataset.a as Action][Number(k.dataset.i)] = code;
-          saveInputSettings(inp);
-        }
-        this.render();
-      };
-      window.addEventListener('keydown', on, true);
-    });
-    s.appendChild(t);
-    const reset = document.createElement('button'); reset.className = 'jv-btn ghost'; reset.textContent = 'RESET TO DEFAULTS';
-    reset.style.marginTop = '20px';
-    reset.onclick = () => { inp.bindings = JSON.parse(JSON.stringify(DEFAULT_BINDINGS)); saveInputSettings(inp); this.render(); };
-    s.appendChild(reset);
+    s.innerHTML = `<h2>Controls</h2><p>The controls are fixed to a simple scheme (no rebinding).</p>
+    <h3>Keyboard and mouse</h3><table class="jv-keys">
+    <tr><td>Fly (pitch / roll)</td><td>Mouse, from the centre of the screen. Pitch is inverted: mouse up = nose down. On the ground it steers.</td></tr>
+    <tr><td>Throttle</td><td><kbd>1</kbd> idle ... <kbd>9</kbd> full (jets and piston); in the tug, <kbd>1</kbd> = stop, <kbd>9</kbd> = fastest</td></tr>
+    <tr><td>Rudder / steering</td><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd></td></tr>
+    <tr><td>Brakes (hold)</td><td><kbd>Space</kbd></td></tr>
+    <tr><td>Parking brake</td><td><kbd>K</kbd> or the PARK BRAKE button</td></tr>
+    <tr><td>Flaps (cycle)</td><td><kbd>F</kbd></td></tr>
+    <tr><td>Gear</td><td><kbd>G</kbd></td></tr>
+    <tr><td>Spoilers / airbrakes</td><td><kbd>B</kbd></td></tr>
+    <tr><td>View: cockpit / outside</td><td><kbd>C</kbd>; mouse wheel zooms; swipe on touch screens</td></tr>
+    <tr><td>Jet bridge (at a gate)</td><td><kbd>J</kbd></td></tr>
+    <tr><td>Pushback (airliner at a gate)</td><td><kbd>U</kbd>; <kbd>X</kbd> or <kbd>&uarr;</kbd> centres the tug wheel</td></tr>
+    <tr><td>Glider winch launch / release</td><td><kbd>L</kbd> / <kbd>R</kbd>; <kbd>V</kbd> toggles the audio vario</td></tr>
+    <tr><td>Menu / pause</td><td><kbd>Esc</kbd> (menu), <kbd>P</kbd> (pause)</td></tr></table>
+    <h3>Phones and tablets</h3><p>Joystick on the left, throttle slider on the right, buttons for gear, flaps, spoilers, brake, view and menu; swipe to look around, pinch to zoom.</p>`;
   }
 }
 

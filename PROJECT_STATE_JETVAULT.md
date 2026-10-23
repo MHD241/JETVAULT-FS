@@ -107,6 +107,11 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - **Assists:** auto-trim holds airspeed at stick release (gliders) and flares below 10 m. Vario cell on the HUD and an audio vario (V toggles; web audio, first gesture) - audio NOT tested.
 - Not done: Portmoak (needs a second map region), cockpit instruments (HUD only), wave lift, water ballast, retractable gear.
 
+## Update 15
+- **Fixed: black screen / NaN HUD after picking an aircraft in the menu.** `selectAircraft` created an un-placed, un-paused simulation that stepped while the menu was open and poisoned the instrument filters with NaN. The new simulation is now created paused and the downwash filter is reset on every placement. Verified by clicking the glider card and FLY in a headless browser (HUD shows sensible values, no page errors).
+- Restored the full menu (World Map, Aircraft Selection, Airport Selection, Weather, Settings, Controls, About); the Controls tab now documents the fixed key scheme.
+- Mouse pitch inverted (mouse up = nose down).
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

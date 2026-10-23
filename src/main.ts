@@ -264,6 +264,7 @@ class App implements MenuHost {
     if (this.sim.def.id === id) return;
     const def = this.aircraftDefs.find((d) => d.id === id)!;
     this.sim = new Simulation(this.world, def, this.weather);
+    this.sim.paused = true; // the new aircraft is not placed until a start position is chosen
     this.payload = def.stations.map((st) => st.mass);
     this.fuelFraction = id === 'b738' ? [0.45, 0.45] : [1, 1];
     this.sim.lift.strength = 1;

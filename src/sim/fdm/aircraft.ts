@@ -229,6 +229,7 @@ export class Aircraft {
    * Iterates the static equilibrium using the real gear springs.
    */
   placeOnGround(east: number, north: number, heading: number, env: Environment) {
+    this.downwash = 0;
     const h = env.ground.heightAt(east, north);
     this.q = Quat.fromEuler(0, 0, heading);
     this.pos = new Vec3(north, east, -(h + this.def.spawnHeight));
@@ -263,6 +264,7 @@ export class Aircraft {
 
   /** Initialise in flight, wings level, at true airspeed (m/s), heading (rad). */
   placeInFlight(east: number, north: number, altMSL: number, heading: number, tas: number, pitch = 0) {
+    this.downwash = 0;
     this.q = Quat.fromEuler(0, pitch, heading);
     this.pos = new Vec3(north, east, -altMSL);
     this.vel = this.q.rotate(new Vec3(tas, 0, 0));
