@@ -99,6 +99,14 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - **737 engines:** measured first: the CFM56-class model already gives ~3,000 fpm at 195 kt (pitch 12°, 3,000-ft start) and ~215 kt at pitch 8°; the 140 kt climbs came from pitching too high / the VS-hold assist. Changes: static thrust raised ~12 % to 131 kN per engine (GAME TUNING, above the published 117 kN) and the auto-trim VS hold now reduces a climb rate that would bleed a jet below ~1.15–1.3 x approach speed.
 - **Pushback steering** stays where you leave it (no self-centring); Up arrow / X centres it.
 
+## Update 14 — glider (step 1, on the Edinburgh map)
+- **Aircraft:** "Training glider (ASK 21 class)" - 17 m span, 17.95 m², 360 kg empty, original model and flight-model data from public type figures (not a licensed model). Unpowered (engine block skipped), fixed wheel + nose skid, airbrakes (B), ailerons/elevator/rudder, T-tail. ESTIMATES: section drag, airbrake drag, inertia, tail geometry, gear.
+- **Polar (headless, energy-height method, `tests/glider.test.ts`):** best L/D ~32 at ~50 kt (target ~34), min sink ~0.8 m/s at 36-40 kt (published ~0.6), stall ~37 kt (published ~35), airbrakes out L/D ~7. The polar is a few percent worse than the published figures.
+- **Lift (`src/sim/lift.ts`, gliders only):** thermals (hashed 1.7 km grid, 15-min life cycle, scaled by sun height and cloud cover, 90-230 m radius, 1.4-4 m/s cores, sink ring, wind lean, boundary layer 0.7-2 km) and ridge lift from wind and the real terrain slope with lee sink. Engineering estimates, not real weather. Powered aircraft are unaffected.
+- **Winch launch:** START WINCH LAUNCH button / L (stopped on the ground): a 1,400 m cable pulls at the nose hook with up to 4.5 kN, speed-controlled (target 54 kt, backs off above ~60 kt), cut automatically when steep/overhead; RELEASE CABLE button / R. Headless: lifts off at ~50 kt and climbs 180+ m with a simple pilot; browser launch checked (cable visible, no errors). **No aerotow yet.**
+- **Assists:** auto-trim holds airspeed at stick release (gliders) and flares below 10 m. Vario cell on the HUD and an audio vario (V toggles; web audio, first gesture) - audio NOT tested.
+- Not done: Portmoak (needs a second map region), cockpit instruments (HUD only), wave lift, water ballast, retractable gear.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

@@ -5,6 +5,9 @@ import { loadWorld, World, LandCover } from './world/world';
 import { Simulation, SpawnKind } from './sim/simulation';
 import { C172 } from './sim/aircraft/c172';
 import { B738 } from './sim/aircraft/b738';
+import { GLIDER } from './sim/aircraft/glider';
+import { GliderModel, GliderCockpit } from './render/gliderModel';
+import { Vario } from './ui/vario';
 import { AircraftDef } from './sim/fdm/aircraft';
 import { B737Model } from './render/b737Model';
 import { B737Cockpit } from './render/b737Cockpit';
@@ -58,9 +61,9 @@ class App implements MenuHost {
   terrain!: TerrainRenderer;
   airport!: AirportRenderer;
   buildings!: BuildingsRenderer;
-  model!: C172Model | B737Model;
-  cockpit!: Cockpit | B737Cockpit;
-  aircraftDefs: AircraftDef[] = [C172, B738];
+  model!: C172Model | B737Model | GliderModel;
+  cockpit!: Cockpit | B737Cockpit | GliderCockpit;
+  aircraftDefs: AircraftDef[] = [C172, B738, GLIDER];
   env!: EnvironmentRenderer;
   rig!: CameraRig;
   debug!: DebugView;
@@ -73,6 +76,9 @@ class App implements MenuHost {
   private bridgeBtn!: HTMLButtonElement;
   private parkBtn!: HTMLButtonElement;
   private pushBtn!: HTMLButtonElement;
+  private launchBtn!: HTMLButtonElement;
+  private vario!: Vario;
+  private cableLine!: THREE.Line;
   private tug!: THREE.Group;
   private tugCab!: THREE.Mesh;
   private tugDash!: THREE.Group;
@@ -148,6 +154,15 @@ class App implements MenuHost {
     this.bridgeBtn.style.display = 'none';
     document.body.appendChild(this.bridgeBtn);
     this.bridgeBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('bridge'); });
+    this.launchBtn = document.createElement('button');
+    this.launchBtn.className = 'jv-bridge';
+    this.launchBtn.style.display = 'none';
+    document.body.appendChild(this.launchBtn);
+    this.launchBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('launch'); });
+    this.vario = new Vario();
+    this.cableLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]), new THREE.LineBasicMaterial({ color: 0xffc830 }));
+    this.cableLine.frustumCulled = false; this.cableLine.visible = false;
+    this.scene.add(this.cableLine);
     this.pushBtn = document.createElement('button');
     this.pushBtn.className = 'jv-bridge';
     this.pushBtn.style.cssText = 'display:none;top:112px';
@@ -231,14 +246,15 @@ class App implements MenuHost {
     if (this.model) this.aircraftGroup.remove(this.model.root);
     if (this.cockpit) this.aircraftGroup.remove(this.cockpit.root);
     const jet = this.sim.def.id === 'b738';
-    this.model = jet ? new B737Model() : new C172Model();
-    this.cockpit = jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
+    const glider = !!this.sim.def.glider;
+    this.model = glider ? new GliderModel() : jet ? new B737Model() : new C172Model();
+    this.cockpit = glider ? new GliderCockpit() : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
     this.aircraftGroup.add(this.model.root, this.cockpit.root);
     if (this.rig) {
       this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
-      this.rig.chaseDist = jet ? 60 : 16;
+      this.rig.chaseDist = jet ? 60 : glider ? 24 : 16;
       this.rig.headPitch = jet ? -0.32 : -0.2;
-      if (jet) this.rig.wingCam.set(-6, -21, -2.5); else this.rig.wingCam.set(-1.2, -6.6, -1.6);
+      if (jet) this.rig.wingCam.set(-6, -21, -2.5); else if (glider) this.rig.wingCam.set(-0.5, -9.5, -1.0); else this.rig.wingCam.set(-1.2, -6.6, -1.6);
     }
     if (this.debug) { this.scene.remove(this.debug.group); this.debug = new DebugView(this.sim.aircraft, this.world); this.scene.add(this.debug.group); }
   }
@@ -250,6 +266,7 @@ class App implements MenuHost {
     this.sim = new Simulation(this.world, def, this.weather);
     this.payload = def.stations.map((st) => st.mass);
     this.fuelFraction = id === 'b738' ? [0.45, 0.45] : [1, 1];
+    this.sim.lift.strength = 1;
     this.buildAircraftVisuals();
   }
 
@@ -351,6 +368,12 @@ class App implements MenuHost {
         this.hud.toast('You are the tug driver: 1-9 speed (1 = stop), steer with mouse/arrows (the wheel stays turned; Up = straight), Space brakes');
       }
     }
+    if (ev === 'launch') {
+      if (!ac.def.glider) this.hud.toast('Launch is for gliders');
+      else if (ac.cable) { this.sim.releaseCable(); this.hud.toast('Cable released'); }
+      else if (this.sim.startWinch()) this.hud.toast('Winch launch: hold the stick back gently, release the cable at the top (R or the button)');
+      else this.hud.toast('Stop on the ground to start a winch launch');
+    }
     if (ev === 'park') { this.simple.parking = !this.simple.parking; this.hud.toast(this.simple.parking ? 'Parking brake ON' : 'Parking brake OFF'); }
     if (ev === 'camera') this.rig.setMode(this.rig.mode === 'cockpit' ? 'chase' : 'cockpit', ac);
   }
@@ -419,10 +442,20 @@ class App implements MenuHost {
       if (!ac.onGround) this.finishPushback();
       else { ac.tugSpeed = this.simple.throttle * 5; ac.tugSteer = this.simple.tugSteer; this.rig.tug.angle = ac.tugSteer * 35 * Math.PI / 180; this.tug.rotation.z = this.rig.tug.angle; }
     }
+    const showLaunch = !this.menu.open && !ac.crashed && !!ac.def.glider && (!!ac.cable || (ac.onGround && Math.hypot(ac.vel.x, ac.vel.y) < 1.5));
+    this.launchBtn.style.display = showLaunch ? 'block' : 'none';
+    if (showLaunch) this.launchBtn.textContent = ac.cable ? 'RELEASE CABLE' : 'START WINCH LAUNCH';
+    this.cableLine.visible = !!ac.cable;
+    if (ac.cable && ac.def.hook) {
+      const pa = this.cableLine.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const a = nedToThree(ac.worldPoint(ac.def.hook)), b = nedToThree(ac.cable.anchor);
+      pa.setXYZ(0, a.x, a.y, a.z); pa.setXYZ(1, b.x, b.y, b.z); pa.needsUpdate = true;
+    }
+    this.vario.update(!!ac.def.glider && !this.menu.open && !sim.paused && !ac.crashed, -ac.vel.z, dt);
     const showPush = !this.menu.open && !ac.crashed && ac.def.retractableGear && ac.onGround && (this.pushing || Math.hypot(ac.vel.x, ac.vel.y) < 0.5);
     this.pushBtn.style.display = showPush ? 'block' : 'none';
     if (showPush) this.pushBtn.textContent = this.pushing ? 'FINISHED - BACK TO AIRCRAFT' : 'START PUSHBACK';
-    const showPark = !this.menu.open && !ac.crashed && ac.onGround && !this.pushing;
+    const showPark = !this.menu.open && !ac.crashed && ac.onGround && !this.pushing && !ac.def.glider;
     this.parkBtn.style.display = showPark ? 'block' : 'none';
     if (showPark) { this.parkBtn.textContent = this.simple.parking ? 'PARK BRAKE ON' : 'PARK BRAKE OFF'; this.parkBtn.classList.toggle('on', this.simple.parking); }
     if (showBridge) this.bridgeBtn.textContent = this.jetBridges.connected ? 'RETRACT JET BRIDGE' : 'CONNECT JET BRIDGE';

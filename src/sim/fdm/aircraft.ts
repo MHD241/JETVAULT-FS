@@ -25,6 +25,8 @@ export interface AeroSurfaceDef extends SurfaceDef {
   spoiler?: boolean;
   /** Leading-edge slat: clMax increase when flaps are out. */
   slatClMax?: number;
+  /** Drag coefficient added by the spoilers at full extension (default 0.08). */
+  spoilerCd?: number;
 }
 
 export interface MassStation { name: string; pos: Vec3; mass: number; max: number }
@@ -70,6 +72,10 @@ export interface AircraftDef {
   propInertia?: number;
   /** Fraction of the slipstream velocity increment swirling across the fin. */
   swirl?: number;
+  /** Glider: unpowered; the (inert) engine definition is a placeholder and the propulsion block is skipped. */
+  glider?: boolean;
+  /** Tow/winch hook position, body frame. */
+  hook?: Vec3;
   /** Turbofans (jets): definition and thrust point in the body frame. */
   turbofans?: { def: TurbofanDef; pos: Vec3 }[];
   /** Retractable gear: extension time (s) and drag area when down (m^2). */
@@ -101,6 +107,8 @@ export interface Environment {
   atmosphere: AtmosphereConditions;
   /** Air velocity (NED, m/s) at height AGL; includes turbulence. */
   wind: (agl: number) => Vec3;
+  /** Vertical air velocity, m/s positive up (thermals, ridge lift); used by gliders. */
+  lift?: (north: number, east: number, alt: number, agl: number) => number;
   ground: GroundQuery;
   obstacles?: ObstacleIndex;
 }
@@ -141,6 +149,10 @@ export class Aircraft {
   flap = 0; // rad actual
   elevator = 0; aileronL = 0; aileronR = 0; rudder = 0; // rad actual
   /** Pushback tug: target reverse speed (m/s) or null. The tug pulls on the nose gear with a limited force. */
+  /** Winch/tow cable: anchor (world NED), target speed along the cable (m/s), max tension (N), elapsed time (s). */
+  cable: { anchor: Vec3; vTarget: number; tMax: number; t: number } | null = null;
+  /** Current cable tension, N. */
+  cableTension = 0;
   tugSpeed: number | null = null;
   /** Tug steering -1..1 (positive = tug turns right). */
   tugSteer = 0;
@@ -300,7 +312,8 @@ export class Aircraft {
     this.groundElevation = env.ground.heightAt(this.pos.y, this.pos.x);
     this.agl = this.altitude - this.groundElevation;
     airAt(this.altitude, env.atmosphere, this.air);
-    const wind = env.wind(this.agl);
+    let wind = env.wind(this.agl);
+    if (this.def.glider && env.lift) wind = wind.add(new Vec3(0, 0, -env.lift(this.pos.x, this.pos.y, this.altitude, this.agl)));
     const vAirWorld = this.vel.sub(wind);
     const vb = this.q.invRotate(vAirWorld);
     this.airVelBody = vb;
@@ -317,7 +330,9 @@ export class Aircraft {
     const rho = this.air.density;
     this.fuelStarved = !fuelAvailable;
     const engIn = { throttle: c.throttle, mixture: c.mixture, mags: c.mags, starterPower: busPowered, fuelAvailable, reverse: c.reverse, onGround: this.onGround };
-    if (d.turbofans) {
+    if (d.glider) {
+      // unpowered
+    } else if (d.turbofans) {
       d.turbofans.forEach((t, i) => {
         const e = this.engines[i];
         e.step(dt, engIn, this.air, vb.x);
@@ -369,7 +384,7 @@ export class Aircraft {
       if (sd.downwash) alpha -= this.downwash * ge;
       const slat = sd.slatClMax && this.flap > 0.01 ? sd.slatClMax * Math.min(1, this.flap / (5 * DEG)) : 0;
       let [clv, cdp, cm, stall] = s.model.coeffs(alpha, s.deflection, slat);
-      if (sd.spoiler && this.spoiler > 0) { clv *= 1 - 0.6 * this.spoiler; cdp += 0.08 * this.spoiler; }
+      if (sd.spoiler && this.spoiler > 0) { clv *= 1 - 0.6 * this.spoiler; cdp += (sd.spoilerCd ?? 0.08) * this.spoiler; }
       // ground effect also increases the effective lift slope slightly
       const clEff = clv * (1 + 0.12 * (1 - ge) * (sd.role === 'wing' ? 1 : 0));
       const cdi = (clEff * clEff) / (Math.PI * sd.oswald * sd.aspectRatio) * ge;
@@ -403,6 +418,24 @@ export class Aircraft {
       const ca = Math.cos(this.alpha), cb = Math.cos(this.beta);
       M.y += this.qbar * 2 * fu.munkVolume * Math.sin(this.alpha) * ca * cb;
       M.z -= this.qbar * 2 * fu.munkVolumeYaw * Math.sin(this.beta) * cb;
+    }
+
+    // Winch cable: tension (limited, speed-controlled like a winch driver) along the line from the hook to the winch.
+    this.cableTension = 0;
+    if (this.cable && d.hook) {
+      const hw = this.worldPoint(d.hook);
+      const dv = this.cable.anchor.sub(hw);
+      const dist = Math.max(1, dv.len());
+      const dir = dv.scale(1 / dist);
+      const closing = this.vel.dot(dir);
+      this.cable.t += dt;
+      const target = this.cable.vTarget * Math.min(1, this.cable.t / 3);
+      // the winch driver backs off above ~60 kt airspeed (weak-link / over-speed protection)
+      const T = this.cable.tMax * clamp((target - closing) / 4, 0, 1) * clamp((70 - this.cas / 0.514444) / 10, 0, 1);
+      this.cableTension = T;
+      const fb = this.q.invRotate(dir.scale(T));
+      F.addIn(fb);
+      M.addIn(d.hook.sub(this.cg).cross(fb));
     }
 
     // Pushback tug: speed-controlled horizontal force at the nose gear (max 90 kN) along the towbar.

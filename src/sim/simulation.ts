@@ -8,6 +8,7 @@ import { WindModel, WeatherSettings, DEFAULT_WEATHER, atmosphereFromWeather } fr
 import { World } from '../world/world';
 import { runwayEnd } from '../world/airport';
 import { Autopilot } from './autopilot';
+import { LiftField } from './lift';
 
 export const PHYSICS_HZ = 240;
 export const PHYSICS_DT = 1 / PHYSICS_HZ;
@@ -24,6 +25,7 @@ export class Simulation {
   wind: WindModel;
   env: Environment;
   autopilot: Autopilot;
+  lift: LiftField;
   paused = false;
   timeScale = 1;
   simTime = 0;
@@ -37,6 +39,7 @@ export class Simulation {
     this.wind = new WindModel(this.weather, 7);
     this.aircraft = new Aircraft(def);
     this.controls = defaultControls();
+    this.lift = new LiftField({ heightAt: (e, n) => this.world.heightAt(e, n) }, () => this.weather, this.wind, () => this.simTime);
     this.env = this.makeEnv();
     this.systems = new C172Systems(this.aircraft, false);
     this.autopilot = new Autopilot();
@@ -48,6 +51,7 @@ export class Simulation {
     return {
       get atmosphere() { return atmosphereFromWeather(self.weather, fieldElev); },
       wind: (agl: number) => this.wind.windAt(agl),
+      lift: (n: number, e: number, alt: number, agl: number) => this.lift.at(n, e, alt, agl),
       ground: this.world,
       obstacles: this.world.obstacles,
     };
@@ -144,6 +148,20 @@ export class Simulation {
     this.controls.headingBug = Math.round(((this.aircraft.euler[2] * 180) / Math.PI + 1 + 360) % 360);
   }
 
+  /** Winch launch: a cable to a winch 1,400 m ahead along the heading (glider stopped on the ground). */
+  startWinch(): boolean {
+    const ac = this.aircraft;
+    if (!ac.def.glider || !ac.onGround || Math.hypot(ac.vel.x, ac.vel.y) > 1.5) return false;
+    const fwd = ac.q.rotate(new Vec3(1, 0, 0));
+    const h = Math.hypot(fwd.x, fwd.y) || 1;
+    const n = ac.pos.x + (fwd.x / h) * 1400, e = ac.pos.y + (fwd.y / h) * 1400;
+    const anchor = new Vec3(n, e, -(this.world.heightAt(e, n) + 1.5));
+    ac.cable = { anchor, vTarget: 28, tMax: 4500, t: 0 };
+    return true;
+  }
+
+  releaseCable() { this.aircraft.cable = null; }
+
   /** One fixed physics step. */
   step() {
     const ac = this.aircraft;
@@ -153,6 +171,13 @@ export class Simulation {
     this.systems.stepSystems(PHYSICS_DT, c);
     ac.step(PHYSICS_DT, this.autopilot.effectiveControls(c), this.env, this.systems.fuelAvailable(c), this.systems.busPowered());
     this.systems.updateIndications(PHYSICS_DT, c);
+    if (ac.cable) {
+      // winch driver cuts the cable when the glider is too steep, nearly overhead, or the launch is over
+      const dv = ac.cable.anchor.sub(ac.worldPoint(ac.def.hook!));
+      const horiz = Math.hypot(dv.x, dv.y);
+      const angle = Math.atan2(ac.altitude + ac.cable.anchor.z, Math.max(horiz, 1));
+      if (ac.cable.t > 3 && (angle > 62 * DEG || horiz < 120 || ac.cable.t > 60)) ac.cable = null;
+    }
     this.simTime += PHYSICS_DT;
   }
 

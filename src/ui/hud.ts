@@ -61,7 +61,16 @@ export class Hud {
       this.set('ALT', `${ind.altitudeFt.toFixed(0)} ft`);
       this.set('V/S', `${(Math.round(ind.vsiFpm / 10) * 10).toFixed(0)}`);
       this.set('HDG', `${Math.round(ind.headingDeg).toString().padStart(3, '0')}°`);
-      this.set('THR', `${(c.throttle * 100).toFixed(0)}%`);
+      if (ac.def.glider) {
+        const vz = -ac.vel.z;
+        this.set('THR', `${vz >= 0 ? '+' : ''}${vz.toFixed(1)} m/s`, vz > 0.3 ? 'on' : vz < -2.5 ? 'warn' : '');
+        const lab = this.cells.get('THR')!.lastElementChild as HTMLElement;
+        if (lab.textContent !== 'VARIO') lab.textContent = 'VARIO';
+      } else {
+        this.set('THR', `${(c.throttle * 100).toFixed(0)}%`);
+        const lab = this.cells.get('THR')!.lastElementChild as HTMLElement;
+        if (lab.textContent !== 'THR') lab.textContent = 'THR';
+      }
       this.set('FLAPS', `${Math.round(ac.flap * RAD)}°`, ac.flap > 0.01 ? 'on' : '');
       this.set('GEAR', !ac.def.retractableGear ? 'FIXED' : ac.gearExt > 0.99 ? 'DOWN' : ac.gearExt > 0.01 ? 'MOVING' : 'UP', ac.gearExt > 0.01 && ac.gearExt < 0.99 ? 'warn' : '');
       this.set('SPLR', ac.spoiler > 0.05 ? 'ON' : 'OFF', ac.spoiler > 0.05 ? 'warn' : '');

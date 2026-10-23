@@ -23,6 +23,9 @@ export function loadGraphics(): GraphicsSettings {
 }
 export function saveGraphics(g: GraphicsSettings) { try { localStorage.setItem(GFX_STORE, JSON.stringify(g)); } catch { /* ignore */ } }
 
+export type AirSpawn = { kind: 'air'; east: number; north: number; altFt: number; hdg: number };
+export type AnySpawn = SpawnKind | AirSpawn;
+
 export interface MenuHost {
   world: World;
   aircraft: Aircraft;
@@ -34,7 +37,7 @@ export interface MenuHost {
   aircraftDefs: AircraftDef[];
   selectAircraft(id: string): void;
   startView: 'cockpit' | 'chase';
-  fly(spawn: SpawnKind | { kind: 'air'; east: number; north: number; altFt: number; hdg: number }): void;
+  fly(spawn: AnySpawn): void;
   applyWeather(w: WeatherSettings): void;
   applyGraphics(g: GraphicsSettings): void;
   resume(): void;
@@ -62,7 +65,7 @@ export class Menu {
   readonly el: HTMLDivElement;
   private section: HTMLElement;
   private tab: Tab = 'fly';
-  private spawn: SpawnKind = { kind: 'stand', index: 0, coldAndDark: false };
+  private spawn: AnySpawn = { kind: 'stand', index: 0, coldAndDark: false };
   open = true;
   private mapCanvas: HTMLCanvasElement | null = null;
   private hillshade: ImageData | null = null;
@@ -124,18 +127,24 @@ export class Menu {
     const ap = this.host.world.airport;
     const def = this.host.aircraft.def;
     const jet = def.id === 'b738';
+    const glider = !!def.glider;
     s.innerHTML = `<h2>Fly Now</h2><p>Choose the aircraft, airport, start position and view.</p><h3>Aircraft</h3>`;
     this.aircraftPicker(s);
     s.insertAdjacentHTML('beforeend', `<h3>Airport</h3><div class="jv-grid"><div class="jv-card sel"><b>EGPH Edinburgh</b><span>Runway 06/24 · real terrain, taxiways and buildings</span></div></div><h3>Start position</h3>`);
     const grid = document.createElement('div'); grid.className = 'jv-grid';
-    const opts: [SpawnKind, string, string][] = [
+    const opts: [AnySpawn, string, string][] = glider ? [
+      [{ kind: 'runway', ident: '24' }, 'Runway 24 winch launch', 'On the ground, press LAUNCH for a winch launch (1,400 m cable)'],
+      [{ kind: 'runway', ident: '06' }, 'Runway 06 winch launch', 'On the ground, press LAUNCH for a winch launch (1,400 m cable)'],
+      [{ kind: 'air', east: 0, north: 0, altFt: 3000, hdg: 0 }, 'Airborne, 3,000 ft over the airport', 'Soaring: thermals by day, ridge lift in wind over hills'],
+      [{ kind: 'approach', ident: '24', distanceNm: 1.5 }, 'Final approach 24', '1.5 nm final, airbrakes ready'],
+    ] : [
       ...(jet ? ap.standsJet ?? [] : ap.stands).map((_, i): [SpawnKind, string, string] => [{ kind: 'stand', index: i, coldAndDark: false }, jet ? `Gate stand ${i + 1}` : `Parking stand ${i + 1}`, jet ? 'Nose-in at a boarding bridge, parking brake set' : 'Apron, parking brake set']),
       [{ kind: 'runway', ident: '24' }, 'Runway 24', jet ? 'Lined up, engines running, flaps 5' : 'Lined up, engine running'],
       [{ kind: 'runway', ident: '06' }, 'Runway 06', jet ? 'Lined up, engines running, flaps 5' : 'Lined up, engine running'],
       [{ kind: 'approach', ident: '24', distanceNm: jet ? 6 : 3 }, 'Final approach 24', jet ? '6 nm, 3° glidepath, flaps 30, gear down' : '3 nm, 3° glidepath, flaps 10'],
       [{ kind: 'approach', ident: '06', distanceNm: jet ? 6 : 3 }, 'Final approach 06', jet ? '6 nm, 3° glidepath, flaps 30, gear down' : '3 nm, 3° glidepath, flaps 10'],
     ];
-    const key = (k: SpawnKind) => JSON.stringify({ ...k, coldAndDark: undefined });
+    const key = (k: AnySpawn) => JSON.stringify({ ...k, coldAndDark: undefined });
     for (const [k, t, d] of opts) {
       const c = document.createElement('div');
       c.className = 'jv-card' + (key(k) === key(this.spawn) ? ' sel' : '');
@@ -161,7 +170,7 @@ export class Menu {
     }
     s.appendChild(act);
     const help = document.createElement('p');
-    help.innerHTML = 'Controls: mouse = fly (move from the centre of the screen) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · U = pushback · C = cockpit/outside view · mouse wheel = zoom · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
+    help.innerHTML = 'Controls: mouse = fly (move from the centre of the screen) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · U = pushback · gliders: L/R = winch launch / release cable, V = vario sound · C = cockpit/outside view · mouse wheel = zoom · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
     s.appendChild(help);
   }
 
@@ -223,6 +232,7 @@ export class Menu {
     const grid = document.createElement('div'); grid.className = 'jv-grid';
     const blurb: Record<string, string> = {
       c172s: 'Lycoming IO-360 180 hp · fixed-pitch prop · steam gauges · validated against the POH',
+      glider: 'Unpowered 17 m two-seater, ~32:1 glide · winch launch · thermals and ridge lift · airbrakes',
       b738: '2 x CFM56-7B26 (117 kN) · glass PFD/ND · flaps, slats, spoilers, reversers, retractable gear',
     };
     for (const d of this.host.aircraftDefs) {

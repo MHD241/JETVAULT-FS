@@ -15,19 +15,42 @@ import { FlightControls } from './controls';
  */
 export class AutoTrim {
   private holdVs: number | null = null;
+  private holdCas: number | null = null;
   private thetaRef = 0;
   private vsInt = 0;
   private servo = 0;
 
   update(dt: number, ac: Aircraft, c: FlightControls, stickPitch: number): number {
     const ctl = ac.def.controls;
-    if (ac.onGround || Math.abs(stickPitch) > 0.05) {
+    if (ac.onGround || Math.abs(stickPitch) > 0.05 || ac.cable) {
       this.holdVs = null;
+      this.holdCas = null;
       this.servo = moveToward(this.servo, 0, 2 * dt);
       return this.servo;
     }
     const vs = -ac.vel.z;
     const theta = ac.euler[1];
+    if (ac.def.glider) {
+      // glider: hold the airspeed at stick release (the stick sets speed, as with a trimmed glider);
+      // below 10 m the descent is eased (flare) so the landing is gentle.
+      if (this.holdCas === null) { this.holdCas = Math.max(ac.cas, 20); this.thetaRef = theta; this.vsInt = 0; this.holdVs = 0; }
+      const err = ac.cas - this.holdCas; // m/s, + = too fast -> raise the nose
+      let thetaCmd: number;
+      if (ac.agl < 10 && vs < -0.6) {
+        const tgt = -(0.3 + 0.1 * Math.max(ac.agl, 0));
+        thetaCmd = clamp(theta + (tgt - vs) * 3 * DEG, -8 * DEG, 10 * DEG);
+      } else {
+        this.vsInt = clamp(this.vsInt + err * 0.4 * DEG * dt, -15 * DEG, 15 * DEG);
+        thetaCmd = clamp(this.thetaRef + this.vsInt + err * 1.0 * DEG, -25 * DEG, 20 * DEG);
+      }
+      const cmdG = clamp(3.0 * (thetaCmd - theta) - 1.0 * ac.omega.y, -0.5, 0.5);
+      this.servo = moveToward(this.servo, cmdG, 0.6 * dt);
+      const epsG = this.servo >= 0 ? ctl.elevatorUp : ctl.elevatorDown;
+      const ntG = clamp(c.trim + clamp(this.servo * 0.15, -0.04, 0.04) * dt, -1, 1);
+      this.servo -= ((ntG - c.trim) * ctl.trimRange) / epsG;
+      c.trim = ntG;
+      return this.servo;
+    }
     if (this.holdVs === null) {
       this.holdVs = Math.abs(vs) < 1.5 ? 0 : vs;
       this.thetaRef = theta;
