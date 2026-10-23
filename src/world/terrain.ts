@@ -1,8 +1,8 @@
 // Terrain heightfield shared by the physics (ground contact) and the renderer.
 //
 // Grids are square, row 0 = north edge, column 0 = west edge, with sample (r, c) at
-//   east  = -half + c * step
-//   north = +half - r * step
+//   east  = cx - half + c * step
+//   north = cy + half - r * step   (cx, cy = grid centre, 0 unless it is a patch)
 // Each grid cell is split into two triangles along the NE-SW diagonal:
 //   T1 = (NW, NE, SW), T2 = (NE, SE, SW)
 // The renderer MUST triangulate identically (see render/terrainMesh.ts) so that the
@@ -13,24 +13,31 @@ export interface GridMeta {
   half: number;
   step: number;
   scale: number;
+  /** Centre of the (square) grid in local metres; default 0,0. */
+  cx?: number;
+  cy?: number;
 }
 
 export class HeightGrid {
   readonly n: number;
   readonly half: number;
   readonly step: number;
+  readonly cx: number;
+  readonly cy: number;
   readonly heights: Float32Array;
 
   constructor(meta: GridMeta, raw: Int16Array) {
     this.n = meta.n;
     this.half = meta.half;
     this.step = meta.step;
+    this.cx = meta.cx ?? 0;
+    this.cy = meta.cy ?? 0;
     this.heights = new Float32Array(raw.length);
     for (let i = 0; i < raw.length; i++) this.heights[i] = raw[i] * meta.scale;
   }
 
   contains(east: number, north: number, margin = 0) {
-    return Math.abs(east) <= this.half - margin && Math.abs(north) <= this.half - margin;
+    return Math.abs(east - this.cx) <= this.half - margin && Math.abs(north - this.cy) <= this.half - margin;
   }
 
   at(r: number, c: number) {
@@ -41,8 +48,8 @@ export class HeightGrid {
 
   /** Height (m MSL) and upward surface normal (east, north, up) at a point. */
   sample(east: number, north: number, normalOut?: { e: number; n: number; u: number }): number {
-    const fc = (east + this.half) / this.step;
-    const fr = (this.half - north) / this.step;
+    const fc = (east - this.cx + this.half) / this.step;
+    const fr = (this.cy + this.half - north) / this.step;
     let c = Math.floor(fc), r = Math.floor(fr);
     if (c < 0) c = 0; else if (c > this.n - 2) c = this.n - 2;
     if (r < 0) r = 0; else if (r > this.n - 2) r = this.n - 2;
@@ -69,14 +76,20 @@ export class HeightGrid {
   }
 }
 
-/** Two-level terrain: high resolution core with a low resolution far field. */
+/** Terrain: high-resolution patches (airports) inside a low-resolution regional grid. */
 export class Terrain {
-  constructor(public hi: HeightGrid, public lo: HeightGrid | null = null) {}
+  readonly patches: HeightGrid[];
+  constructor(hi: HeightGrid | HeightGrid[], public lo: HeightGrid | null = null) {
+    this.patches = Array.isArray(hi) ? hi : [hi];
+  }
+  /** The first (primary) high-resolution patch. */
+  get hi() { return this.patches[0]; }
 
   /** Ground elevation (m MSL) at local east/north. Normal is optional. */
   heightAt(east: number, north: number, normalOut?: { e: number; n: number; u: number }): number {
-    if (this.hi.contains(east, north) || !this.lo) return this.hi.sample(east, north, normalOut);
-    return this.lo.sample(east, north, normalOut);
+    for (const p of this.patches) if (p.contains(east, north)) return p.sample(east, north, normalOut);
+    if (this.lo) return this.lo.sample(east, north, normalOut);
+    return this.patches[0].sample(east, north, normalOut);
   }
 }
 

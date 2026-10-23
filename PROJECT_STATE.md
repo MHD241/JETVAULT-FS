@@ -1,6 +1,6 @@
 # JetVault Flight Simulator — Project State
 
-_Last updated: update 22 (straight 737 rudder). This file is regenerated and handed over at the end of every piece of work._
+_Last updated: update 23 (Scotland world with Edinburgh, Glasgow and Portmoak). This file is regenerated and handed over at the end of every piece of work._
 
 ## Engine and architecture
 - **Platform:** browser, TypeScript + three.js (WebGL2), built with Vite. Chosen because the dev environment has no GPU and no native engine; the user plays in a browser. Fallback/native path: Godot 4 (the flight model is engine-independent TypeScript and can be ported).
@@ -148,6 +148,14 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 
 ## Update 22 — rudder
 - The rudder was squiggly because its hinge line and trailing edge followed noisy per-height samples of the fin mesh. They are now straight least-squares fits (the fin's edges are straight), with the hinge 30 % of the chord ahead of the trailing edge and a linearly tapering thickness. Headless screenshots at neutral and 0.45 rudder show a straight, clean trailing edge; the deflection itself is still subtle to see from the side.
+
+## Update 23 — Scotland world (one map, three detailed airports)
+- **One world instead of per-airport regions.** Shared frame: transverse Mercator at the EGPH ARP (Edinburgh data unchanged). `public/data/scot/`: regional terrain + land cover **800 x 800 km at 500 m** (`tools/build_scotland.py lo`; covers all of Scotland, Orkney (not Shetland), the Hebrides, northern England and most of Northern Ireland; total 5.1 MB + 0.2 MB), and 30 m terrain / 20 m land cover / 6 m Sentinel-2 imagery / roads / buildings / airport patches around **Edinburgh** (±24 km, the earlier data), **Glasgow** (±14.4 km) and **Portmoak** (±12.5 km, grass launch line as in update 17, rebuilt in the shared frame). Whole `dist/data` is ~30 MB loaded at start-up (no streaming yet; local load 5.5 s).
+- **Glasgow (EGPF):** runway 05/23 from OurAirports (8,730 ft, 980 ft displaced on 23; the closed 09/27 is omitted), 44 OSM gates, jet bridges, 11 airliner gate stands (derived the same way as Edinburgh), terminal/pier heights are estimates as at Edinburgh. Buildings are kept only within 5 km of the airfield (Glasgow city has 269,000 footprints: too heavy), roads without service lanes, so the 3D city beyond 5 km is absent. Imagery: Sentinel-2 tiles 30UUG + 30UVG, 16 May 2025 (about 90 % covered; a black edge is possible near the patch margin). Frequencies in `airport.json` are from memory and **unverified**.
+- **Altitude-dependent detail:** terrain LOD distances are scaled by (1 + altitude / 3,500 m), so the higher you fly the coarser (fewer, larger squares) the ground becomes; regional chunks beyond 230 km are not drawn. Regional terrain under a patch is lowered 40 m in the *rendered* mesh only (physics uses the patch).
+- **World/physics:** `Terrain` holds several patches plus the regional grid; `World.airports`, `setAirport()`, `isPaved()` / `landAt()` cover all patches. Menu: Airport Selection chooses where you start (Edinburgh, Glasgow, Portmoak); World Map is the whole of Scotland (click to start airborne); the minimap shows imagery inside a patch and a coarse land-cover map elsewhere. The old per-airport region switching is gone (`public/data/egph`, `egpm` removed; the pipeline scripts for them remain in tools/).
+- **Tests (94 pass):** new `tests/scotland.test.ts` (three airports, threshold heights within 15 m of published elevation, 737 on Glasgow asphalt, Portmoak winch launch on grass). Existing Edinburgh tests run against the new world unchanged.
+- **Not done / limits:** no streaming of patches (everything loads up front, ~30 MB); no satellite imagery or 3D buildings outside the three patches (land-cover colours only); thermals are not tied to ground type; real-GPU and phone frame rates NOT TESTED (software render: terrain ~50-60k triangles, ~200-450 draw calls in the views I checked); the UK south of the map edge (about 52.5°N) is not included.
 
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |

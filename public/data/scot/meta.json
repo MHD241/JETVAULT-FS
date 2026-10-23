@@ -1,0 +1,60 @@
+{
+ "projection": "+proj=tmerc +lat_0=55.950145 +lon_0=-3.372288 +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +units=m +no_defs +type=crs",
+ "origin": {
+  "lat": 55.950145,
+  "lon": -3.372288
+ },
+ "terrainLo": {
+  "file": "terrain_lo.bin",
+  "n": 1601,
+  "half": 400000.0,
+  "step": 500.0,
+  "scale": 0.1
+ },
+ "landcoverLo": {
+  "file": "landcover_lo.png",
+  "n": 1601,
+  "half": 400000.0,
+  "step": 500.0
+ },
+ "patches": [
+  {
+   "id": "egph",
+   "icao": "EGPH",
+   "name": "Edinburgh Airport",
+   "cx": 0,
+   "cy": 0,
+   "half": 24000,
+   "imgHalf": 12000,
+   "buildings": 0
+  },
+  {
+   "id": "egpf",
+   "icao": "EGPF",
+   "name": "Glasgow Airport",
+   "cx": -66404.35610400824,
+   "cy": -8202.928934475625,
+   "half": 14400.0,
+   "imgHalf": 9000.0,
+   "buildings": 34787
+  },
+  {
+   "id": "egpm",
+   "icao": "EGPM",
+   "name": "Portmoak (Scottish Gliding Centre)",
+   "cx": 2718.2525709742936,
+   "cy": 26821.859414899864,
+   "half": 12480.0,
+   "imgHalf": 9000.0,
+   "buildings": 2699
+  }
+ ],
+ "attribution": [
+  "Copernicus DEM GLO-30: (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA",
+  "ESA WorldCover 10 m 2021 v200, (c) ESA WorldCover project, CC BY 4.0",
+  "Airport and building geometry: Overture Maps Foundation, derived from OpenStreetMap (c) OpenStreetMap contributors, ODbL",
+  "Runway thresholds: OurAirports (public domain)",
+  "Contains modified Copernicus Sentinel data 2025 (Sentinel-2 L2A, tiles 30UVG/30VVH, 16 May 2025), processed by ESA",
+  "Sentinel-2 true-colour imagery 16 May 2025: contains modified Copernicus Sentinel data (ESA)"
+ ]
+}

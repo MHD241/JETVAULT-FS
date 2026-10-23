@@ -4,7 +4,7 @@
 import { SpawnKind } from '../sim/simulation';
 import { WeatherSettings, CloudCover } from '../sim/weather';
 import { InputSettings, saveInputSettings } from '../input/input';
-import { REGIONS, currentRegion, switchRegion } from '../world/region';
+import { airportCentre } from '../world/airport';
 import { World } from '../world/world';
 import { Aircraft, AircraftDef } from '../sim/fdm/aircraft';
 
@@ -37,6 +37,7 @@ export interface MenuHost {
   fuelFraction: [number, number];
   aircraftDefs: AircraftDef[];
   selectAircraft(id: string): void;
+  airportChanged(): void;
   startView: 'cockpit' | 'chase';
   fly(spawn: AnySpawn): void;
   applyWeather(w: WeatherSettings): void;
@@ -96,14 +97,13 @@ export class Menu {
     else if (this.tab === 'map') this.renderMap(s);
     else if (this.tab === 'aircraft') this.renderAircraft(s);
     else if (this.tab === 'airports') {
-      s.innerHTML = `<h2>Airport Selection</h2><p>Each airport is a separate region of real data: terrain (Copernicus DEM), land cover (ESA WorldCover), Sentinel-2 imagery,
-      and airport, road and building geometry from OpenStreetMap (via Overture Maps). Choosing another airport reloads the simulator.</p>`;
+      s.innerHTML = `<h2>Airport Selection</h2><p>Scotland is one continuous map: Copernicus terrain and land cover everywhere, with full detail (satellite imagery, roads, buildings, airfield) around Edinburgh, Glasgow and Portmoak. Pick where you start; you can fly between them.</p>`;
       const grid = document.createElement('div'); grid.className = 'jv-grid';
-      for (const r of REGIONS) {
+      for (const a of h.world.airports) {
         const c = document.createElement('div');
-        c.className = 'jv-card' + (r.id === currentRegion() ? ' sel' : '');
-        c.innerHTML = `<b>${r.icao} ${r.name}</b><span>${r.blurb}</span>`;
-        c.onclick = () => { if (r.id !== currentRegion()) switchRegion(r.id); };
+        c.className = 'jv-card' + (a.icao === h.world.airport.icao ? ' sel' : '');
+        c.innerHTML = `<b>${a.icao} ${a.name}</b><span>${a.runways.map((r) => `Runway ${r.id} · ${Math.round(r.length)} m · ${r.surface}`).join('<br>')}<br>Elevation ${(a.arp.elev / 0.3048).toFixed(0)} ft</span>`;
+        c.onclick = () => { h.world.setAirport(a.icao); this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; this.host.airportChanged(); this.render(); };
         grid.appendChild(c);
       }
       s.appendChild(grid);
@@ -128,16 +128,16 @@ export class Menu {
     const glider = !!def.glider;
     s.innerHTML = `<h2>Fly Now</h2><p>Choose the aircraft, airport, start position and view.</p><h3>Aircraft</h3>`;
     this.aircraftPicker(s);
-    const cur = REGIONS.find((r) => r.id === currentRegion())!;
-    s.insertAdjacentHTML('beforeend', `<h3>Airport</h3><div class="jv-grid"><div class="jv-card sel"><b>${cur.icao} ${cur.name}</b><span>${cur.blurb}<br>Change it under Airport Selection.</span></div></div><h3>Start position</h3>`);
+    s.insertAdjacentHTML('beforeend', `<h3>Airport</h3><div class="jv-grid"><div class="jv-card sel"><b>${ap.icao} ${ap.name}</b><span>${ap.runways.map((r) => `Runway ${r.id}`).join(', ')}<br>Change it under Airport Selection.</span></div></div><h3>Start position</h3>`);
     const idents = ap.runways.flatMap((r) => r.ends.map((e) => e.ident));
+    const ctr = airportCentre(ap);
     const grid = document.createElement('div'); grid.className = 'jv-grid';
     const ridge = ap.icao === 'EGPM';
     const opts: [AnySpawn, string, string][] = glider ? [
       ...idents.map((id): [AnySpawn, string, string] => [{ kind: 'runway', ident: id }, `Runway ${id} winch launch`, 'On the ground, press LAUNCH for a winch launch (1,400 m cable)']),
       ridge
-        ? [{ kind: 'air', east: 1000, north: 1700, altFt: 1500, hdg: 0 }, 'Airborne at the Lomond Hills ridge', 'Ridge soaring: best with a southerly wind (set it under Weather)']
-        : [{ kind: 'air', east: 0, north: 0, altFt: 3000, hdg: 0 }, 'Airborne, 3,000 ft over the airport', 'Soaring: thermals by day, ridge lift in wind over hills'],
+        ? [{ kind: 'air', east: ctr.x + 1000, north: ctr.y + 1700, altFt: 1500, hdg: 0 }, 'Airborne at the Lomond Hills ridge', 'Ridge soaring: best with a southerly wind (set it under Weather)']
+        : [{ kind: 'air', east: ctr.x, north: ctr.y, altFt: 3000, hdg: 0 }, 'Airborne, 3,000 ft over the airport', 'Soaring: thermals by day, ridge lift in wind over hills'],
       [{ kind: 'approach', ident: idents[0], distanceNm: 1.5 }, `Final approach ${idents[0]}`, '1.5 nm final, airbrakes ready'],
     ] : [
       ...(jet ? ap.standsJet ?? [] : ap.stands).map((_, i): [AnySpawn, string, string] => [{ kind: 'stand', index: i, coldAndDark: false }, jet ? `Gate stand ${i + 1}` : `Parking stand ${i + 1}`, jet ? 'Nose-in at a boarding bridge, parking brake set' : 'Apron, parking brake set']),
@@ -175,7 +175,8 @@ export class Menu {
   }
 
   private renderMap(s: HTMLElement) {
-    s.innerHTML = `<h2>World Map</h2><p>${this.host.world.airport.name} region, ${this.host.world.meta.terrainHi.half * 2 / 1000} x ${this.host.world.meta.terrainHi.half * 2 / 1000} km high-resolution terrain. Click the map to start airborne at that position (2,500 ft, heading toward ${this.host.world.airport.icao}).</p>`;
+    const lo = this.host.world.terrain.lo!;
+    s.innerHTML = `<h2>World Map</h2><p>Scotland, ${lo.half * 2 / 1000} x ${lo.half * 2 / 1000} km (terrain at ${lo.step} m, the ground gets coarser the higher you fly). Click the map to start airborne at that position. Airports with full detail: ${this.host.world.airports.map((a) => a.icao).join(', ')}.</p>`;
     const cv = document.createElement('canvas');
     cv.width = 800; cv.height = 800; cv.className = 'jv-map';
     s.appendChild(cv);
@@ -183,11 +184,10 @@ export class Menu {
     this.drawMap();
     cv.onclick = (e) => {
       const r = cv.getBoundingClientRect();
-      const grid = this.host.world.terrain.hi;
-      const east = ((e.clientX - r.left) / r.width) * 2 * grid.half - grid.half;
-      const north = grid.half - ((e.clientY - r.top) / r.height) * 2 * grid.half;
-      const hdg = Math.atan2(-east, -north);
-      this.host.fly({ kind: 'air', east, north, altFt: 2500, hdg });
+      const east = ((e.clientX - r.left) / r.width) * 2 * lo.half - lo.half;
+      const north = lo.half - ((e.clientY - r.top) / r.height) * 2 * lo.half;
+      const ground = this.host.world.terrain.heightAt(east, north);
+      this.host.fly({ kind: 'air', east, north, altFt: Math.max(2500, Math.round((ground / 0.3048 + 2000) / 100) * 100), hdg: 0 });
     };
   }
 
@@ -195,7 +195,7 @@ export class Menu {
     const cv = this.mapCanvas;
     if (!cv || !cv.isConnected) return;
     const g = cv.getContext('2d')!;
-    const grid = this.host.world.terrain.hi;
+    const grid = this.host.world.terrain.lo!;
     const W = cv.width;
     if (!this.hillshade) {
       const img = g.createImageData(W, W);
@@ -206,24 +206,29 @@ export class Menu {
         const h = grid.sample(e, n, nrm);
         const shade = Math.max(0, -nrm.e * 0.5 + nrm.n * 0.5 + nrm.u * 0.7);
         const cls = lc ? lc.at(e, n) : 30;
-        let col = cls === 80 ? [22, 40, 66] : cls === 50 ? [70, 72, 80] : cls === 10 ? [34, 56, 40] : [52, 70, 48];
-        if (h > 250) col = [70, 66, 56];
-        const k = cls === 80 ? 1 : 0.55 + 0.6 * shade;
+        let col = cls === 80 ? [22, 40, 66] : cls === 50 ? [95, 90, 100] : cls === 10 ? [34, 56, 40] : [52, 70, 48];
+        if (h > 600) col = [110, 104, 96]; else if (h > 250) col = [70, 66, 56];
+        const k = cls === 80 ? 1 : 0.55 + 0.9 * shade;
         const i = (y * W + x) * 4;
-        img.data[i] = col[0] * k; img.data[i + 1] = col[1] * k; img.data[i + 2] = col[2] * k; img.data[i + 3] = 255;
+        img.data[i] = Math.min(255, col[0] * k); img.data[i + 1] = Math.min(255, col[1] * k); img.data[i + 2] = Math.min(255, col[2] * k); img.data[i + 3] = 255;
       }
       this.hillshade = img;
     }
     g.putImageData(this.hillshade, 0, 0);
     const P = (e: number, n: number): [number, number] => [((e + grid.half) / (2 * grid.half)) * W, ((grid.half - n) / (2 * grid.half)) * W];
-    g.strokeStyle = '#e9edf3'; g.lineWidth = 3;
-    for (const rw of this.host.world.airport.runways) { g.beginPath(); g.moveTo(...P(rw.ends[0].x, rw.ends[0].y)); g.lineTo(...P(rw.ends[1].x, rw.ends[1].y)); g.stroke(); }
-    g.fillStyle = '#e9edf3'; g.font = '12px sans-serif'; g.fillText(this.host.world.airport.icao, ...P(250, -500));
+    g.font = '12px sans-serif';
+    for (const a of this.host.world.airports) {
+      const c = airportCentre(a);
+      const [px, py] = P(c.x, c.y);
+      g.fillStyle = a.icao === this.host.world.airport.icao ? '#f7c74f' : '#e9edf3';
+      g.beginPath(); g.arc(px, py, 4, 0, Math.PI * 2); g.fill();
+      g.fillText(a.icao, px + 7, py + 4);
+    }
     const ac = this.host.aircraft;
     const [x, y] = P(ac.pos.y, ac.pos.x);
     const psi = ac.euler[2];
     g.save(); g.translate(x, y); g.rotate(psi);
-    g.fillStyle = '#4f8ef7'; g.beginPath(); g.moveTo(0, -10); g.lineTo(6, 8); g.lineTo(0, 4); g.lineTo(-6, 8); g.closePath(); g.fill();
+    g.fillStyle = '#4f8ef7'; g.strokeStyle = '#fff'; g.beginPath(); g.moveTo(0, -10); g.lineTo(6, 8); g.lineTo(0, 4); g.lineTo(-6, 8); g.closePath(); g.fill(); g.stroke();
     g.restore();
   }
 

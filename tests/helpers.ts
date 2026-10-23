@@ -10,7 +10,7 @@ import { AircraftDef } from '../src/sim/fdm/aircraft';
 import { DEFAULT_WEATHER, WeatherSettings } from '../src/sim/weather';
 import { KT, FT, DEG, clamp } from '../src/core/math';
 
-export const DATA = join(__dirname, '..', 'public', 'data', 'egph');
+export const DATA = join(__dirname, '..', 'public', 'data', 'scot');
 
 export async function loadEGPH(): Promise<World> {
   return loadWorld(DATA, async (p) => {

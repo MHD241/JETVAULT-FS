@@ -62,8 +62,8 @@ export function buildPavementOverlay(ap: AirportData): TerrainOverlay {
 }
 
 /** Road network overlay (Overture/OSM road segments) around the airport. */
-export function buildRoadOverlay(roads: [string, [number, number][]][]): TerrainOverlay {
-  const size = 18000, e0 = -9000, n0 = -9000, px = 4096;
+export function buildRoadOverlay(roads: [string, [number, number][]][], cx = 0, cy = 0, size = 18000): TerrainOverlay {
+  const e0 = cx - size / 2, n0 = cy - size / 2, px = 4096;
   const cv = document.createElement('canvas');
   cv.width = cv.height = px;
   const g = cv.getContext('2d')!;

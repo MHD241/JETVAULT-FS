@@ -9,6 +9,7 @@ import { GLIDER } from './sim/aircraft/glider';
 import { GliderModel, GliderCockpit } from './render/gliderModel';
 import { Vario } from './ui/vario';
 import { currentRegion } from './world/region';
+import { airportCentre } from './world/airport';
 import { AircraftDef } from './sim/fdm/aircraft';
 import { B737Model } from './render/b737Model';
 import { B737Cockpit } from './render/b737Cockpit';
@@ -28,7 +29,8 @@ import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
 import { Vec3, clamp } from './core/math';
 import { AutoTrim } from './sim/assists';
 import { SimpleControls, IS_TOUCH } from './input/simpleControls';
-import { Minimap } from './ui/minimap';
+import { Minimap, MinimapPatch } from './ui/minimap';
+import { TerrainPatch } from './render/terrainMesh';
 import { JetBridges } from './render/jetBridges';
 import { CrashFx } from './render/crashFx';
 
@@ -60,7 +62,8 @@ class App implements MenuHost {
   sim!: Simulation;
   world!: World;
   terrain!: TerrainRenderer;
-  airport!: AirportRenderer;
+  airports: AirportRenderer[] = [];
+  private minimapPatches: MinimapPatch[] = [];
   buildings!: BuildingsRenderer;
   model!: C172Model | B737Model | GliderModel;
   cockpit!: Cockpit | B737Cockpit | GliderCockpit;
@@ -126,30 +129,37 @@ class App implements MenuHost {
     this.sim = new Simulation(this.world, C172, this.weather);
     this.payload = C172.stations.map((s) => s.mass);
     progress('Building terrain');
-    const overlay = buildPavementOverlay(this.world.airport);
-    const lcLoBuf = await fetchBuf(`./data/${currentRegion()}/${this.world.meta.landcoverLo.file}`);
+    const base = `./data/${currentRegion()}`;
+    const lcLoBuf = await fetchBuf(`${base}/${this.world.meta.landcoverLo.file}`);
     const lcLo = await decodeGray(lcLoBuf, this.world.meta.landcoverLo.n);
     const lo = new LandCover(lcLo, this.world.meta.landcoverLo.n, this.world.meta.landcoverLo.half, this.world.meta.landcoverLo.step);
-    let roads = null;
-    let roadsJson: [string, [number, number][]][] | null = null;
-    try { roadsJson = JSON.parse(new TextDecoder().decode(await fetchBuf(`./data/${currentRegion()}/roads.json`))); roads = buildRoadOverlay(roadsJson!); } catch { /* optional data */ }
-    let imagery = null;
-    try {
-      progress('Satellite imagery (Copernicus Sentinel-2)');
-      const t = await new THREE.TextureLoader().loadAsync(`./data/${currentRegion()}/imagery.jpg`);
-      t.colorSpace = THREE.NoColorSpace; t.anisotropy = 8; // image row 0 = north = v 1 (flipY default)
-      const ih = currentRegion() === 'egph' ? 12000 : 9000; // imagery half-extent, m (tools/build_imagery.py)
-      imagery = { texture: t, e0: -ih, n0: -ih, size: 2 * ih };
-    } catch { /* optional data */ }
-    this.terrain = new TerrainRenderer(this.world.terrain.hi, this.world.terrain.lo, this.world.landcover, lo, overlay, roads, imagery);
+    const tPatches: TerrainPatch[] = [];
+    this.minimapPatches = [];
+    for (let i = 0; i < this.world.meta.patches.length; i++) {
+      const pm = this.world.meta.patches[i];
+      const airport = this.world.airports[i];
+      progress(`${pm.name}: imagery`);
+      let roads = null;
+      let roadsJson: [string, [number, number][]][] | null = null;
+      try { roadsJson = JSON.parse(new TextDecoder().decode(await fetchBuf(`${base}/${pm.id}/roads.json`))); roads = buildRoadOverlay(roadsJson!, pm.cx, pm.cy, 2 * pm.imgHalf); } catch { /* optional data */ }
+      let imagery = null;
+      try {
+        const t = await new THREE.TextureLoader().loadAsync(`${base}/${pm.id}/imagery.jpg`);
+        t.colorSpace = THREE.NoColorSpace; t.anisotropy = 8; // image row 0 = north = v 1 (flipY default)
+        imagery = { texture: t, e0: pm.cx - pm.imgHalf, n0: pm.cy - pm.imgHalf, size: 2 * pm.imgHalf };
+      } catch { /* optional data */ }
+      tPatches.push({ grid: this.world.terrain.patches[i], lc: this.world.landcovers[i] ?? null, overlay: buildPavementOverlay(airport), roads, imagery });
+      this.minimapPatches.push({ cx: pm.cx, cy: pm.cy, half: pm.imgHalf, imagery: (imagery?.texture.image as CanvasImageSource) ?? null, roads: roadsJson, airport });
+    }
+    this.terrain = new TerrainRenderer(tPatches, this.world.terrain.lo, lo);
     this.scene.add(this.terrain.group);
-    progress('Building airport');
-    this.airport = new AirportRenderer(this.world.airport, this.world.terrain);
-    this.scene.add(this.airport.group);
+    progress('Building airports');
+    this.airports = this.world.airports.map((a) => new AirportRenderer(a, this.world.terrain));
+    for (const a of this.airports) this.scene.add(a.group);
     progress('Building city');
     this.buildings = new BuildingsRenderer(this.world.obstacles.buildings);
     this.scene.add(this.buildings.group);
-    this.jetBridges = new JetBridges(this.world.airport.gates ?? [], this.world.obstacles.buildings, (e, n) => this.world.terrain.heightAt(e, n) - 0.2);
+    this.jetBridges = new JetBridges(this.world.airports.flatMap((a) => a.gates ?? []), this.world.obstacles.buildings, (e, n) => this.world.terrain.heightAt(e, n) - 0.2);
     this.scene.add(this.jetBridges.group);
     this.bridgeBtn = document.createElement('button');
     this.bridgeBtn.className = 'jv-bridge';
@@ -206,7 +216,7 @@ class App implements MenuHost {
     this.scene.add(this.debug.group);
     this.input = new InputManager(loadInputSettings(), this.renderer.domElement);
     this.simple = new SimpleControls(this.renderer.domElement);
-    this.minimap = new Minimap(this.world.airport, (imagery?.texture.image as CanvasImageSource) ?? null, roadsJson, imagery ? imagery.size / 2 : 12000);
+    this.minimap = new Minimap(this.minimapPatches, this.world.landcover);
     if (IS_TOUCH) {
       // phones / tablets: lighter rendering
       this.graphics = { ...this.graphics, renderScale: Math.min(this.graphics.renderScale, 0.75), shadows: false, buildingDistanceKm: 5, terrainDetail: 0.7 };
@@ -239,11 +249,12 @@ class App implements MenuHost {
     (window as any).jetvault = this; // console access for development and automated checks
   }
 
-  /** The control tower is the tallest structure at EGPH: use the tallest airport building. */
+  /** The control tower is the tallest structure near the airport: use the tallest building within 2.5 km. */
   private placeTower() {
     const ob = this.world.obstacles;
+    const c = airportCentre(this.world.airport);
     let best = -1, bestH = 0;
-    for (const id of ob.query(-2500, -2500, 2500, 2500)) {
+    for (const id of ob.query(c.x - 2500, c.y - 2500, c.x + 2500, c.y + 2500)) {
       const b = ob.buildings[id];
       if (b.top - b.base > bestH) { bestH = b.top - b.base; best = id; }
     }
@@ -252,6 +263,9 @@ class App implements MenuHost {
       this.rig.towerPos.set((b.minE + b.maxE) / 2, b.top + 3, -(b.minN + b.maxN) / 2);
     }
   }
+
+  /** The user picked another airport in the menu. */
+  airportChanged() { this.placeTower(); }
 
   private buildAircraftVisuals() {
     if (this.model) this.aircraftGroup.remove(this.model.root);
@@ -500,7 +514,7 @@ class App implements MenuHost {
     this.terrain.update(cam.position, sim.simTime);
     this.terrain.setNight(this.env.night);
     this.terrain.setWet(sim.weather.rain > 0.1 ? Math.min(1, sim.weather.rain * 1.5) : 0);
-    this.airport.update(cam.position, this.env.lightLevel, window.innerHeight / 1000);
+    for (const a of this.airports) a.update(cam.position, this.env.lightLevel, window.innerHeight / 1000);
     this.buildings.update(cam.position, this.env.night);
     this.debug.update();
     this.hud.update(sim, dt, this.rig.mode);

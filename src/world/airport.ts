@@ -126,3 +126,9 @@ export function runwayEnd(ap: AirportData, ident: string): { rw: Runway; end: Ru
   }
   throw new Error(`runway ${ident} not found`);
 }
+
+/** Local (east, north) centre of an airport: the mean of its runway ends. */
+export function airportCentre(ap: AirportData): { x: number; y: number } {
+  const e = ap.runways.flatMap((r) => r.ends);
+  return { x: e.reduce((a, b) => a + b.x, 0) / e.length, y: e.reduce((a, b) => a + b.y, 0) / e.length };
+}

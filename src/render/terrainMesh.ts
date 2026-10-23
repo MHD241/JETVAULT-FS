@@ -8,8 +8,9 @@ import * as THREE from 'three';
 import { HeightGrid } from '../world/terrain';
 import { LandCover } from '../world/world';
 
-const HI_CHUNK = 64; // cells per chunk (hi grid: 1600 cells -> 25 x 25 chunks)
-const LO_CHUNK = 40; // cells per chunk (lo grid: 1000 cells -> 25 x 25 chunks)
+const HI_CHUNK = 64; // cells per chunk (patch half-extents are multiples of 960 m: 30 m cells, whole chunks)
+const LO_CHUNK = 40; // cells per chunk (lo grid: 1600 cells -> 40 x 40 chunks)
+const FAR_CULL = 230000; // m: regional chunks further than this are not drawn
 
 interface Chunk {
   grid: HeightGrid;
@@ -27,20 +28,25 @@ export interface TerrainOverlay {
   e0: number; n0: number; size: number;
 }
 
+export interface TerrainPatch {
+  grid: HeightGrid;
+  lc: LandCover | null;
+  overlay: TerrainOverlay | null;
+  roads: TerrainOverlay | null;
+  imagery: TerrainOverlay | null;
+}
+
 export class TerrainRenderer {
   readonly group = new THREE.Group();
   private chunks: Chunk[] = [];
   /** Multiplier on LOD switch distances (graphics setting). */
   detail = 1;
-  hiMaterial: THREE.MeshStandardMaterial;
   loMaterial: THREE.MeshStandardMaterial;
   uniforms: Record<string, THREE.IUniform>;
   trianglesDrawn = 0;
+  private patchRects: { e0: number; e1: number; n0: number; n1: number }[] = [];
 
-  constructor(
-    hi: HeightGrid, lo: HeightGrid | null, lcHi: LandCover | null, lcLo: LandCover | null,
-    overlay: TerrainOverlay | null, roads: TerrainOverlay | null = null, imagery: TerrainOverlay | null = null,
-  ) {
+  constructor(patches: TerrainPatch[], lo: HeightGrid | null, lcLo: LandCover | null) {
     const detailTex = makeNoiseTexture(256);
     this.uniforms = {
       uTime: { value: 0 },
@@ -48,23 +54,26 @@ export class TerrainRenderer {
       uDetail: { value: detailTex },
       uWet: { value: 0 },
     };
-    this.hiMaterial = makeTerrainMaterial(this.uniforms, lcHi, overlay, roads, imagery);
     this.loMaterial = makeTerrainMaterial(this.uniforms, lcLo, null);
     this.group.name = 'terrain';
-
-    const nHi = (hi.n - 1) / HI_CHUNK;
-    for (let i = 0; i < nHi; i++) for (let j = 0; j < nHi; j++) this.addChunk(hi, i * HI_CHUNK, j * HI_CHUNK, HI_CHUNK, this.hiMaterial);
+    for (const p of patches) {
+      const g = p.grid;
+      this.patchRects.push({ e0: g.cx - g.half, e1: g.cx + g.half, n0: g.cy - g.half, n1: g.cy + g.half });
+      const mat = makeTerrainMaterial(this.uniforms, p.lc, p.overlay, p.roads, p.imagery);
+      const nc = (g.n - 1) / HI_CHUNK;
+      for (let i = 0; i < nc; i++) for (let j = 0; j < nc; j++) this.addChunk(g, i * HI_CHUNK, j * HI_CHUNK, HI_CHUNK, mat);
+    }
     if (lo) {
       const nLo = (lo.n - 1) / LO_CHUNK;
-      for (let i = 0; i < nLo; i++) for (let j = 0; j < nLo; j++) {
-        // skip far-field chunks fully covered by the high resolution core
-        const e0 = -lo.half + j * LO_CHUNK * lo.step, e1 = e0 + LO_CHUNK * lo.step;
-        const n1 = lo.half - i * LO_CHUNK * lo.step, n0 = n1 - LO_CHUNK * lo.step;
-        if (e0 >= -hi.half - 1 && e1 <= hi.half + 1 && n0 >= -hi.half - 1 && n1 <= hi.half + 1) continue;
-        this.addChunk(lo, i * LO_CHUNK, j * LO_CHUNK, LO_CHUNK, this.loMaterial);
-      }
+      for (let i = 0; i < nLo; i++) for (let j = 0; j < nLo; j++) this.addChunk(lo, i * LO_CHUNK, j * LO_CHUNK, LO_CHUNK, this.loMaterial);
     }
   }
+
+  /** Depth (m) to lower regional terrain under a high-resolution patch so the patch is drawn on top without z-fighting. */
+  private underPatch = (e: number, n: number) => {
+    for (const r of this.patchRects) if (e > r.e0 + 60 && e < r.e1 - 60 && n > r.n0 + 60 && n < r.n1 - 60) return 40;
+    return 0;
+  };
 
   private addChunk(grid: HeightGrid, r0: number, c0: number, cells: number, mat: THREE.Material) {
     let minY = Infinity, maxY = -Infinity;
@@ -72,8 +81,8 @@ export class TerrainRenderer {
       const h = grid.at(r, c);
       if (h < minY) minY = h; if (h > maxY) maxY = h;
     }
-    const cx = -grid.half + (c0 + cells / 2) * grid.step;
-    const cz = -(grid.half - (r0 + cells / 2) * grid.step);
+    const cx = grid.cx - grid.half + (c0 + cells / 2) * grid.step;
+    const cz = -(grid.cy + grid.half - (r0 + cells / 2) * grid.step);
     const mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat);
     mesh.position.set(cx, 0, cz);
     mesh.receiveShadow = true;
@@ -88,18 +97,24 @@ export class TerrainRenderer {
   update(cam: THREE.Vector3, time: number) {
     this.uniforms.uTime.value = time;
     let tris = 0;
+    // the higher the aircraft, the coarser the ground (fewer, larger squares): scale distances by altitude
+    const alt = Math.max(0, cam.y);
+    const altK = 1 + alt / 3500;
     for (const ch of this.chunks) {
       const half = (ch.cells * ch.grid.step) / 2;
       const dx = Math.max(0, Math.abs(cam.x - ch.cx) - half);
       const dz = Math.max(0, Math.abs(cam.z - ch.cz) - half);
       const dy = Math.max(0, cam.y - ch.maxY, ch.minY - cam.y);
-      const d = Math.hypot(dx, dz, dy * 0.5) / this.detail;
+      const dRaw = Math.hypot(dx, dz, dy * 0.5);
+      const regional = ch.grid.step >= 100;
+      if (regional && dRaw > FAR_CULL) { ch.mesh.visible = false; continue; }
+      const d = (dRaw * altK) / this.detail;
       let lod: number;
-      if (ch.grid.step < 100) lod = d < 2500 ? 1 : d < 6000 ? 2 : d < 12000 ? 4 : d < 24000 ? 8 : 16;
-      else lod = d < 15000 ? 1 : d < 40000 ? 2 : 4;
-      if (lod !== ch.lod) {
+      if (!regional) lod = d < 2500 ? 1 : d < 6000 ? 2 : d < 12000 ? 4 : d < 24000 ? 8 : 16;
+      else lod = d < 15000 ? 1 : d < 40000 ? 2 : d < 90000 ? 4 : d < 160000 ? 8 : 20;
+      if (lod !== ch.lod || !ch.mesh.visible) {
         let g = ch.geoms.get(lod);
-        if (!g) { g = buildChunkGeometry(ch.grid, ch.r0, ch.c0, ch.cells, lod, ch.cx, ch.cz); ch.geoms.set(lod, g); }
+        if (!g) { g = buildChunkGeometry(ch.grid, ch.r0, ch.c0, ch.cells, lod, ch.cx, ch.cz, regional ? this.underPatch : null); ch.geoms.set(lod, g); }
         ch.mesh.geometry = g;
         ch.mesh.visible = true;
         ch.lod = lod;
@@ -116,7 +131,7 @@ export class TerrainRenderer {
   setWet(f: number) { this.uniforms.uWet.value = f; }
 }
 
-function buildChunkGeometry(grid: HeightGrid, r0: number, c0: number, cells: number, stride: number, cx: number, cz: number) {
+function buildChunkGeometry(grid: HeightGrid, r0: number, c0: number, cells: number, stride: number, cx: number, cz: number, lower: ((e: number, n: number) => number) | null = null) {
   const n = cells / stride + 1;
   const skirt = 4 * n; // perimeter vertices for skirts
   const pos = new Float32Array((n * n + skirt) * 3);
@@ -127,9 +142,9 @@ function buildChunkGeometry(grid: HeightGrid, r0: number, c0: number, cells: num
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < n; j++) {
       const r = r0 + i * stride, c = c0 + j * stride;
-      const e = -grid.half + c * s, no = grid.half - r * s;
+      const e = grid.cx - grid.half + c * s, no = grid.cy + grid.half - r * s;
       pos[k * 3] = e - cx;
-      pos[k * 3 + 1] = grid.at(r, c);
+      pos[k * 3 + 1] = grid.at(r, c) - (lower ? lower(e, no) : 0);
       pos[k * 3 + 2] = -no - cz;
       const hx = (grid.at(r, c + ns) - grid.at(r, c - ns)) / (2 * ns * s); // d/deast
       const hz = (grid.at(r + ns, c) - grid.at(r - ns, c)) / (2 * ns * s); // d/dsouth (= three +z)
@@ -227,6 +242,7 @@ function makeTerrainMaterial(shared: Record<string, THREE.IUniform>, lc: LandCov
     uLc: { value: lc ? makeLandcoverTexture(lc) : empty },
     uLcN: { value: lc ? lc.n : 1 },
     uLcHalf: { value: lc ? lc.half : 1e9 },
+    uLcC: { value: lc ? new THREE.Vector2(lc.cx, lc.cy) : new THREE.Vector2() },
     uLcStep: { value: lc ? lc.step : 1e9 },
     uOverlay: { value: overlay ? overlay.texture : null },
     uOverlayRect: { value: overlay ? new THREE.Vector3(overlay.e0, overlay.n0, overlay.size) : new THREE.Vector3(0, 0, -1) },
@@ -246,6 +262,7 @@ varying vec3 vWorldPos;
 varying vec3 vWorldNormal;
 uniform sampler2D uLc;
 uniform float uLcN, uLcHalf, uLcStep, uTime, uNight, uWet;
+uniform vec2 uLcC;
 uniform sampler2D uDetail;
 uniform sampler2D uOverlay;
 uniform vec3 uOverlayRect;
@@ -287,7 +304,7 @@ float gWater; float gBuilt; float gPaved;
   float n1 = texture2D(uDetail, en / 97.0).r;
   float n2 = texture2D(uDetail, en / 11.0).g;
   vec2 warp = (vec2(texture2D(uDetail, en / 410.0).b, texture2D(uDetail, en / 410.0 + 0.37).a) - 0.5) * 0.9;
-  vec2 f = vec2((en.x + uLcHalf) / uLcStep, (uLcHalf - en.y) / uLcStep) + warp;
+  vec2 f = vec2((en.x - uLcC.x + uLcHalf) / uLcStep, (uLcC.y + uLcHalf - en.y) / uLcStep) + warp;
   vec2 i0 = floor(f); vec2 t = fract(f);
   float c00 = lcAt(ivec2(i0)), c10 = lcAt(ivec2(i0) + ivec2(1, 0)), c01 = lcAt(ivec2(i0) + ivec2(0, 1)), c11 = lcAt(ivec2(i0) + ivec2(1, 1));
   vec3 col = mix(mix(classColor(c00, en, n1), classColor(c10, en, n1), t.x), mix(classColor(c01, en, n1), classColor(c11, en, n1), t.x), t.y);
