@@ -142,6 +142,8 @@ export class Aircraft {
   elevator = 0; aileronL = 0; aileronR = 0; rudder = 0; // rad actual
   /** Pushback tug: target reverse speed (m/s) or null. The tug pulls on the nose gear with a limited force. */
   tugSpeed: number | null = null;
+  /** Tug steering -1..1 (positive = tug turns right). */
+  tugSteer = 0;
   crashed = false;
   crashReason = '';
   events: ContactEvent[] = [];
@@ -403,11 +405,14 @@ export class Aircraft {
       M.z -= this.qbar * 2 * fu.munkVolumeYaw * Math.sin(this.beta) * cb;
     }
 
-    // Pushback tug: speed-controlled horizontal force at the nose gear, limited to 90 kN.
+    // Pushback tug: speed-controlled horizontal force at the nose gear (max 90 kN) along the towbar.
+    // Steering swings the towbar up to 35 deg; steer > 0 = tug turns right = nose gear pulled to the aircraft's left.
     if (this.tugSpeed !== null && this.onGround) {
-      const vx = this.q.invRotate(this.vel).x;
-      const fx = Math.max(-90000, Math.min(90000, 80000 * (-this.tugSpeed - vx)));
-      const tf = new Vec3(fx, 0, 0);
+      const phi = this.tugSteer * 35 * DEG;
+      const dx = -Math.cos(phi), dy = -Math.sin(phi);
+      const vb = this.q.invRotate(this.vel);
+      const fmag = Math.max(-90000, Math.min(90000, 80000 * (this.tugSpeed - (vb.x * dx + vb.y * dy))));
+      const tf = new Vec3(fmag * dx, fmag * dy, 0);
       F.addIn(tf);
       M.addIn(d.gear[0].attach.cross(tf));
     }

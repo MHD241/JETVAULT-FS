@@ -26,6 +26,9 @@ export class SimpleControls {
   private holdHdg: number | null = null;
   throttle = 0;
   parking = true;
+  /** Driving the pushback tug: steering input goes to the tug, aircraft controls are neutral. */
+  tugMode = false;
+  tugSteer = 0;
   rawPitch = 0;
   readonly ui: HTMLDivElement;
   private slider: HTMLInputElement | null = null;
@@ -130,6 +133,14 @@ export class SimpleControls {
     // rudder: arrows, with coordination / heading-hold assist
     const k = (this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('ArrowLeft') ? 1 : 0);
     this.pedal = k ? clamp(this.pedal + k * 2 * dt, -1, 1) : this.pedal * Math.max(0, 1 - 6 * dt);
+    if (this.tugMode) {
+      this.tugSteer = clamp(this.pedal + roll, -1, 1);
+      c.pitch = 0; c.roll = 0; c.yaw = 0.5 * this.tugSteer;
+      c.throttle = 0.1;
+      const brk = this.keys.has('Space') || this.touchBrake ? 1 : 0;
+      c.brakeLeft = brk; c.brakeRight = brk; c.parkingBrake = false;
+      return;
+    }
     let assist = 0;
     // on the ground the stick's roll axis steers (nosewheel/rudder), as with a mouse or joystick tiller
     const steer = ac.onGround ? c.roll : 0;

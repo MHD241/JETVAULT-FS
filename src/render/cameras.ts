@@ -3,6 +3,8 @@ import { Aircraft } from '../sim/fdm/aircraft';
 import { Vec3 } from '../core/math';
 import { nedToThree, bodyMatrix } from './coords';
 
+export const TUG_GEAR = { x: 14.1, y: 0 }; // 737 nose gear, body FRD
+
 export type ViewMode = 'cockpit' | 'chase' | 'wing' | 'tower' | 'free';
 
 export class CameraRig {
@@ -16,6 +18,8 @@ export class CameraRig {
   orbitAz = 0; orbitEl = 0.18; chaseDist = 16;
   fovCockpit = 70; fovExternal = 55;
   towerPos = new THREE.Vector3();
+  /** Pushback tug driver view: towbar swing angle (rad) about the nose gear; replaces the pilot eye in cockpit mode. */
+  tug = { on: false, angle: 0 };
   private chasePos = new THREE.Vector3();
   private chaseInit = false;
   freePos = new THREE.Vector3();
@@ -67,7 +71,19 @@ export class CameraRig {
     const R = bodyMatrix(ac.q);
     const datum = nedToThree(ac.worldPoint(new Vec3(0, 0, 0)));
     const body = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyMatrix4(R).add(datum);
-    if (this.mode === 'cockpit') {
+    if (this.mode === 'cockpit' && this.tug.on) {
+      // seat 3.9 m from the nose gear along the towbar, facing the direction of travel (towards the aircraft)
+      const a = this.tug.angle, ca = Math.cos(a), sa = Math.sin(a);
+      const sx = 3.9, sy = 0.5;
+      cam.position.copy(body(TUG_GEAR.x + sx * ca - sy * sa, TUG_GEAR.y + sx * sa + sy * ca, 1.6));
+      const g = Math.PI + a, f = new THREE.Vector3(Math.cos(g), Math.sin(g), 0);
+      const m3 = new THREE.Matrix4().extractRotation(R);
+      const rr = new THREE.Vector3(-f.y, f.x, 0).applyMatrix4(m3);
+      const uu = new THREE.Vector3(0, 0, -1).applyMatrix4(m3);
+      const bb = f.clone().multiplyScalar(-1).applyMatrix4(m3);
+      const q = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(rr, uu, bb));
+      cam.quaternion.copy(q.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(this.headPitch + 0.1, this.headYaw, 0, 'YXZ'))));
+    } else if (this.mode === 'cockpit') {
       cam.position.copy(body(this.eye.x, this.eye.y, this.eye.z));
       // camera looks along -z: basis (right, up, back) built from the body axes
       const right = new THREE.Vector3(0, 1, 0).applyMatrix4(R);

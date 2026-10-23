@@ -74,6 +74,10 @@ class App implements MenuHost {
   private parkBtn!: HTMLButtonElement;
   private pushBtn!: HTMLButtonElement;
   private tug!: THREE.Group;
+  private tugCab!: THREE.Mesh;
+  private tugDash!: THREE.Group;
+  private pushing = false;
+  private prevView: 'cockpit' | 'chase' = 'chase';
   private lastVel = new THREE.Vector3();
   private crashShown = false;
   graphics: GraphicsSettings = loadGraphics();
@@ -149,13 +153,22 @@ class App implements MenuHost {
     this.pushBtn.style.cssText = 'display:none;top:112px';
     document.body.appendChild(this.pushBtn);
     this.pushBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('push'); });
+    // Pushback tug in the aircraft body frame (FRD); the group origin is the nose gear and +x points away from the aircraft.
     this.tug = new THREE.Group();
+    this.tug.position.set(14.1, 0, 0);
     {
       const m = new THREE.MeshStandardMaterial({ color: 0xe0b020, roughness: 0.6 }), d = new THREE.MeshStandardMaterial({ color: 0x23272e, roughness: 0.8 });
-      const body = new THREE.Mesh(new THREE.BoxGeometry(5, 2.4, 1.2), m); body.position.set(19.8, 0, 3.0);
-      const cab = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.0, 0.9), d); cab.position.set(20.6, 0, 2.2);
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.18, 0.18), d); bar.position.set(16.4, 0, 3.4);
-      this.tug.add(body, cab, bar);
+      const body = new THREE.Mesh(new THREE.BoxGeometry(5, 2.4, 1.2), m); body.position.set(5.7, 0, 3.2);
+      const wheels = [-1.0, 1.0].flatMap((sy) => [4.0, 7.4].map((sx) => { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.5, 14), d); w.rotation.x = Math.PI / 2; w.position.set(sx, sy * 1.25, 3.55); return w; }));
+      this.tugCab = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.0, 1.6), d); this.tugCab.position.set(4.5, 0, 2.0);
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.18, 0.18), d); bar.position.set(1.6, 0, 3.4);
+      // driver's dashboard and wheel, shown only in the tug view
+      this.tugDash = new THREE.Group();
+      const dash = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.7, 0.5), d); dash.position.set(3.2, 0, 2.2);
+      const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.03, 8, 20), d); wheel.rotation.y = Math.PI / 2; wheel.position.set(3.45, 0.5, 1.9);
+      this.tugDash.add(dash, wheel);
+      this.tugDash.visible = false;
+      this.tug.add(body, ...wheels, this.tugCab, bar, this.tugDash);
       this.tug.visible = false;
       this.aircraftGroup.add(this.tug);
     }
@@ -275,6 +288,7 @@ class App implements MenuHost {
     else this.sim.spawn(spawn);
     this.crashFx.clear();
     this.sim.aircraft.tugSpeed = null;
+    if (this.tug && this.pushing) this.finishPushback();
     if (this.tug) this.tug.visible = false;
     this.crashShown = false;
     this.aircraftGroup.visible = true;
@@ -324,19 +338,31 @@ class App implements MenuHost {
       this.hud.toast(msg);
     }
     if (ev === 'push') {
-      if (ac.tugSpeed !== null) { this.stopPushback(); this.hud.toast('Pushback complete - tug disconnected'); }
+      if (this.pushing) { this.finishPushback(); this.hud.toast('Back in the aircraft'); }
       else if (!ac.def.retractableGear || !ac.onGround || Math.hypot(ac.vel.x, ac.vel.y) > 0.5) this.hud.toast('Pushback needs a stopped airliner on the ground');
       else if (this.jetBridges.connected) this.hud.toast('Retract the jet bridge first');
-      else { ac.tugSpeed = 1.5; this.simple.parking = false; this.tug.visible = true; this.hud.toast('Pushback: steer with left/right, press again to stop'); }
+      else {
+        this.pushing = true;
+        this.prevView = this.rig.mode === 'cockpit' ? 'cockpit' : 'chase';
+        this.simple.tugMode = true; this.simple.parking = false; this.simple.setThrottle(0);
+        ac.tugSpeed = 0; ac.tugSteer = 0;
+        this.tug.visible = true; this.tugCab.visible = false; this.tugDash.visible = true;
+        this.rig.setMode('cockpit', ac); this.rig.tug.on = true; this.rig.headYaw = 0; this.rig.headPitch = -0.1;
+        this.hud.toast('You are the tug driver: 1-9 speed (1 = stop), steer with mouse/arrows, Space brakes');
+      }
     }
     if (ev === 'park') { this.simple.parking = !this.simple.parking; this.hud.toast(this.simple.parking ? 'Parking brake ON' : 'Parking brake OFF'); }
     if (ev === 'camera') this.rig.setMode(this.rig.mode === 'cockpit' ? 'chase' : 'cockpit', ac);
   }
 
-  private stopPushback() {
-    this.sim.aircraft.tugSpeed = null;
-    this.tug.visible = false;
-    this.simple.parking = true;
+  private finishPushback() {
+    this.pushing = false;
+    const ac = this.sim.aircraft;
+    ac.tugSpeed = null; ac.tugSteer = 0;
+    this.tug.visible = false; this.tugCab.visible = true; this.tugDash.visible = false;
+    this.simple.tugMode = false; this.simple.parking = true; this.simple.setThrottle(0.1);
+    this.rig.tug.on = false;
+    this.rig.setMode(this.prevView, ac);
   }
 
   /** Flight-control diagnostics (part of the F10 overlay). */
@@ -387,13 +413,16 @@ class App implements MenuHost {
     }
     this.crashFx.update(dt);
     this.jetBridges.update(dt, ac);
-    const showBridge = !this.menu.open && !ac.crashed && this.jetBridges.canConnect(ac);
+    const showBridge = !this.menu.open && !ac.crashed && !this.pushing && this.jetBridges.canConnect(ac);
     this.bridgeBtn.style.display = showBridge ? 'block' : 'none';
-    if (ac.tugSpeed !== null && (sim.controls.throttle > 0.4 || !ac.onGround)) this.stopPushback();
-    const showPush = !this.menu.open && !ac.crashed && ac.def.retractableGear && ac.onGround && (ac.tugSpeed !== null || Math.hypot(ac.vel.x, ac.vel.y) < 0.5);
+    if (this.pushing) {
+      if (!ac.onGround) this.finishPushback();
+      else { ac.tugSpeed = this.simple.throttle * 5; ac.tugSteer = this.simple.tugSteer; this.rig.tug.angle = ac.tugSteer * 35 * Math.PI / 180; this.tug.rotation.z = this.rig.tug.angle; }
+    }
+    const showPush = !this.menu.open && !ac.crashed && ac.def.retractableGear && ac.onGround && (this.pushing || Math.hypot(ac.vel.x, ac.vel.y) < 0.5);
     this.pushBtn.style.display = showPush ? 'block' : 'none';
-    if (showPush) this.pushBtn.textContent = ac.tugSpeed !== null ? 'STOP PUSHBACK' : 'START PUSHBACK';
-    const showPark = !this.menu.open && !ac.crashed && ac.onGround;
+    if (showPush) this.pushBtn.textContent = this.pushing ? 'FINISHED - BACK TO AIRCRAFT' : 'START PUSHBACK';
+    const showPark = !this.menu.open && !ac.crashed && ac.onGround && !this.pushing;
     this.parkBtn.style.display = showPark ? 'block' : 'none';
     if (showPark) { this.parkBtn.textContent = this.simple.parking ? 'PARK BRAKE ON' : 'PARK BRAKE OFF'; this.parkBtn.classList.toggle('on', this.simple.parking); }
     if (showBridge) this.bridgeBtn.textContent = this.jetBridges.connected ? 'RETRACT JET BRIDGE' : 'CONNECT JET BRIDGE';
@@ -406,7 +435,7 @@ class App implements MenuHost {
 
     this.rig.update(ac, dt);
     const cam = this.rig.camera;
-    const inCockpit = this.rig.mode === 'cockpit';
+    const inCockpit = this.rig.mode === 'cockpit' && !this.rig.tug.on;
     this.model.setCockpitView(inCockpit);
     this.cockpit.root.visible = inCockpit;
     const focus = nedToThree(ac.pos);
