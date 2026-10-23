@@ -65,7 +65,7 @@ export class Hud {
       this.set('FLAPS', `${Math.round(ac.flap * RAD)}°`, ac.flap > 0.01 ? 'on' : '');
       this.set('GEAR', !ac.def.retractableGear ? 'FIXED' : ac.gearExt > 0.99 ? 'DOWN' : ac.gearExt > 0.01 ? 'MOVING' : 'UP', ac.gearExt > 0.01 && ac.gearExt < 0.99 ? 'warn' : '');
       this.set('SPLR', ac.spoiler > 0.05 ? 'ON' : 'OFF', ac.spoiler > 0.05 ? 'warn' : '');
-      this.set('BRK', c.brakeLeft > 0 ? 'ON' : 'OFF', c.brakeLeft > 0 ? 'warn' : '');
+      this.set('BRK', c.parkingBrake ? 'PARK' : c.brakeLeft > 0 ? 'ON' : 'OFF', c.parkingBrake || c.brakeLeft > 0 ? 'warn' : '');
     }
     if (ac.crashed) {
       this.msg.innerHTML = `<div class="big">${ac.crashReason.toUpperCase()}</div><div class="small">Press Esc (or MENU) to fly again</div>`;

@@ -4,12 +4,12 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { Building, pointInPoly } from '../world/obstacles';
+import { Building, findGateSites } from '../world/obstacles';
 import { Aircraft } from '../sim/fdm/aircraft';
 import { Vec3 } from '../core/math';
 import { nedToThree } from './coords';
 
-const REST_LEN = 23; // m, pivot to cab centre when stowed
+const REST_LEN = 18; // m, pivot to cab centre when stowed
 const REST_SWING = 0.49; // rad (~28 deg) off the outward wall normal
 const FLOOR = 3.6; // m above ground, stowed
 const DOOR_RANGE = 85; // m, pivot to door
@@ -53,30 +53,8 @@ export class JetBridges {
       tint(new THREE.BoxGeometry(2.2, 0.35, 1.2).translate(-0.3, -7.6, 0), dark),
     ].map((g) => g.toNonIndexed()))!;
     const paint: THREE.BufferGeometry[] = [];
-    const terms = buildings.filter((b) => b.role === 'terminal' || b.role === 'pier');
-    const used: [number, number][] = [];
-    for (const [gx, gy] of gates) {
-      if (used.some(([x, y]) => Math.hypot(x - gx, y - gy) < 9)) continue;
-      let best = { d: Infinity, px: 0, py: 0, nx: 0, ny: 0 };
-      for (const b of terms) {
-        const n = b.pts.length / 2;
-        for (let i = 0; i < n; i++) {
-          const j = (i + 1) % n;
-          const ax = b.pts[2 * i], ay = b.pts[2 * i + 1], bx = b.pts[2 * j], by = b.pts[2 * j + 1];
-          const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
-          if (l2 < 1) continue;
-          const t = Math.max(0, Math.min(1, ((gx - ax) * dx + (gy - ay) * dy) / l2));
-          const px = ax + dx * t, py = ay + dy * t, d = Math.hypot(gx - px, gy - py);
-          if (d < best.d) {
-            const L = Math.sqrt(l2);
-            let nx = dy / L, ny = -dx / L;
-            if (pointInPoly(b.pts, px + nx * 0.5, py + ny * 0.5)) { nx = -nx; ny = -ny; }
-            best = { d, px, py, nx, ny };
-          }
-        }
-      }
-      if (best.d > 40) continue;
-      used.push([gx, gy]);
+    for (const site of findGateSites(gates, buildings)) {
+      const best = { px: site.px, py: site.py, nx: site.nx, ny: site.ny };
       const base = groundAt(best.px, best.py);
       const ang = Math.atan2(best.ny, best.nx);
       const restYaw = ang + REST_SWING;
@@ -94,10 +72,13 @@ export class JetBridges {
       const rot = tint(new THREE.CylinderGeometry(2.4, 2.4, 3.6, 16), light);
       rot.translate(best.px, base + FLOOR + 1.2, -best.py);
       paint.push(rot.toNonIndexed());
-      for (const [w, h, d, along] of [[50, 0.06, 0.45, 33], [0.5, 0.06, 9, 57]] as const) {
-        const g = tint(new THREE.BoxGeometry(w, h, d), yellow);
-        g.rotateY(ang); // lead-in follows the wall normal (aircraft park square to the pier)
-        g.translate(best.px + best.nx * along, base + 0.1, -(best.py + best.ny * along));
+      // lead-in line and stop bar along the parked aircraft's centreline (nose gear 14.1 m ahead of the datum)
+      const [sx, sy] = site.stand;
+      const gx0 = sx - best.nx * 14.1, gy0 = sy - best.ny * 14.1;
+      for (const [w, d, along] of [[50, 0.45, 25], [0.5, 9, 0]] as const) {
+        const g = tint(new THREE.BoxGeometry(w, 0.06, d), yellow);
+        g.rotateY(ang);
+        g.translate(gx0 + best.nx * along, groundAt(gx0, gy0) + 0.1, -(gy0 + best.ny * along));
         paint.push(g.toNonIndexed());
       }
     }
@@ -169,7 +150,7 @@ export class JetBridges {
         // keep stowed bridges clear of a parked aircraft's fuselage/tail
         const cx = b.px + Math.cos(b.restYaw) * REST_LEN, cz = b.pz - Math.sin(b.restYaw) * REST_LEN;
         const c = this.clearance(ac, cx, cz);
-        if (c < 11) tLen = Math.max(5, REST_LEN - (11 - c) * 1.6);
+        if (c < 5) tLen = Math.max(5, REST_LEN - (5 - c) * 3);
       }
       if (b.connected) {
         const D = this.door(ac);

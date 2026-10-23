@@ -12,7 +12,7 @@ import { clamp } from '../core/math';
 
 export const IS_TOUCH = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0) && matchMedia('(pointer: coarse)').matches;
 
-export type SimpleEvent = 'gear' | 'flaps' | 'spoilers' | 'camera' | 'menu' | 'bridge';
+export type SimpleEvent = 'gear' | 'flaps' | 'spoilers' | 'camera' | 'menu' | 'bridge' | 'park';
 
 export class SimpleControls {
   private keys = new Set<string>();
@@ -25,6 +25,7 @@ export class SimpleControls {
   private pedal = 0;
   private holdHdg: number | null = null;
   throttle = 0;
+  parking = true;
   rawPitch = 0;
   readonly ui: HTMLDivElement;
   private slider: HTMLInputElement | null = null;
@@ -40,6 +41,7 @@ export class SimpleControls {
         if (e.code === 'KeyB') this.events.push('spoilers');
         if (e.code === 'KeyC') this.events.push('camera');
         if (e.code === 'KeyJ') this.events.push('bridge');
+        if (e.code === 'KeyK') this.events.push('park');
         if (e.code === 'Escape') this.events.push('menu');
       }
       this.keys.add(e.code);
@@ -141,6 +143,6 @@ export class SimpleControls {
     c.throttle = this.throttle;
     const brake = this.keys.has('Space') || this.touchBrake ? 1 : 0;
     c.brakeLeft = brake; c.brakeRight = brake;
-    c.parkingBrake = false;
+    c.parkingBrake = this.parking;
   }
 }

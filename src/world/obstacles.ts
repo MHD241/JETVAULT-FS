@@ -157,3 +157,59 @@ export function styleAirportBuildings(list: Building[], gates: [number, number][
     return true;
   });
 }
+
+/** Boarding-bridge site: a gate point snapped to the nearest terminal/pier wall, with the airliner stand it serves. */
+export interface GateSite {
+  px: number; py: number; // pivot on the wall, local E/N metres
+  nx: number; ny: number; // outward wall normal
+  /** Airliner datum position [east, north] and true heading (deg) when parked nose-in with the front-left door at the stowed bridge. */
+  stand: [number, number, number];
+}
+
+const SITE_REACH = 26; // m, pivot to door along the stowed bridge direction
+const SITE_SWING = 0.49; // rad, must match the bridge rest swing
+const DOOR_FWD = 12.8, DOOR_LEFT = 1.9; // 737-800 L1 door, body metres (estimate)
+
+export function findGateSites(gates: [number, number][], buildings: Building[]): GateSite[] {
+  const terms = buildings.filter((b) => b.role === 'terminal' || b.role === 'pier');
+  const out: GateSite[] = [];
+  const used: [number, number][] = [];
+  for (const [gx, gy] of gates) {
+    if (used.some(([x, y]) => Math.hypot(x - gx, y - gy) < 9)) continue;
+    let best = { d: Infinity, px: 0, py: 0, nx: 0, ny: 0 };
+    for (const b of terms) {
+      const n = b.pts.length / 2;
+      for (let i = 0; i < n; i++) {
+        const j = (i + 1) % n;
+        const ax = b.pts[2 * i], ay = b.pts[2 * i + 1], bx = b.pts[2 * j], by = b.pts[2 * j + 1];
+        const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+        if (l2 < 1) continue;
+        const t = Math.max(0, Math.min(1, ((gx - ax) * dx + (gy - ay) * dy) / l2));
+        const px = ax + dx * t, py = ay + dy * t, d = Math.hypot(gx - px, gy - py);
+        if (d < best.d) {
+          const L = Math.sqrt(l2);
+          let nx = dy / L, ny = -dx / L;
+          if (pointInPoly(b.pts, px + nx * 0.5, py + ny * 0.5)) { nx = -nx; ny = -ny; }
+          best = { d, px, py, nx, ny };
+        }
+      }
+    }
+    if (best.d > 40) continue;
+    used.push([gx, gy]);
+    const a = Math.atan2(best.ny, best.nx) + SITE_SWING;
+    const Dx = best.px + Math.cos(a) * SITE_REACH, Dy = best.py + Math.sin(a) * SITE_REACH;
+    const lx = best.ny, ly = -best.nx; // left of the heading (-normal)
+    const x = Dx + best.nx * DOOR_FWD - lx * DOOR_LEFT, y = Dy + best.ny * DOOR_FWD - ly * DOOR_LEFT;
+    let hdg = (Math.atan2(-best.nx, -best.ny) * 180) / Math.PI;
+    hdg = (hdg + 360) % 360;
+    out.push({ px: best.px, py: best.py, nx: best.nx, ny: best.ny, stand: [x, y, hdg] });
+  }
+  return out;
+}
+
+/** Airliner stands spaced for a 737 wingspan, from the gate sites. */
+export function spacedStands(sites: GateSite[], minSep = 42): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  for (const s of sites) if (out.every((o) => Math.hypot(o[0] - s.stand[0], o[1] - s.stand[1]) >= minSep)) out.push(s.stand);
+  return out;
+}

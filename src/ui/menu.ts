@@ -129,7 +129,7 @@ export class Menu {
     s.insertAdjacentHTML('beforeend', `<h3>Airport</h3><div class="jv-grid"><div class="jv-card sel"><b>EGPH Edinburgh</b><span>Runway 06/24 · real terrain, taxiways and buildings</span></div></div><h3>Start position</h3>`);
     const grid = document.createElement('div'); grid.className = 'jv-grid';
     const opts: [SpawnKind, string, string][] = [
-      ...(jet ? ap.standsJet ?? [] : ap.stands).map((_, i): [SpawnKind, string, string] => [{ kind: 'stand', index: i, coldAndDark: false }, `Parking stand ${i + 1}`, 'Apron, parking brake set']),
+      ...(jet ? ap.standsJet ?? [] : ap.stands).map((_, i): [SpawnKind, string, string] => [{ kind: 'stand', index: i, coldAndDark: false }, jet ? `Gate stand ${i + 1}` : `Parking stand ${i + 1}`, jet ? 'Nose-in at a boarding bridge, parking brake set' : 'Apron, parking brake set']),
       [{ kind: 'runway', ident: '24' }, 'Runway 24', jet ? 'Lined up, engines running, flaps 5' : 'Lined up, engine running'],
       [{ kind: 'runway', ident: '06' }, 'Runway 06', jet ? 'Lined up, engines running, flaps 5' : 'Lined up, engine running'],
       [{ kind: 'approach', ident: '24', distanceNm: jet ? 6 : 3 }, 'Final approach 24', jet ? '6 nm, 3° glidepath, flaps 30, gear down' : '3 nm, 3° glidepath, flaps 10'],
@@ -161,7 +161,7 @@ export class Menu {
     }
     s.appendChild(act);
     const help = document.createElement('p');
-    help.innerHTML = 'Controls: mouse = fly (move from the centre of the screen) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · C = cockpit/outside view · mouse wheel = zoom · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
+    help.innerHTML = 'Controls: mouse = fly (move from the centre of the screen) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · C = cockpit/outside view · mouse wheel = zoom · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
     s.appendChild(help);
   }
 

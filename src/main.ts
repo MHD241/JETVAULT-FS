@@ -71,6 +71,7 @@ class App implements MenuHost {
   private crashFx!: CrashFx;
   private jetBridges!: JetBridges;
   private bridgeBtn!: HTMLButtonElement;
+  private parkBtn!: HTMLButtonElement;
   private lastVel = new THREE.Vector3();
   private crashShown = false;
   graphics: GraphicsSettings = loadGraphics();
@@ -141,6 +142,10 @@ class App implements MenuHost {
     this.bridgeBtn.style.display = 'none';
     document.body.appendChild(this.bridgeBtn);
     this.bridgeBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('bridge'); });
+    this.parkBtn = document.createElement('button');
+    this.parkBtn.className = 'jv-park';
+    document.body.appendChild(this.parkBtn);
+    this.parkBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('park'); });
     progress('Building aircraft');
     this.buildAircraftVisuals();
     this.aircraftGroup.matrixAutoUpdate = false;
@@ -255,6 +260,7 @@ class App implements MenuHost {
     this.crashShown = false;
     this.aircraftGroup.visible = true;
     this.simple.setThrottle(this.sim.controls.throttle);
+    this.simple.parking = this.sim.controls.parkingBrake;
     this.autoTrim = new AutoTrim();
     this.sim.paused = false;
     this.started = true;
@@ -293,7 +299,12 @@ class App implements MenuHost {
       this.hud.toast(`Flaps ${Math.round((det[c.flapLever] * 180) / Math.PI)}`);
     }
     if (ev === 'spoilers') { c.speedbrake = c.speedbrake > 0.5 ? 0 : 1; this.hud.toast(c.speedbrake ? 'Spoilers extended' : 'Spoilers retracted'); }
-    if (ev === 'bridge') this.hud.toast(this.jetBridges.toggle(ac));
+    if (ev === 'bridge') {
+      const msg = this.jetBridges.toggle(ac);
+      if (this.jetBridges.connected) this.simple.parking = true; // park the aircraft when the bridge connects
+      this.hud.toast(msg);
+    }
+    if (ev === 'park') { this.simple.parking = !this.simple.parking; this.hud.toast(this.simple.parking ? 'Parking brake ON' : 'Parking brake OFF'); }
     if (ev === 'camera') this.rig.setMode(this.rig.mode === 'cockpit' ? 'chase' : 'cockpit', ac);
   }
 
@@ -347,6 +358,9 @@ class App implements MenuHost {
     this.jetBridges.update(dt, ac);
     const showBridge = !this.menu.open && !ac.crashed && this.jetBridges.canConnect(ac);
     this.bridgeBtn.style.display = showBridge ? 'block' : 'none';
+    const showPark = !this.menu.open && !ac.crashed && ac.onGround;
+    this.parkBtn.style.display = showPark ? 'block' : 'none';
+    if (showPark) { this.parkBtn.textContent = this.simple.parking ? 'PARK BRAKE ON' : 'PARK BRAKE OFF'; this.parkBtn.classList.toggle('on', this.simple.parking); }
     if (showBridge) this.bridgeBtn.textContent = this.jetBridges.connected ? 'RETRACT JET BRIDGE' : 'CONNECT JET BRIDGE';
 
     // aircraft transform (model authored in the body frame, origin at the datum)

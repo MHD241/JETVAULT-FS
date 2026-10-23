@@ -1,6 +1,6 @@
 import { Terrain, HeightGrid } from './terrain';
 import { AirportData, PavementIndex } from './airport';
-import { ObstacleIndex, parseBuildings, styleAirportBuildings } from './obstacles';
+import { ObstacleIndex, parseBuildings, styleAirportBuildings, findGateSites, spacedStands } from './obstacles';
 import { GroundQuery, SurfaceInfo } from '../sim/fdm/gear';
 
 export interface RegionMeta {
@@ -88,6 +88,9 @@ export async function loadWorld(
   const bbuf = await fetcher(`${base}/${meta.buildings.file}`);
   const blds = styleAirportBuildings(parseBuildings(bbuf, (e, n) => terrain.heightAt(e, n)), airport.gates ?? []);
   for (const b of blds) obstacles.add(b);
+  // Airliner stands at the gates (nose-in, front-left door at the boarding bridge); replaces the derived apron stands.
+  const gateStands = spacedStands(findGateSites(airport.gates ?? [], blds));
+  if (gateStands.length) airport.standsJet = gateStands;
   let landcover: LandCover | null = null;
   if (decodeLandcover) {
     onProgress?.('Land cover (ESA WorldCover)');
