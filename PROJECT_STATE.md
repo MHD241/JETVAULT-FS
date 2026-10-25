@@ -178,6 +178,9 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - Not done: switch/knob animation on the overhead and pedestal, rudder pedals, working lighting on panels at night (it uses plain scene lighting + a small emissive fill), windows/pillars quality.
 - 93 tests pass; tsc clean; headless screenshots checked (no console errors).
 
+## Update 27 — 737 cockpit roof
+- The cockpit model had no roof (open sky above the pilots). Added a plain dark headliner that follows the model's own roof line (side walls, overhead panel, windshield header). It stops about 0.6 m behind the windshield header, so a thin gap of sky can show above the header at the front-left. Checked in headless screenshots only (looking up, forward, left, right).
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
