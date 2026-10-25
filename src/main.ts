@@ -35,6 +35,8 @@ import { JetBridges } from './render/jetBridges';
 import { CrashFx } from './render/crashFx';
 import { Buggy, launchPoints, nearestLaunchPoint, LaunchPoint, BUGGY_MAX_SPEED } from './sim/buggy';
 import { TreeField, FieldScenery, BuggyModel } from './render/gliderField';
+import { GroundVehicles } from './render/groundVehicles';
+import { findGateSites } from './world/obstacles';
 
 const loadingMsg = document.getElementById('loading-msg')!;
 const loadingBar = document.getElementById('loading-bar')!;
@@ -275,13 +277,24 @@ class App implements MenuHost {
     this.scene.add(br.group);
     const extras: THREE.Object3D[] = [];
     let scenery: FieldScenery | undefined;
-    if (airport.icao === 'EGPM') {
-      // gliding site: trees from the land-cover map, launch markers, windsock and parked gliders
+    {
+      // trees from the land-cover map around every airport (kept off runways and building footprints)
       const segs = airport.runways.map((rw): [number, number, number, number] => [rw.ends[0].x, rw.ends[0].y, rw.ends[1].x, rw.ends[1].y]);
-      const trees = new TreeField(this.world, ((c) => ({ e: c.x, n: c.y }))(airportCentre(airport)), 2400, lp.buildings, segs);
-      scenery = new FieldScenery(airport, this.world, launchPoints(airport));
-      extras.push(trees.group, scenery.group);
-      this.scene.add(trees.group, scenery.group);
+      const trees = new TreeField(this.world, ((c) => ({ e: c.x, n: c.y }))(airportCentre(airport)), airport.icao === 'EGPM' ? 2400 : 3200, lp.buildings, segs, airport.icao === 'EGPM' ? 16 : 20);
+      extras.push(trees.group);
+      this.scene.add(trees.group);
+      const sites = findGateSites(airport.gates ?? [], lp.buildings).map((s) => ({ east: s.stand[0], north: s.stand[1], heading: (s.stand[2] * Math.PI) / 180 }));
+      if (sites.length) {
+        const veh = new GroundVehicles(sites, (e, n) => this.world.terrain.heightAt(e, n));
+        extras.push(veh.group);
+        this.scene.add(veh.group);
+      }
+      if (airport.icao === 'EGPM') {
+        // gliding site: launch markers, windsock and parked gliders
+        scenery = new FieldScenery(airport, this.world, launchPoints(airport));
+        extras.push(scenery.group);
+        this.scene.add(scenery.group);
+      }
     }
     this.patchRender.set(pm.id, { airport: ar, buildings: br, extras, scenery });
     this.jetBridges.addPatch(pm.id, airport.gates ?? [], lp.buildings, (e, n) => this.world.terrain.heightAt(e, n) - 0.2);

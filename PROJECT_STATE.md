@@ -203,6 +203,16 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 **Remaining (not started), in the order I recommend by visual payoff:** (1) sunset/night ground lighting curve and imagery sharpening (detail-texture overlay on the 6 m imagery); (2) 737 exterior PBR: roughness/metalness per part, panel-line normal map, engine fan, wheel spin, landing-light cones; (3) Edinburgh airport ground: asphalt/concrete detail textures with seams, apron slabs, service vehicles (instanced), fences and signage; (4) trees/vegetation at EGPH (the Portmoak tree system can be reused); (5) ambient occlusion and cloud shadows on terrain; (6) cockpit night lighting (instrument flood), display glass reflections; (7) wing flex, gear suspension animation; (8) camera shake on touchdown/turbulence. Each needs real-GPU timing before it is called complete.
 **Next recommended step:** (1) then (2).
 
+## Update 31 — graphics, daytime: ground detail, trees at all airports, apron slabs, service vehicles
+(Night work skipped at the owner's request.)
+- **Terrain/ground shader** (`render/terrainMesh.ts`): close-range blade/tuft-scale brightness variation on grass, soil and crops (fades out 70-420 m); asphalt grain and blotches; **concrete aprons now have 7.5 m slabs with joints, per-slab tone and oil/weathering stains** (visible in screenshots). The imagery itself is still 6 m/pixel, so far ground still looks soft/smeared; the new detail is visible mostly on aprons and close to the camera, **only subtly on grass** (not a big grass improvement).
+- **Trees** now around all three airports (previously Portmoak only): about 3.2 km radius at Edinburgh/Glasgow (one tree per 20 m cell on land-cover "tree" cells, ~62 % thinned), 2.4 km at Portmoak; instanced, kept off runways and building footprints. Screenshots show tree lines along the airfield edge and field boundaries.
+- **Ground service vehicles** (`render/groundVehicles.ts`, new): at every airliner gate site, instanced low-poly ground power unit, baggage tractor with one or two carts and a fuel truck under the right wing (random subset). Original geometry; placement is approximate and illustrative, not real traffic. No moving traffic yet; pushback tug at stands is not drawn.
+- Files modified/added: `src/render/terrainMesh.ts`, `src/render/groundVehicles.ts`, `src/main.ts`.
+- No new textures or third-party assets. **Frame rate not measured on a real GPU**; the software-render draw-call count was ~600 before these additions (trees and vehicles add a handful of instanced draw calls but tens of thousands of triangles; headless numbers after the change were not recorded).
+- Not done from the graphics brief: 737 exterior PBR maps/panel lines, engine fan and wheel spin (the supplied model merges the tyres and legs into single meshes, so spinning them needs the mesh split first), wing flex, cloud shadows on terrain, ambient occlusion/SSR, texture compression, cockpit glass reflections, moving traffic. Several OSM buildings sit in the middle of some aprons (visible at one gate); they come from the map data and were not removed.
+- **Next recommended step:** 737 exterior materials (panel-line normal map, per-part roughness/metalness), then cloud shadows on the terrain.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

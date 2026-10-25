@@ -379,6 +379,13 @@ float gWater; float gBuilt; float gPaved;
       col = mix(col, im, gImg * (1.0 - gWater * 0.6));
     }
   }
+  // close-range ground detail: blade-scale and tuft-scale variation so grass, soil and crops are not smooth blurs
+  {
+    float dd = length(vWorldPos - cameraPosition);
+    float nearF = 1.0 - smoothstep(70.0, 420.0, dd);
+    float m = (texture2D(uDetail, en / 0.85).r - 0.5) * 0.55 + (texture2D(uDetail, en / 2.9).g - 0.5) * 0.5 + (texture2D(uDetail, en / 12.0).b - 0.5) * 0.35;
+    col *= 1.0 + m * 0.95 * nearF * (1.0 - gWater);
+  }
   // road network (OSM via Overture)
   if (uRoadsRect.z > 0.0) {
     vec2 ruv = (en - uRoadsRect.xy) / uRoadsRect.z;
@@ -394,7 +401,20 @@ float gWater; float gBuilt; float gPaved;
     if (uv.x > 0.0 && uv.y > 0.0 && uv.x < 1.0 && uv.y < 1.0) {
       vec4 ov = texture2D(uOverlay, uv);
       gPaved = ov.a;
-      col = mix(col, srgb(ov.rgb) * (0.92 + 0.16 * n2), ov.a);
+      float grain = texture2D(uDetail, en / 0.55).r - 0.5, blot = texture2D(uDetail, en / 6.5).b - 0.5;
+      float nearP = 1.0 - smoothstep(40.0, 260.0, length(vWorldPos - cameraPosition));
+      vec3 pav = srgb(ov.rgb) * (0.92 + 0.16 * n2 + (grain * 0.34 + blot * 0.3) * nearP);
+      if (ov.r > 0.47) {
+        // concrete apron: 7.5 m slabs with joints, plus weathering and oil staining
+        vec2 gj = abs(fract(en / 7.5 + 0.5) - 0.5) * 7.5;
+        float dj = length(vWorldPos - cameraPosition);
+        float joint = 1.0 - smoothstep(0.03, 0.09 + dj * 0.0008, min(gj.x, gj.y));
+        float tone = hash12(floor(en / 7.5 + 0.5));
+        pav *= 0.9 + 0.16 * tone;
+        pav *= 1.0 - 0.38 * joint * (1.0 - smoothstep(250.0, 900.0, dj));
+        pav *= 1.0 - 0.22 * smoothstep(0.05, 0.3, blot) * nearP;
+      }
+      col = mix(col, pav, ov.a);
     }
   }
   col = mix(col, col * 0.55, uWet * (1.0 - gWater) * gPaved);
