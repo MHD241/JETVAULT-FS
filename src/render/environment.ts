@@ -49,7 +49,7 @@ export class EnvironmentRenderer {
   /** Visible sun: a hot core and a wide glow, billboarded far away; clouds (drawn later) cover it. */
   private sunCore!: THREE.Sprite;
   private sunGlow!: THREE.Sprite;
-  tune = { sun: 2.6, hemi: 0.45, env: 0.35, exposure: 0.42 };
+  tune = { sun: 3.0, hemi: 0.36, env: 0.3, exposure: 0.42 };
   private noise: Uint8Array;
   private noiseSize: number;
 
@@ -66,9 +66,9 @@ export class EnvironmentRenderer {
     this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(2048, 2048);
     const sc = this.sun.shadow.camera;
-    sc.left = -45; sc.right = 45; sc.top = 45; sc.bottom = -45; sc.near = 1; sc.far = 1500;
-    this.sun.shadow.bias = -0.0004;
-    this.sun.shadow.normalBias = 0.04;
+    sc.left = -140; sc.right = 140; sc.top = 140; sc.bottom = -140; sc.near = 1; sc.far = 1500;
+    this.sun.shadow.bias = -0.0005;
+    this.sun.shadow.normalBias = 0.09;
     scene.add(this.sun, this.sun.target);
     const disc = (stops: [number, string][]) => {
       const cv = document.createElement('canvas'); cv.width = cv.height = 256;
@@ -202,7 +202,7 @@ export class EnvironmentRenderer {
     // night factor from solar elevation (civil twilight)
     this.night = THREE.MathUtils.smoothstep(-sp.elevation, -2, 10);
     const dayLight = THREE.MathUtils.smoothstep(sp.elevation, -4, 12);
-    const sunVis = dayLight * (1 - 0.75 * overcast);
+    const sunVis = dayLight * (1 - 0.4 * overcast); // thin overcast still casts clear shadows
     const warm = THREE.MathUtils.smoothstep(sp.elevation, 0, 25);
     this.sun.color.setRGB(1, 0.72 + 0.28 * warm, 0.5 + 0.5 * warm);
     this.sun.intensity = this.tune.sun * sunVis;

@@ -36,6 +36,8 @@ import { CrashFx } from './render/crashFx';
 import { Buggy, launchPoints, nearestLaunchPoint, LaunchPoint, BUGGY_MAX_SPEED } from './sim/buggy';
 import { TreeField, FieldScenery, BuggyModel } from './render/gliderField';
 import { GroundVehicles } from './render/groundVehicles';
+import { MarshalFigure } from './render/marshalFigure';
+import { marshalCall, MarshalSignal } from './sim/marshal';
 import { findGateSites } from './world/obstacles';
 
 const loadingMsg = document.getElementById('loading-msg')!;
@@ -79,12 +81,19 @@ class App implements MenuHost {
   sim!: Simulation;
   world!: World;
   terrain!: TerrainRenderer;
-  private patchRender = new Map<string, { airport: AirportRenderer; buildings: BuildingsRenderer; extras: THREE.Object3D[]; scenery?: FieldScenery }>();
+  private patchRender = new Map<string, { airport: AirportRenderer; buildings: BuildingsRenderer; extras: THREE.Object3D[]; scenery?: FieldScenery; sites: { east: number; north: number; heading: number }[] }>();
   // glider retrieval: a buggy to tow a landed glider back to a winch launch point
   private buggy = new Buggy();
   private buggyModel = new BuggyModel();
   private retrieving = false;
   private winchFx = 0;
+  // stand marshal
+  private marshalFig = new MarshalFigure();
+  private marshalStand: { east: number; north: number; heading: number } | null = null;
+  private marshalPick = 0;
+  private marshalEl!: HTMLDivElement;
+  private marshalT = 0;
+  private contactShadow!: THREE.Mesh;
   private streamTimer = 0;
   model!: C172Model | B737Model | GliderModel;
   cockpit!: Cockpit | B737Cockpit | GliderCockpit;
@@ -174,7 +183,21 @@ class App implements MenuHost {
     this.launchBtn.style.display = 'none';
     document.body.appendChild(this.launchBtn);
     this.launchBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('launch'); });
-    this.scene.add(this.buggyModel.group);
+    this.scene.add(this.buggyModel.group, this.marshalFig.group);
+    {
+      // soft contact shadow under the aircraft (ambient occlusion on the ground), on top of the sun shadow
+      const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+      const g = cv.getContext('2d')!, gr = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+      gr.addColorStop(0, 'rgba(0,0,0,0.55)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.3)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+      const tex = new THREE.CanvasTexture(cv);
+      this.contactShadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6, toneMapped: false }));
+      this.contactShadow.renderOrder = 1; this.contactShadow.frustumCulled = false;
+      this.scene.add(this.contactShadow);
+    }
+    this.marshalEl = document.createElement('div');
+    this.marshalEl.style.cssText = 'position:fixed;left:50%;bottom:84px;transform:translateX(-50%);padding:8px 16px;border-radius:10px;background:rgba(20,24,32,0.78);color:#ffb000;font:600 15px system-ui,sans-serif;letter-spacing:0.02em;display:none;z-index:6;pointer-events:none;max-width:90vw;text-align:center';
+    document.body.appendChild(this.marshalEl);
     this.vario = new Vario();
     this.cableLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]), new THREE.LineBasicMaterial({ color: 0xffc830 }));
     this.cableLine.frustumCulled = false; this.cableLine.visible = false;
@@ -276,6 +299,7 @@ class App implements MenuHost {
     br.maxDistance = this.graphics.buildingDistanceKm * 1000;
     this.scene.add(br.group);
     const extras: THREE.Object3D[] = [];
+    let gateStands: { east: number; north: number; heading: number }[] = [];
     let scenery: FieldScenery | undefined;
     {
       // trees from the land-cover map around every airport (kept off runways and building footprints)
@@ -283,7 +307,8 @@ class App implements MenuHost {
       const trees = new TreeField(this.world, ((c) => ({ e: c.x, n: c.y }))(airportCentre(airport)), airport.icao === 'EGPM' ? 2400 : 3200, lp.buildings, segs, airport.icao === 'EGPM' ? 16 : 20);
       extras.push(trees.group);
       this.scene.add(trees.group);
-      const sites = findGateSites(airport.gates ?? [], lp.buildings).map((s) => ({ east: s.stand[0], north: s.stand[1], heading: (s.stand[2] * Math.PI) / 180 }));
+      gateStands = findGateSites(airport.gates ?? [], lp.buildings).map((s) => ({ east: s.stand[0], north: s.stand[1], heading: (s.stand[2] * Math.PI) / 180 }));
+      const sites = gateStands;
       if (sites.length) {
         const veh = new GroundVehicles(sites, (e, n) => this.world.terrain.heightAt(e, n));
         extras.push(veh.group);
@@ -296,7 +321,7 @@ class App implements MenuHost {
         this.scene.add(scenery.group);
       }
     }
-    this.patchRender.set(pm.id, { airport: ar, buildings: br, extras, scenery });
+    this.patchRender.set(pm.id, { airport: ar, buildings: br, extras, scenery, sites: gateStands });
     this.jetBridges.addPatch(pm.id, airport.gates ?? [], lp.buildings, (e, n) => this.world.terrain.heightAt(e, n) - 0.2);
     this.minimap?.addPatch(pm.id, { cx: pm.cx, cy: pm.cy, half: pm.imgHalf, imagery: (imagery?.texture.image as CanvasImageSource) ?? null, roads: roadsJson, airport });
     if (this.world.airport === airport) this.placeTower();
@@ -616,6 +641,48 @@ class App implements MenuHost {
     });
   }
 
+  /** Stand marshal: picks the gate you are heading for, stands in front of it and signals; the HUD line says the same in words. */
+  private updateMarshal(dt: number) {
+    const ac = this.sim.aircraft, fig = this.marshalFig;
+    const active = !this.menu.open && !ac.crashed && !!ac.def.turbofans && ac.onGround && !this.pushing && !this.retrieving;
+    const hide = () => { fig.group.visible = false; this.marshalEl.style.display = 'none'; this.marshalStand = null; };
+    if (!active) { hide(); return; }
+    const datum = ac.worldPoint(new Vec3(0, 0, 0));
+    const E = datum.y, N = datum.x, hdg = ac.euler[2];
+    const gs = Math.hypot(ac.vel.x, ac.vel.y);
+    this.marshalPick -= dt;
+    if (this.marshalPick <= 0) {
+      this.marshalPick = 1;
+      let best: { east: number; north: number; heading: number } | null = null, bd = 450;
+      for (const r of this.patchRender.values()) for (const s of r.sites) {
+        const d = Math.hypot(s.east - E, s.north - N);
+        if (d > bd) continue;
+        const brg = Math.atan2(s.east - E, s.north - N);
+        const ahead = Math.abs(Math.atan2(Math.sin(brg - hdg), Math.cos(brg - hdg)));
+        const behind = (E - s.east) * Math.sin(s.heading) + (N - s.north) * Math.cos(s.heading) < 6; // aircraft on the approach side of the stand
+        if ((ahead < 1.2 && behind) || d < 14) { best = s; bd = d; }
+      }
+      // keep the current stand unless it is out of range or a clearly closer one appears
+      const cur = this.marshalStand;
+      if (!cur || Math.hypot(cur.east - E, cur.north - N) > 480 || (best && best !== cur && Math.hypot(cur.east - E, cur.north - N) > bd + 80 && gs > 1)) this.marshalStand = best;
+    }
+    const st = this.marshalStand;
+    if (!st) { hide(); return; }
+    const dist = Math.hypot(st.east - E, st.north - N);
+    if (this.jetBridges.connected && dist < 40) { hide(); return; }
+    // the marshal stands ahead of the nose, a little to the pilot's right, facing the aircraft
+    const fx = Math.sin(st.heading), fy = Math.cos(st.heading);
+    const me = st.east + fx * 24 + fy * 3, mn = st.north + fy * 24 - fx * 3;
+    fig.place(me, mn, this.world.terrain.heightAt(me, mn), st.heading);
+    fig.group.visible = dist < 450;
+    const call = marshalCall(st, { east: E, north: N, heading: hdg, speed: gs, parkingBrake: this.simple.parking || this.sim.controls.parkingBrake, enginesRunning: ac.engines.some((e) => e.running) });
+    this.marshalT += dt;
+    const sig: MarshalSignal = dist > 70 ? 'idle' : call.signal;
+    fig.pose(sig, this.marshalT);
+    this.marshalEl.style.display = 'block';
+    this.marshalEl.textContent = dist > 70 ? `MARSHAL: stand ahead, ${Math.round(dist)} m` : call.text;
+  }
+
   private finishPushback() {
     this.pushing = false;
     const ac = this.sim.aircraft;
@@ -665,6 +732,7 @@ class App implements MenuHost {
       if (!sim.paused) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
     this.updateBuggy(dt);
+    this.updateMarshal(dt);
     if (!ac.crashed) nedToThree(ac.vel, this.lastVel);
     sim.advance(dt);
     if (ac.crashed && !this.crashShown) {
@@ -716,6 +784,18 @@ class App implements MenuHost {
     this.aircraftGroup.matrixWorldNeedsUpdate = true;
 
     this.syncAircraftEnv();
+    {
+      // contact shadow: follows the aircraft over the ground, fades with height; size by aircraft type
+      const size = ac.def.turbofans ? [26, 40] : ac.def.glider ? [18, 8] : [10, 9]; // [across, along] (m)
+      const hgt = Math.max(0, ac.agl);
+      const k = Math.max(0, 1 - hgt / 25) * (this.aircraftGroup.visible ? 1 : 0);
+      const c = nedToThree(ac.worldPoint(new Vec3(0, 0, 0)));
+      this.contactShadow.position.set(c.x, this.world.terrain.heightAt(c.x, -c.z) + 0.12, c.z);
+      this.contactShadow.rotation.y = -ac.euler[2] + Math.PI / 2; // plane's long axis (x after rotateX) follows the nose
+      this.contactShadow.scale.set(size[1] * (1 + hgt / 40), 1, size[0] * (1 + hgt / 40));
+      (this.contactShadow.material as THREE.MeshBasicMaterial).opacity = 0.55 * k * (this.env.sunElevation > 5 ? 1 : 0.6);
+      this.contactShadow.visible = k > 0.02 && !ac.crashed;
+    }
     this.rig.update(ac, dt);
     const cam = this.rig.camera;
     // winch launch: widen the view and shake the camera while the cable is dragging the glider up
