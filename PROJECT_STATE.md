@@ -213,6 +213,9 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - Not done from the graphics brief: 737 exterior PBR maps/panel lines, engine fan and wheel spin (the supplied model merges the tyres and legs into single meshes, so spinning them needs the mesh split first), wing flex, cloud shadows on terrain, ambient occlusion/SSR, texture compression, cockpit glass reflections, moving traffic. Several OSM buildings sit in the middle of some aprons (visible at one gate); they come from the map data and were not removed.
 - **Next recommended step:** 737 exterior materials (panel-line normal map, per-part roughness/metalness), then cloud shadows on the terrain.
 
+## Update 32 — visible sun
+- Added a sun disc (1.6 deg bright core) with a wide soft glow (about 22 deg) in the sky, following the real sun position used for lighting and shadows (`render/environment.ts`). It is hidden below the horizon, turns warmer when low, is dimmed in overcast, is hidden behind terrain and buildings, and clouds are drawn over it. Checked in headless screenshots looking at the sun (clear sky, partly cloudy sky, low evening sun). No lens flare, no glare when looking directly at it, no god rays. Frame cost: two sprites.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
