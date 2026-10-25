@@ -418,8 +418,11 @@ if (gWater > 0.01) {
 if (uNight > 0.01) {
   vec2 en3 = vec2(vWorldPos.x, -vWorldPos.z);
   float sp = hash12(floor(en3 / 9.0));
-  float street = step(0.86, sp) * gBuilt;
-  totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * street * uNight * 0.9;
+  // small warm lamp points (a lamp is ~1 m across, not a lit 9 m square), brighter windows glow stays in the building shader
+  vec2 lp = fract(en3 / 9.0) - 0.5;
+  float lamp = smoothstep(1.4, 0.15, length(lp) * 9.0);
+  float street = step(0.86, sp) * gBuilt * lamp;
+  totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * street * uNight * 1.6;
 }
 `);
   };

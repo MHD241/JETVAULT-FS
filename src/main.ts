@@ -436,6 +436,13 @@ class App implements MenuHost {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * g.renderScale);
     this.renderer.shadowMap.enabled = g.shadows;
     this.env.sun.castShadow = g.shadows;
+    const type = g.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
+    if (this.renderer.shadowMap.type !== type || this.env.sun.shadow.mapSize.x !== g.shadowSize) {
+      this.renderer.shadowMap.type = type;
+      this.env.sun.shadow.mapSize.set(g.shadowSize, g.shadowSize);
+      this.env.sun.shadow.map?.dispose(); this.env.sun.shadow.map = null; // rebuilt at the new size
+      this.scene.traverse((o) => { const m = (o as THREE.Mesh).material; if (m) for (const x of ([] as THREE.Material[]).concat(m)) x.needsUpdate = true; });
+    }
     this.terrain.detail = g.terrainDetail;
     for (const r of this.patchRender.values()) r.buildings.maxDistance = g.buildingDistanceKm * 1000;
   }
@@ -704,7 +711,7 @@ class App implements MenuHost {
     if (!this.menu.open) this.minimap?.update(ac);
     if (this.menu.open) this.menu.drawMap();
 
-    this.renderer.toneMappingExposure = this.env.tune.exposure;
+    this.renderer.toneMappingExposure = this.env.tune.exposure * (1 + 1.6 * this.env.night); // eye adaptation to the dark
     this.renderer.render(this.scene, cam);
     const frameMs = performance.now() - t0;
     this.frameTimes.push(dt);

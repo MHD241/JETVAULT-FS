@@ -179,7 +179,7 @@ export class EnvironmentRenderer {
     this.sun.intensity = this.tune.sun * sunVis;
     this.sun.position.copy(focus).addScaledVector(this.sunDir, 600);
     this.sun.target.position.copy(focus);
-    this.hemi.intensity = (0.15 + 0.85 * dayLight) * this.tune.hemi;
+    this.hemi.intensity = (0.4 + 0.6 * dayLight) * this.tune.hemi; // moonlit / skyglow floor so the ground is not pitch black
     this.hemi.color.setRGB(0.62 + 0.2 * overcast, 0.72 + 0.12 * overcast, 0.9);
     this.hemi.groundColor.setRGB(0.3, 0.28, 0.22);
 
@@ -234,6 +234,6 @@ export class EnvironmentRenderer {
       this.envRT = this.pmrem.fromScene(this.envScene, 0, 0.1, 2000);
       this.scene.environment = this.envRT.texture;
     }
-    this.scene.environmentIntensity = (0.1 + 0.9 * dayLight) * this.tune.env;
+    this.scene.environmentIntensity = (0.3 + 0.7 * dayLight) * this.tune.env; // night floor: sky glow still lights aircraft and ground a little
   }
 }

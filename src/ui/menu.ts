@@ -14,11 +14,22 @@ export interface GraphicsSettings {
   terrainDetail: number;
   buildingDistanceKm: number;
   clouds: boolean;
+  /** Sun shadow map size (px) and whether shadow edges are softened (PCF soft). */
+  shadowSize: number;
+  softShadows: boolean;
 }
+
+export type GraphicsPreset = 'low' | 'high' | 'ultra';
+/** Graphics presets. LOW favours frame rate (phones); HIGH is the default; ULTRA spends more GPU on shadows, terrain and draw distance. */
+export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
+  low: { renderScale: 0.7, shadows: false, terrainDetail: 0.7, buildingDistanceKm: 6, clouds: true, shadowSize: 1024, softShadows: false },
+  high: { renderScale: 1, shadows: true, terrainDetail: 1, buildingDistanceKm: 12, clouds: true, shadowSize: 2048, softShadows: true },
+  ultra: { renderScale: 1, shadows: true, terrainDetail: 1.5, buildingDistanceKm: 20, clouds: true, shadowSize: 4096, softShadows: true },
+};
 
 const GFX_STORE = 'jetvault.gfx.v1';
 export function loadGraphics(): GraphicsSettings {
-  const d: GraphicsSettings = { renderScale: 1, shadows: true, terrainDetail: 1, buildingDistanceKm: 12, clouds: true };
+  const d: GraphicsSettings = { ...GRAPHICS_PRESETS.high };
   try { const s = localStorage.getItem(GFX_STORE); if (s) return { ...d, ...JSON.parse(s) }; } catch { /* ignore */ }
   return d;
 }
@@ -342,10 +353,19 @@ export class Menu {
     const g = { ...this.host.graphics };
     const inp = this.host.inputSettings;
     s.innerHTML = `<h2>Settings</h2><h3>Graphics</h3>`;
+    const pr = document.createElement('div'); pr.className = 'jv-actions';
+    for (const k of ['low', 'high', 'ultra'] as GraphicsPreset[]) {
+      const b = document.createElement('button'); b.textContent = k.toUpperCase();
+      b.addEventListener('click', () => { const p = { ...GRAPHICS_PRESETS[k] }; this.host.applyGraphics(p); saveGraphics(p); this.renderSettings(s); });
+      pr.appendChild(b);
+    }
+    s.appendChild(pr);
     const f = document.createElement('div'); f.className = 'jv-form';
     f.innerHTML = `
       <label>Render scale</label><input type="range" min="0.4" max="1" step="0.05" value="${g.renderScale}" data-g="renderScale"><span class="val">${g.renderScale}</span>
       <label>Shadows</label><input type="checkbox" data-g="shadows" ${g.shadows ? 'checked' : ''}><span></span>
+      <label>Soft shadow edges</label><input type="checkbox" data-g="softShadows" ${g.softShadows ? 'checked' : ''}><span></span>
+      <label>Shadow map size</label><input type="range" min="1024" max="4096" step="1024" value="${g.shadowSize}" data-g="shadowSize"><span class="val">${g.shadowSize}</span>
       <label>Clouds</label><input type="checkbox" data-g="clouds" ${g.clouds ? 'checked' : ''}><span></span>
       <label>Terrain detail</label><input type="range" min="0.5" max="2" step="0.1" value="${g.terrainDetail}" data-g="terrainDetail"><span class="val">${g.terrainDetail}</span>
       <label>Building draw distance</label><input type="range" min="2" max="24" step="1" value="${g.buildingDistanceKm}" data-g="buildingDistanceKm"><span class="val">${g.buildingDistanceKm} km</span>`;
