@@ -188,6 +188,9 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 - Tested: headless full sim of a buggy towing the parked glider 220 m on flat ground (glider follows within ~10 m, no upset; `tests/glider.test.ts`); in the browser the buggy drive-up and hook-up were checked, but the **tow-to-cones/unhook/get-in step was not completed in a browser run** (software rendering is too slow to script it), so that last step is only covered by code review.
 - Not done / not tested: real-GPU frame rate with the trees; the towed glider's handling over rough ground at speed; reverse gear for the buggy; aerotow; the winch vehicle itself is not drawn (the cable ends at an anchor 1.4 km ahead); phone UI for the buggy was not tested (it reuses the tug controls).
 
+## Update 29 — Portmoak runway more visible
+- The grass runway is now drawn: light mown strip with mowing stripes, white edge lines (about 1.4 m wide), 4 m threshold bars and large runway numbers (10 / 28, readable from the approach end), visible from several km. Windsock is larger (9 m pole). Checked in headless screenshots (ground and 600 m orbit view); numbers read correctly from the 10 end, the 28 end was not viewed. Friction/physics of the grass are unchanged.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

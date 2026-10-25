@@ -108,12 +108,12 @@ export class FieldScenery {
     const [a, b] = rw.ends;
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1;
     this.sock = new THREE.Group();
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 7, 8), white); pole.position.y = 3.5;
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.12, 9, 8), white); pole.position.y = 4.5;
     this.sock.add(pole);
     for (let i = 0; i < 5; i++) {
-      const r = new THREE.Mesh(new THREE.CylinderGeometry(0.42 - i * 0.065, 0.48 - i * 0.065, 0.62, 10, 1, true), i % 2 ? white : orange);
+      const r = new THREE.Mesh(new THREE.CylinderGeometry(0.62 - i * 0.1, 0.7 - i * 0.1, 0.8, 10, 1, true), i % 2 ? white : orange);
       (r.material as THREE.Material).side = THREE.DoubleSide;
-      r.rotation.z = Math.PI / 2; r.position.set(0.31 + i * 0.62 + 0.3, 7, 0);
+      r.rotation.z = Math.PI / 2; r.position.set(0.4 + i * 0.8 + 0.3, 9, 0);
       this.rings.push(r);
     }
     const arm = new THREE.Group(); arm.name = 'arm'; arm.position.y = 0;
@@ -144,7 +144,7 @@ export class FieldScenery {
     this.sock.rotation.y = -(to - Math.PI / 2); // arm points +x at rotation 0 (east); to = compass heading
     const lift = Math.min(1, windKt / 12);
     this.rings.forEach((r, i) => {
-      r.position.y = 7 - (1 - lift) * (0.2 + i * 0.35) + Math.sin(t * 5 + i) * 0.03 * lift;
+      r.position.y = 9 - (1 - lift) * (0.2 + i * 0.35) + Math.sin(t * 5 + i) * 0.03 * lift;
     });
   }
 }

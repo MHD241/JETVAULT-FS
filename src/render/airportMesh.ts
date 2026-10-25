@@ -88,19 +88,30 @@ export function buildRoadOverlay(roads: [string, [number, number][]][], cx = 0, 
 }
 
 /** Runway markings texture in runway coordinates (u across, v along from end[0]). */
-/** Mown grass strip: lighter centre with mowing stripes and faint end marks. */
+/** Mown grass strip: light mown centre with mowing stripes, white edge lines, threshold bars and runway numbers. */
 function grassRunwayTexture(rw: Runway) {
-  const W = 64, H = 512;
+  const W = 128, H = 2048;
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const g = cv.getContext('2d')!;
-  g.fillStyle = 'rgb(112,138,62)'; g.fillRect(0, 0, W, H);
-  for (let i = 0; i < 16; i++) { g.fillStyle = i % 2 ? 'rgba(160,186,96,0.35)' : 'rgba(90,116,48,0.3)'; g.fillRect(8, (i * H) / 16, W - 16, H / 16); }
-  g.fillStyle = 'rgba(255,255,255,0.55)';
-  g.fillRect(2, 0, 2, H); g.fillRect(W - 4, 0, 2, H); // edge marker lines
-  g.fillRect(2, 0, W - 4, 6); g.fillRect(2, H - 6, W - 4, 6); // thresholds
+  g.fillStyle = 'rgb(128,158,66)'; g.fillRect(0, 0, W, H);
+  const stripes = 24;
+  for (let i = 0; i < stripes; i++) { g.fillStyle = i % 2 ? 'rgba(190,214,112,0.5)' : 'rgba(104,136,52,0.45)'; g.fillRect(10, (i * H) / stripes, W - 20, H / stripes); }
+  g.fillStyle = 'rgba(255,255,255,0.85)';
+  g.fillRect(3, 0, 6, H); g.fillRect(W - 9, 0, 6, H); // edge lines (about 1.4 m wide)
+  g.fillRect(3, 0, W - 6, 8); g.fillRect(3, H - 8, W - 6, 8); // threshold bars (about 4 m)
+  const ends = rw.ends;
+  ends.forEach((e, i) => {
+    g.save();
+    // image row 0 is the far end (v = 1); end[0] is at the bottom, text is turned so it reads from the approach end
+    if (i === 0) g.translate(W / 2, H - 150); else { g.translate(W / 2, 150); g.rotate(Math.PI); }
+    g.scale(-1, 0.5); // u runs right-to-left across the mesh, so mirror the glyphs
+    g.fillStyle = 'rgba(255,255,255,0.92)';
+    g.font = '700 84px Arial, Helvetica, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(e.ident, 0, 0);
+    g.restore();
+  });
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
-  void rw;
   return t;
 }
 
@@ -235,7 +246,6 @@ export class AirportRenderer {
   private h(e: number, n: number) { return this.terrain.heightAt(e, n); }
 
   private buildRunway(rw: Runway) {
-    if (rw.surface === 'grass') return; // gliding field: the mown meadow is visible in the imagery, no painted strip
     const [a, b] = rw.ends;
     const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
     const ux = dx / L, uy = dy / L, px = uy, py = -ux; // right-hand perpendicular
