@@ -33,6 +33,8 @@ import { Minimap } from './ui/minimap';
 import { LoadedPatch } from './world/world';
 import { JetBridges } from './render/jetBridges';
 import { CrashFx } from './render/crashFx';
+import { Buggy, launchPoints, nearestLaunchPoint, LaunchPoint, BUGGY_MAX_SPEED } from './sim/buggy';
+import { TreeField, FieldScenery, BuggyModel } from './render/gliderField';
 
 const loadingMsg = document.getElementById('loading-msg')!;
 const loadingBar = document.getElementById('loading-bar')!;
@@ -75,7 +77,12 @@ class App implements MenuHost {
   sim!: Simulation;
   world!: World;
   terrain!: TerrainRenderer;
-  private patchRender = new Map<string, { airport: AirportRenderer; buildings: BuildingsRenderer }>();
+  private patchRender = new Map<string, { airport: AirportRenderer; buildings: BuildingsRenderer; extras: THREE.Object3D[]; scenery?: FieldScenery }>();
+  // glider retrieval: a buggy to tow a landed glider back to a winch launch point
+  private buggy = new Buggy();
+  private buggyModel = new BuggyModel();
+  private retrieving = false;
+  private winchFx = 0;
   private streamTimer = 0;
   model!: C172Model | B737Model | GliderModel;
   cockpit!: Cockpit | B737Cockpit | GliderCockpit;
@@ -165,6 +172,7 @@ class App implements MenuHost {
     this.launchBtn.style.display = 'none';
     document.body.appendChild(this.launchBtn);
     this.launchBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('launch'); });
+    this.scene.add(this.buggyModel.group);
     this.vario = new Vario();
     this.cableLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]), new THREE.LineBasicMaterial({ color: 0xffc830 }));
     this.cableLine.frustumCulled = false; this.cableLine.visible = false;
@@ -265,7 +273,17 @@ class App implements MenuHost {
     const br = new BuildingsRenderer(lp.buildings);
     br.maxDistance = this.graphics.buildingDistanceKm * 1000;
     this.scene.add(br.group);
-    this.patchRender.set(pm.id, { airport: ar, buildings: br });
+    const extras: THREE.Object3D[] = [];
+    let scenery: FieldScenery | undefined;
+    if (airport.icao === 'EGPM') {
+      // gliding site: trees from the land-cover map, launch markers, windsock and parked gliders
+      const segs = airport.runways.map((rw): [number, number, number, number] => [rw.ends[0].x, rw.ends[0].y, rw.ends[1].x, rw.ends[1].y]);
+      const trees = new TreeField(this.world, ((c) => ({ e: c.x, n: c.y }))(airportCentre(airport)), 2400, lp.buildings, segs);
+      scenery = new FieldScenery(airport, this.world, launchPoints(airport));
+      extras.push(trees.group, scenery.group);
+      this.scene.add(trees.group, scenery.group);
+    }
+    this.patchRender.set(pm.id, { airport: ar, buildings: br, extras, scenery });
     this.jetBridges.addPatch(pm.id, airport.gates ?? [], lp.buildings, (e, n) => this.world.terrain.heightAt(e, n) - 0.2);
     this.minimap?.addPatch(pm.id, { cx: pm.cx, cy: pm.cy, half: pm.imgHalf, imagery: (imagery?.texture.image as CanvasImageSource) ?? null, roads: roadsJson, airport });
     if (this.world.airport === airport) this.placeTower();
@@ -276,7 +294,7 @@ class App implements MenuHost {
     this.jetBridges.removePatch(id);
     this.minimap?.removePatch(id);
     const r = this.patchRender.get(id);
-    if (r) { disposeTree(r.airport.group); r.buildings.dispose(); this.patchRender.delete(id); }
+    if (r) { disposeTree(r.airport.group); r.buildings.dispose(); for (const x of r.extras) { this.scene.remove(x); disposeTree(x); } this.patchRender.delete(id); }
   }
 
   /** Loads patches the aircraft is approaching and releases the ones it has left (hysteresis: 12 km in, 30 km out). */
@@ -395,6 +413,8 @@ class App implements MenuHost {
     else this.sim.spawn(spawn);
     this.crashFx.clear();
     this.sim.aircraft.tugSpeed = null;
+    if (this.retrieving) this.exitRetrieval(false);
+    this.buggyModel.group.visible = false;
     if (this.tug && this.pushing) this.finishPushback();
     if (this.tug) this.tug.visible = false;
     this.crashShown = false;
@@ -444,7 +464,7 @@ class App implements MenuHost {
       if (this.jetBridges.connected) this.simple.parking = true; // park the aircraft when the bridge connects
       this.hud.toast(msg);
     }
-    if (ev === 'push') {
+    if (ev === 'push' && !this.retrieving) {
       if (this.pushing) { this.finishPushback(); this.hud.toast('Back in the aircraft'); }
       else if (!ac.def.retractableGear || !ac.onGround || Math.hypot(ac.vel.x, ac.vel.y) > 0.5) this.hud.toast('Pushback needs a stopped airliner on the ground');
       else if (this.jetBridges.connected) this.hud.toast('Retract the jet bridge first');
@@ -460,12 +480,95 @@ class App implements MenuHost {
     }
     if (ev === 'launch') {
       if (!ac.def.glider) this.hud.toast('Launch is for gliders');
+      else if (this.retrieving) this.buggyAction();
       else if (ac.cable) { this.sim.releaseCable(); this.hud.toast('Cable released'); }
-      else if (this.sim.startWinch()) this.hud.toast('Winch launch: hold the stick back gently, release the cable at the top (R or the button)');
-      else this.hud.toast('Stop on the ground to start a winch launch');
+      else if (!ac.onGround || Math.hypot(ac.vel.x, ac.vel.y) > 1.5) this.hud.toast('Stop on the ground to start a winch launch');
+      else if (!this.atLaunchPoint()) this.startRetrieval();
+      else if (this.sim.startWinch()) this.hud.toast('WINCH LAUNCH: it accelerates hard to about 60 kt. Let the glider climb steeply, then lower the nose and release the cable at the top (R or the button)');
     }
+    if (ev === 'push' && this.retrieving) this.exitRetrieval(false);
     if (ev === 'park') { this.simple.parking = !this.simple.parking; this.hud.toast(this.simple.parking ? 'Parking brake ON' : 'Parking brake OFF'); }
     if (ev === 'camera') this.rig.setMode(this.rig.mode === 'cockpit' ? 'chase' : 'cockpit', ac);
+  }
+
+  // ---------------------------------------------------------------- glider retrieval
+  private launchPts(): LaunchPoint[] { return launchPoints(this.world.airport); }
+  private atLaunchPoint() {
+    const ac = this.sim.aircraft;
+    const lp = nearestLaunchPoint(this.launchPts(), ac.pos.y, ac.pos.x, 60);
+    if (!lp) return false;
+    let d = ac.euler[2] - lp.heading; d = Math.atan2(Math.sin(d), Math.cos(d));
+    return Math.abs(d) < 0.45;
+  }
+  private hookDistance() {
+    const ac = this.sim.aircraft, h = this.buggy.hitch();
+    const hk = ac.worldPoint(ac.def.hook!);
+    return Math.hypot(hk.y - h.east, hk.x - h.north);
+  }
+  private startRetrieval() {
+    const ac = this.sim.aircraft, h = ac.euler[2];
+    const fx = Math.sin(h), fy = Math.cos(h);
+    // the buggy waits ahead and to the left of the glider, pointing across its nose
+    this.buggy.place(ac.pos.y + fx * 9 - fy * 12, ac.pos.x + fy * 9 + fx * 12, h + Math.PI / 2);
+    this.retrieving = true;
+    this.prevView = this.rig.mode === 'cockpit' ? 'cockpit' : 'chase';
+    this.simple.tugMode = true; this.simple.tugSteer = 0; this.simple.tugHold = true; this.simple.parking = false; this.simple.setThrottle(0);
+    this.buggyModel.group.visible = true;
+    this.rig.setMode('chase', ac); this.rig.chaseDist = 13; this.rig.orbitEl = 0.28; this.rig.orbitAz = 0;
+    this.hud.toast('RETRIEVAL BUGGY: drive to the glider nose and hook up (1-9 speed, steer with mouse/arrows, Space brakes), then tow it to the launch point (orange cones)');
+  }
+  private buggyAction() {
+    const ac = this.sim.aircraft, b = this.buggy;
+    if (!b.towing) {
+      if (this.hookDistance() > 10) { this.hud.toast('Drive the buggy so its tow hitch is at the glider nose'); return; }
+      b.towing = true;
+      const h = b.hitch();
+      ac.cable = { anchor: new Vec3(h.north, h.east, -(this.world.heightAt(h.east, h.north) + 0.7)), vTarget: 0, tMax: 2500, t: 0, tow: true };
+      this.simple.tugHold = false;
+      this.hud.toast('Rope hooked on. Tow the glider to the launch point (the orange cones at the runway end)');
+      return;
+    }
+    const lp = nearestLaunchPoint(this.launchPts(), b.east, b.north, 70);
+    if (!lp) { this.hud.toast('Tow the glider to the launch point first (orange cones at the end of the runway)'); return; }
+    // unhook, set the glider on the launch point, park the buggy beside it and get in
+    this.sim.placeAtLaunchPoint(lp.east, lp.north, lp.heading);
+    b.towing = false; b.speed = 0;
+    b.east = lp.east + Math.cos(lp.heading) * 16 - Math.sin(lp.heading) * 4; b.north = lp.north - Math.sin(lp.heading) * 16 - Math.cos(lp.heading) * 4;
+    b.heading = lp.heading;
+    this.exitRetrieval(true);
+    this.hud.toast('Ready on the launch point. Press START WINCH LAUNCH when you are strapped in and ready');
+  }
+  private exitRetrieval(placed: boolean) {
+    const ac = this.sim.aircraft;
+    if (!placed && ac.cable?.tow) ac.cable = null;
+    this.retrieving = false; this.buggy.towing = false;
+    this.simple.tugMode = false; this.simple.tugHold = false; this.simple.parking = false;
+    this.rig.focus = null;
+    if (!placed) this.buggyModel.group.visible = false;
+    this.rig.chaseDist = 24;
+    this.rig.setMode(this.prevView, ac);
+    this.sim.controls.brakeLeft = 0; this.sim.controls.brakeRight = 0;
+  }
+  private updateBuggy(dt: number) {
+    const b = this.buggy, c = this.sim.controls, ac = this.sim.aircraft;
+    if (this.retrieving) {
+      const brake = c.brakeLeft > 0.5;
+      c.brakeLeft = 0; c.brakeRight = 0;
+      if (!this.menu.open && !this.sim.paused) b.step(dt, this.simple.throttle * BUGGY_MAX_SPEED, this.simple.tugSteer, brake);
+      if (ac.cable?.tow) {
+        const h = b.hitch();
+        ac.cable.anchor = new Vec3(h.north, h.east, -(this.world.heightAt(h.east, h.north) + 0.7));
+        ac.cable.vTarget = b.speed;
+        ac.cable.tMax = 3000;
+      }
+      if (!ac.onGround) this.exitRetrieval(false);
+    }
+    if (this.buggyModel.group.visible) {
+      const sx = Math.sin(b.heading), cy = Math.cos(b.heading), t = this.world.terrain;
+      this.buggyModel.setPose(b.east, b.north, b.heading, t.heightAt(b.east, b.north), t.heightAt(b.east + sx * 1.3, b.north + cy * 1.3), t.heightAt(b.east - sx * 1.3, b.north - cy * 1.3));
+      this.buggyModel.beacon.visible = Math.floor(performance.now() / 350) % 2 === 0;
+      if (this.retrieving) { this.rig.focus = { pos: this.buggyModel.group.position.clone(), heading: b.heading }; }
+    }
   }
 
   private finishPushback() {
@@ -516,6 +619,7 @@ class App implements MenuHost {
       this.simple.update(dt, sim.controls, ac);
       if (!sim.paused) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
+    this.updateBuggy(dt);
     if (!ac.crashed) nedToThree(ac.vel, this.lastVel);
     sim.advance(dt);
     if (ac.crashed && !this.crashShown) {
@@ -532,9 +636,19 @@ class App implements MenuHost {
       if (!ac.onGround) this.finishPushback();
       else { ac.tugSpeed = this.simple.throttle * 5; ac.tugSteer = this.simple.tugSteer; this.rig.tug.angle = ac.tugSteer * 35 * Math.PI / 180; this.tug.rotation.z = this.rig.tug.angle; }
     }
-    const showLaunch = !this.menu.open && !ac.crashed && !!ac.def.glider && (!!ac.cable || (ac.onGround && Math.hypot(ac.vel.x, ac.vel.y) < 1.5));
+    const stopped = ac.onGround && Math.hypot(ac.vel.x, ac.vel.y) < 1.5;
+    const showLaunch = !this.menu.open && !ac.crashed && !!ac.def.glider && (this.retrieving || !!ac.cable || stopped);
     this.launchBtn.style.display = showLaunch ? 'block' : 'none';
-    if (showLaunch) this.launchBtn.textContent = ac.cable ? 'RELEASE CABLE' : 'START WINCH LAUNCH';
+    if (showLaunch) {
+      let txt: string;
+      if (this.retrieving) {
+        const lp = nearestLaunchPoint(this.launchPts(), this.buggy.east, this.buggy.north, 70);
+        if (!this.buggy.towing) { const d = this.hookDistance(); txt = d <= 10 ? 'HOOK UP THE GLIDER' : `DRIVE TO THE GLIDER NOSE (${Math.round(d)} m)`; }
+        else txt = lp ? 'UNHOOK AND GET IN' : 'TOW TO THE LAUNCH POINT (CONES)';
+      } else if (ac.cable) txt = 'RELEASE CABLE';
+      else txt = this.atLaunchPoint() ? 'START WINCH LAUNCH' : 'GET THE BUGGY (RETRIEVE)';
+      this.launchBtn.textContent = txt;
+    }
     this.cableLine.visible = !!ac.cable;
     if (ac.cable && ac.def.hook) {
       const pa = this.cableLine.geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -542,9 +656,9 @@ class App implements MenuHost {
       pa.setXYZ(0, a.x, a.y, a.z); pa.setXYZ(1, b.x, b.y, b.z); pa.needsUpdate = true;
     }
     this.vario.update(!!ac.def.glider && !this.menu.open && !sim.paused && !ac.crashed, -ac.vel.z, dt);
-    const showPush = !this.menu.open && !ac.crashed && ac.def.retractableGear && ac.onGround && (this.pushing || Math.hypot(ac.vel.x, ac.vel.y) < 0.5);
+    const showPush = !this.menu.open && !ac.crashed && ((ac.def.retractableGear && ac.onGround && (this.pushing || Math.hypot(ac.vel.x, ac.vel.y) < 0.5)) || this.retrieving);
     this.pushBtn.style.display = showPush ? 'block' : 'none';
-    if (showPush) this.pushBtn.textContent = this.pushing ? 'FINISHED - BACK TO AIRCRAFT' : 'START PUSHBACK';
+    if (showPush) this.pushBtn.textContent = this.retrieving ? 'LEAVE THE BUGGY' : this.pushing ? 'FINISHED - BACK TO AIRCRAFT' : 'START PUSHBACK';
     const showPark = !this.menu.open && !ac.crashed && ac.onGround && !this.pushing && !ac.def.glider;
     this.parkBtn.style.display = showPark ? 'block' : 'none';
     if (showPark) { this.parkBtn.textContent = this.simple.parking ? 'PARK BRAKE ON' : 'PARK BRAKE OFF'; this.parkBtn.classList.toggle('on', this.simple.parking); }
@@ -558,6 +672,19 @@ class App implements MenuHost {
 
     this.rig.update(ac, dt);
     const cam = this.rig.camera;
+    // winch launch: widen the view and shake the camera while the cable is dragging the glider up
+    const winching = !!ac.cable && !ac.cable.tow && ac.cableTension > 200 && !sim.paused;
+    this.winchFx += ((winching ? Math.min(1, ac.cas / 18) : 0) - this.winchFx) * (1 - Math.exp(-dt * (winching ? 4 : 1.5)));
+    if (this.winchFx > 0.01 && this.rig.mode !== 'tower') {
+      const fx = this.winchFx, base = this.rig.mode === 'cockpit' ? this.rig.fovCockpit : this.rig.fovExternal;
+      cam.fov = base + 16 * fx;
+      cam.updateProjectionMatrix();
+      const k = 0.035 * fx;
+      cam.position.x += (Math.random() - 0.5) * k; cam.position.y += (Math.random() - 0.5) * k; cam.position.z += (Math.random() - 0.5) * k;
+    } else if (this.rig.mode !== 'tower' && Math.abs(cam.fov - (this.rig.mode === 'cockpit' ? this.rig.fovCockpit : this.rig.fovExternal)) > 0.01) {
+      cam.fov = this.rig.mode === 'cockpit' ? this.rig.fovCockpit : this.rig.fovExternal; cam.updateProjectionMatrix();
+    }
+    for (const r of this.patchRender.values()) r.scenery?.update(sim.weather.windDirection, sim.weather.windSpeed, sim.simTime);
     const inCockpit = this.rig.mode === 'cockpit' && !this.rig.tug.on;
     this.model.setCockpitView(inCockpit);
     this.cockpit.root.visible = inCockpit;

@@ -94,7 +94,7 @@ describe('glider handling', () => {
     run(sim, 45, () => {
       sim.controls.roll = clamp(-2 * ac.euler[0] - ac.omega.x, -0.5, 0.5);
       // pilot: keep the nose near 12 deg once flying, then ease it
-      const target = !ac.cable ? 0 : ac.agl > 8 ? 14 * DEG : 6 * DEG;
+      const target = !ac.cable ? 0 : ac.agl > 8 ? 40 * DEG : 6 * DEG;
       sim.controls.pitch = clamp(6 * (target - ac.euler[1]) - 1.5 * ac.omega.y, -0.8, 0.8) * (ac.cas / KT > 30 ? 1 : 0);
       maxAgl = Math.max(maxAgl, ac.agl); if (ac.cable) maxKt = Math.max(maxKt, ac.cas / KT);
       if (!ac.cable && release < 0) release = sim.simTime;

@@ -156,11 +156,20 @@ export class Simulation {
     const h = Math.hypot(fwd.x, fwd.y) || 1;
     const n = ac.pos.x + (fwd.x / h) * 1400, e = ac.pos.y + (fwd.y / h) * 1400;
     const anchor = new Vec3(n, e, -(this.world.heightAt(e, n) + 1.5));
-    ac.cable = { anchor, vTarget: 28, tMax: 4500, t: 0 };
+    ac.cable = { anchor, vTarget: 34, tMax: 7500, t: 0 };
     return true;
   }
 
   releaseCable() { this.aircraft.cable = null; }
+
+  /** Put the (glider) on a winch launch point, stopped, facing along the runway, brakes off, ready for the rope. */
+  placeAtLaunchPoint(east: number, north: number, heading: number) {
+    const ac = this.aircraft;
+    ac.cable = null;
+    const c = this.controls;
+    c.parkingBrake = false; c.brakeLeft = 0; c.brakeRight = 0; c.pitch = 0; c.roll = 0; c.yaw = 0; c.speedbrake = 0;
+    ac.placeOnGround(east, north, heading, this.env);
+  }
 
   /** One fixed physics step. */
   step() {
@@ -171,7 +180,7 @@ export class Simulation {
     this.systems.stepSystems(PHYSICS_DT, c);
     ac.step(PHYSICS_DT, this.autopilot.effectiveControls(c), this.env, this.systems.fuelAvailable(c), this.systems.busPowered());
     this.systems.updateIndications(PHYSICS_DT, c);
-    if (ac.cable) {
+    if (ac.cable && !ac.cable.tow) {
       // winch driver cuts the cable when the glider is too steep, nearly overhead, or the launch is over
       const dv = ac.cable.anchor.sub(ac.worldPoint(ac.def.hook!));
       const horiz = Math.hypot(dv.x, dv.y);

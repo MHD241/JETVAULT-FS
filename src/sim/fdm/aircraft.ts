@@ -150,7 +150,7 @@ export class Aircraft {
   elevator = 0; aileronL = 0; aileronR = 0; rudder = 0; // rad actual
   /** Pushback tug: target reverse speed (m/s) or null. The tug pulls on the nose gear with a limited force. */
   /** Winch/tow cable: anchor (world NED), target speed along the cable (m/s), max tension (N), elapsed time (s). */
-  cable: { anchor: Vec3; vTarget: number; tMax: number; t: number } | null = null;
+  cable: { anchor: Vec3; vTarget: number; tMax: number; t: number; /** slack ground tow behind a buggy (not a winch) */ tow?: boolean } | null = null;
   /** Current cable tension, N. */
   cableTension = 0;
   tugSpeed: number | null = null;
@@ -431,9 +431,10 @@ export class Aircraft {
       const dir = dv.scale(1 / dist);
       const closing = this.vel.dot(dir);
       this.cable.t += dt;
-      const target = this.cable.vTarget * Math.min(1, this.cable.t / 3);
-      // the winch driver backs off above ~60 kt airspeed (weak-link / over-speed protection)
-      const T = this.cable.tMax * clamp((target - closing) / 4, 0, 1) * clamp((70 - this.cas / 0.514444) / 10, 0, 1);
+      const tow = !!this.cable.tow;
+      const target = this.cable.vTarget * Math.min(1, this.cable.t / (tow ? 2 : 1.4));
+      // the winch driver backs off above ~70 kt airspeed (weak-link / over-speed protection); a buggy tow rope goes slack within 5 m
+      const T = this.cable.tMax * clamp((target - closing) / (tow ? 2 : 4), 0, 1) * (tow ? clamp((dist - 5) / 1.5, 0, 1) : clamp((72 - this.cas / 0.514444) / 10, 0, 1));
       this.cableTension = T;
       const fb = this.q.invRotate(dir.scale(T));
       F.addIn(fb);

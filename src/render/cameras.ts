@@ -20,6 +20,8 @@ export class CameraRig {
   towerPos = new THREE.Vector3();
   /** Pushback tug driver view: towbar swing angle (rad) about the nose gear; replaces the pilot eye in cockpit mode. */
   tug = { on: false, angle: 0 };
+  /** Chase-camera subject other than the aircraft (the retrieval buggy): world position and compass heading. */
+  focus: { pos: THREE.Vector3; heading: number } | null = null;
   private chasePos = new THREE.Vector3();
   private chaseInit = false;
   freePos = new THREE.Vector3();
@@ -98,9 +100,9 @@ export class CameraRig {
     } else if (this.mode === 'chase') {
       // follow the flight path heading, orbit with the mouse
       const fwd = new THREE.Vector3(1, 0, 0).applyMatrix4(R);
-      const hdg = Math.atan2(fwd.x, -fwd.z);
+      const hdg = this.focus ? this.focus.heading : Math.atan2(fwd.x, -fwd.z);
       const az = hdg + Math.PI + this.orbitAz;
-      const target = datum.clone().add(new THREE.Vector3(0, 1.0, 0));
+      const target = (this.focus ? this.focus.pos : datum).clone().add(new THREE.Vector3(0, 1.0, 0));
       const want = target.clone().add(new THREE.Vector3(
         Math.sin(az) * Math.cos(this.orbitEl) * this.chaseDist,
         Math.sin(this.orbitEl) * this.chaseDist,

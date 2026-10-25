@@ -28,6 +28,8 @@ export class SimpleControls {
   parking = true;
   /** Driving the pushback tug: steering input goes to the tug, aircraft controls are neutral. */
   tugMode = false;
+  /** Parking brake on the towed aircraft while driving the retrieval buggy (on until the rope is hooked up). */
+  tugHold = false;
   tugSteer = 0;
   rawPitch = 0;
   readonly ui: HTMLDivElement;
@@ -140,7 +142,7 @@ export class SimpleControls {
       c.pitch = 0; c.roll = 0; c.yaw = 0.5 * this.tugSteer;
       c.throttle = 0.1;
       const brk = this.keys.has('Space') || this.touchBrake ? 1 : 0;
-      c.brakeLeft = brk; c.brakeRight = brk; c.parkingBrake = false;
+      c.brakeLeft = brk; c.brakeRight = brk; c.parkingBrake = this.tugHold;
       return;
     }
     let assist = 0;
