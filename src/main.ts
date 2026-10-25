@@ -437,6 +437,8 @@ class App implements MenuHost {
   }
 
   // ---------------------------------------------------------------- MenuHost
+  get arcade() { return this.simple.arcade; }
+  setArcade(on: boolean) { this.simple.setArcade(on); this.hud.toast(on ? 'Easy flying on' : 'Easy flying off'); }
   startView: 'cockpit' | 'chase' = 'chase';
 
   async fly(spawn: SpawnKind | { kind: 'air'; east: number; north: number; altFt: number; hdg: number }) {

@@ -28,6 +28,9 @@ export class SimpleControls {
   parking = true;
   /** Driving the pushback tug: steering input goes to the tug, aircraft controls are neutral. */
   tugMode = false;
+  /** "GeoFS-style" forgiving handling: wings level themselves when the stick is released (desktop too). Physics unchanged. */
+  arcade = (() => { try { return localStorage.getItem('jetvault.arcade') === '1'; } catch { return false; } })();
+  setArcade(on: boolean) { this.arcade = on; try { localStorage.setItem('jetvault.arcade', on ? '1' : '0'); } catch { /* ignore */ } }
   /** Parking brake on the towed aircraft while driving the retrieval buggy (on until the rope is hooked up). */
   tugHold = false;
   tugSteer = 0;
@@ -126,9 +129,10 @@ export class SimpleControls {
     }
     else if (this.mouse.active) { pitch = dz(this.mouse.y, 0.06) * 1.3; roll = dz(this.mouse.x, 0.06) * 1.3; }
     // touch: with the stick released in the air, gently level the wings (aileron input only)
-    if (IS_TOUCH && !ac.onGround && Math.abs(this.joy.x) < 0.05) {
+    const stickFree = IS_TOUCH ? Math.abs(this.joy.x) < 0.05 : Math.abs(roll) < 0.03;
+    if ((IS_TOUCH || this.arcade) && !ac.onGround && stickFree) {
       const bank = ac.euler[0];
-      if (Math.abs(bank) < 0.7) roll = clamp(-1.6 * bank - 0.5 * ac.omega.x, -0.5, 0.5);
+      if (Math.abs(bank) < (this.arcade ? 1.2 : 0.7)) roll = clamp(-1.6 * bank - 0.5 * ac.omega.x, -0.5, 0.5);
     }
     c.pitch = clamp(pitch, -1, 1);
     c.roll = clamp(roll, -1, 1);
