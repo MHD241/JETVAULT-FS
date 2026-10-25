@@ -2,7 +2,8 @@
 import { describe, it, expect } from 'vitest';
 import { flatWorld, newSim, run } from './helpers';
 import { GLIDER } from '../src/sim/aircraft/glider';
-import { KT, DEG, clamp } from '../src/core/math';
+import { KT, DEG, clamp, Vec3 } from '../src/core/math';
+import { Buggy } from '../src/sim/buggy';
 
 function glideSim(speedKt: number) {
   const sim = newSim(flatWorld(0), undefined, GLIDER);
@@ -25,6 +26,34 @@ function hold(sim: ReturnType<typeof glideSim>['sim'], kt: number) {
     sim.controls.yaw = clamp(-ac.beta * 3, -0.5, 0.5);
   };
 }
+
+describe('retrieval tow', () => {
+  it('a buggy tows the parked glider across the field on a slack-capable rope without upsetting it', () => {
+    const sim = newSim(flatWorld(0), undefined, GLIDER);
+    sim.spawn({ kind: 'runway', ident: '36' });
+    const ac = sim.aircraft;
+    run(sim, 2, () => {});
+    const b = new Buggy();
+    const nose = ac.worldPoint(ac.def.hook!);
+    b.place(ac.pos.y, nose.x + 5, 0); // just ahead of the nose, same heading
+    b.towing = true;
+    const n0 = ac.pos.x;
+    ac.cable = { anchor: new Vec3(0, 0, 0), vTarget: 0, tMax: 3000, t: 0, tow: true };
+    let maxLat = 0;
+    run(sim, 60, () => {
+      b.step(1 / 240, 5, 0.1 * Math.sin(sim.simTime * 0.3), false);
+      const h = b.hitch();
+      ac.cable!.anchor = new Vec3(h.north, h.east, -0.7);
+      ac.cable!.vTarget = b.speed;
+      maxLat = Math.max(maxLat, Math.hypot(ac.pos.y - b.east, ac.pos.x - b.north));
+    });
+    const gap = Math.hypot(ac.pos.y - b.east, ac.pos.x - b.north);
+    console.log(`tow: buggy ${b.north.toFixed(0)} m north, glider moved ${(ac.pos.x - n0).toFixed(0)} m, gap ${gap.toFixed(1)} m, max gap ${maxLat.toFixed(1)}`);
+    expect(ac.crashed, ac.crashReason).toBe(false);
+    expect(ac.pos.x - n0).toBeGreaterThan(100);
+    expect(gap).toBeLessThan(14);
+  });
+});
 
 describe('glider polar', () => {
   const rows: string[] = [];

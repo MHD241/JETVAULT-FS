@@ -432,7 +432,8 @@ export class Aircraft {
       const closing = this.vel.dot(dir);
       this.cable.t += dt;
       const tow = !!this.cable.tow;
-      const target = this.cable.vTarget * Math.min(1, this.cable.t / (tow ? 2 : 1.4));
+      // a buggy tow also reels in the gap (the rope pulls harder the further the glider lags)
+      const target = this.cable.vTarget * Math.min(1, this.cable.t / (tow ? 2 : 1.4)) + (tow ? clamp((dist - 6) * 0.4, 0, 4) : 0);
       // the winch driver backs off above ~70 kt airspeed (weak-link / over-speed protection); a buggy tow rope goes slack within 5 m
       const T = this.cable.tMax * clamp((target - closing) / (tow ? 2 : 4), 0, 1) * (tow ? clamp((dist - 5) / 1.5, 0, 1) : clamp((72 - this.cas / 0.514444) / 10, 0, 1));
       this.cableTension = T;
