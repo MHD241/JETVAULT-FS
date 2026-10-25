@@ -40,6 +40,8 @@ export type AnySpawn = SpawnKind | AirSpawn;
 
 export interface MenuHost {
   /** GeoFS-style forgiving handling (wings self-level). */
+  assists: boolean;
+  setAssists(on: boolean): void;
   arcade: boolean;
   setArcade(on: boolean): void;
   world: World;
@@ -387,6 +389,7 @@ export class Menu {
       <label>Keyboard control rate</label><input type="range" min="0.5" max="4" step="0.1" value="${inp.keyRate}" data-i="keyRate"><span class="val">${inp.keyRate}</span>
       <label>Controller dead zone</label><input type="range" min="0" max="0.3" step="0.01" value="${inp.deadZone}" data-i="deadZone"><span class="val">${inp.deadZone}</span>
       <label>Controller response curve</label><input type="range" min="1" max="3" step="0.1" value="${inp.curve}" data-i="curve"><span class="val">${inp.curve}</span>
+      <label>Beginner assists (auto-trim, auto-rudder)</label><input type="checkbox" data-assists ${this.host.assists ? 'checked' : ''}><span class="jv-dim">Turn OFF for realistic mode: nothing moves the controls for you, so the aircraft keeps whatever attitude the forces give it</span>
       <label>Easy flying (GeoFS-style)</label><input type="checkbox" data-arcade ${this.host.arcade ? 'checked' : ''}><span class="jv-dim">Wings level themselves when you release the stick; auto-trim already holds your pitch. Physics unchanged</span>
       <label>Invert pitch axis</label><input type="checkbox" data-i="invertPitch" ${inp.invertPitch ? 'checked' : ''}><span></span>
       <label>Beginner mode: auto-rudder</label><input type="checkbox" data-i="autoRudder" ${inp.autoRudder ? 'checked' : ''}><span class="jv-dim">Moves the pedals: coordinates turns, holds heading on the ground</span>
@@ -394,6 +397,7 @@ export class Menu {
       <label>Axis: pitch / roll / yaw / throttle</label><input type="text" data-i="axes" value="${inp.axes.pitch},${inp.axes.roll},${inp.axes.yaw},${inp.axes.throttle}"><span class="jv-dim">Gamepad API axis indices for your joystick or yoke</span>`;
     c.addEventListener('input', (e) => {
       const t = e.target as HTMLInputElement;
+      if (t.hasAttribute('data-assists')) { this.host.setAssists(t.checked); return; }
       if (t.hasAttribute('data-arcade')) { this.host.setArcade(t.checked); return; }
       const k = t.dataset.i!;
       if (k === 'axes') {

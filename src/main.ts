@@ -437,6 +437,8 @@ class App implements MenuHost {
   }
 
   // ---------------------------------------------------------------- MenuHost
+  get assists() { return this.simple.assists; }
+  setAssists(on: boolean) { this.simple.setAssists(on); if (!on) this.simple.setArcade(false); this.hud.toast(on ? 'Beginner assists on' : 'Realistic mode: no automatic trim, rudder or heading hold'); }
   get arcade() { return this.simple.arcade; }
   setArcade(on: boolean) { this.simple.setArcade(on); this.hud.toast(on ? 'Easy flying on' : 'Easy flying off'); }
   startView: 'cockpit' | 'chase' = 'chase';
@@ -731,7 +733,7 @@ class App implements MenuHost {
     for (const ev of this.simple.consume()) this.handleSimple(ev);
     if (!this.menu.open) {
       this.simple.update(dt, sim.controls, ac);
-      if (!sim.paused) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
+      if (!sim.paused && this.simple.assists) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
     this.updateBuggy(dt);
     this.updateMarshal(dt);

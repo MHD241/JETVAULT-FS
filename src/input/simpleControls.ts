@@ -28,6 +28,9 @@ export class SimpleControls {
   parking = true;
   /** Driving the pushback tug: steering input goes to the tug, aircraft controls are neutral. */
   tugMode = false;
+  /** Beginner assists (auto-trim, rudder coordination, ground heading hold). Off = realistic mode: the stick and pedals are the only inputs (the 737 keeps its yaw damper, a real system). */
+  assists = (() => { try { return localStorage.getItem('jetvault.assists') !== '0'; } catch { return true; } })();
+  setAssists(on: boolean) { this.assists = on; try { localStorage.setItem('jetvault.assists', on ? '1' : '0'); } catch { /* ignore */ } }
   /** "GeoFS-style" forgiving handling: wings level themselves when the stick is released (desktop too). Physics unchanged. */
   arcade = (() => { try { return localStorage.getItem('jetvault.arcade') === '1'; } catch { return false; } })();
   setArcade(on: boolean) { this.arcade = on; try { localStorage.setItem('jetvault.arcade', on ? '1' : '0'); } catch { /* ignore */ } }
@@ -156,10 +159,10 @@ export class SimpleControls {
     if (!ac.onGround) {
       // jets: yaw damper (rudder against yaw rate); the old sideslip-driven rudder made the 737 wallow
       // (headless, hands off: rms yaw rate 0.5 deg/s with it vs 0.07 deg/s with the damper)
-      assist = ac.def.turbofans ? -4.6 * ac.q.invRotate(ac.omega).z : ac.beta * 4;
+      assist = ac.def.turbofans ? -4.6 * ac.q.invRotate(ac.omega).z : this.assists ? ac.beta * 4 : 0;
       this.holdHdg = null;
     }
-    else if (Math.hypot(ac.vel.x, ac.vel.y) > 1.5 && !k && Math.abs(steer) < 0.05) {
+    else if (this.assists && Math.hypot(ac.vel.x, ac.vel.y) > 1.5 && !k && Math.abs(steer) < 0.05) {
       if (this.holdHdg === null) this.holdHdg = heading;
       let e = this.holdHdg - heading; e = Math.atan2(Math.sin(e), Math.cos(e));
       assist = e * 6 - ac.q.rotate(ac.omega).z * 2.5;
