@@ -397,6 +397,27 @@ export class B737Model {
     // livery colour patches take the exact look of the white fuselage paint, so no ghost lettering remains
     const white = whiteRef.m;
     if (white) for (const mm of livery) { mm.color.copy(white.color); mm.specular.copy(white.specular); mm.shininess = white.shininess; mm.emissive.copy(white.emissive); }
+    // Phong -> physically based: painted aluminium (clear-coated), glass, and bare metal / rubber by colour.
+    const pbr = new Map<THREE.Material, THREE.Material>();
+    const toPbr = (mat: THREE.Material): THREE.Material => {
+      const old = mat as THREE.MeshPhongMaterial;
+      let r = pbr.get(mat);
+      if (r || !(old as THREE.MeshPhongMaterial).isMeshPhongMaterial) return r ?? mat;
+      const c = old.color, lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+      const base = { color: c.clone(), side: old.side, transparent: old.transparent, opacity: old.opacity, name: old.name };
+      if (lum > 0.6) r = new THREE.MeshPhysicalMaterial({ ...base, roughness: 0.24, metalness: 0.3, clearcoat: 1, clearcoatRoughness: 0.05 }); // painted fuselage
+      else if (lum < 0.1 && (old.specular?.r ?? 0) > 0.05) r = new THREE.MeshPhysicalMaterial({ ...base, roughness: 0.06, metalness: 0.0, clearcoat: 1, clearcoatRoughness: 0.03 }); // glass
+      else if (lum < 0.07) r = new THREE.MeshStandardMaterial({ ...base, roughness: 0.9, metalness: 0 }); // rubber, dark trim
+      else r = new THREE.MeshPhysicalMaterial({ ...base, roughness: 0.33, metalness: 0.75, clearcoat: 0.3, clearcoatRoughness: 0.2 }); // engine, gear, bare metal
+      r.userData.envI = lum > 0.6 ? 2.0 : lum < 0.07 ? 0.4 : 2.2;
+      pbr.set(mat, r);
+      return r;
+    };
+    root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.material = Array.isArray(m.material) ? m.material.map(toPbr) : toPbr(m.material);
+    });
     // model (x span, y up, z nose) -> body FRD metres; pitched ~2 deg nose-up about the main wheels so the
     // nose and main wheels sit on the same plane as the flight model's gear
     const s = 35.79 / 1404.4;

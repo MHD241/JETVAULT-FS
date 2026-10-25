@@ -591,6 +591,31 @@ class App implements MenuHost {
     }
   }
 
+  /** Aircraft materials reflect the sky: scene.environment only lights them diffusely, so give each its own envMap (and keep it current as the sun moves). */
+  private aircraftEnvTex: THREE.Texture | null = null;
+  private envSyncT = 0;
+  private syncAircraftEnv() {
+    const tex = this.scene.environment;
+    if (!tex) return;
+    const changed = tex !== this.aircraftEnvTex;
+    this.envSyncT -= 1;
+    if (!changed && this.envSyncT > 0) return;
+    this.envSyncT = 60; // also catches parts that finished loading later
+    this.aircraftEnvTex = tex;
+    this.aircraftGroup.traverse((o) => {
+      const m = (o as THREE.Mesh).material;
+      if (!m) return;
+      for (const x of ([] as THREE.Material[]).concat(m)) {
+        const s = x as THREE.MeshStandardMaterial;
+        if (!s.isMeshStandardMaterial || (s.envMap === tex && !changed)) continue;
+        const first = s.envMap === null;
+        s.envMap = tex;
+        s.envMapIntensity = (s.userData.envI as number | undefined) ?? (s.metalness > 0.5 ? 2.0 : 1.4);
+        if (first) s.needsUpdate = true;
+      }
+    });
+  }
+
   private finishPushback() {
     this.pushing = false;
     const ac = this.sim.aircraft;
@@ -690,6 +715,7 @@ class App implements MenuHost {
     this.aircraftGroup.matrix.copy(R);
     this.aircraftGroup.matrixWorldNeedsUpdate = true;
 
+    this.syncAircraftEnv();
     this.rig.update(ac, dt);
     const cam = this.rig.camera;
     // winch launch: widen the view and shake the camera while the cable is dragging the glider up

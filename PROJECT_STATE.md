@@ -216,6 +216,11 @@ Investigated every listed cause with headless experiments (`tools/probe/veer*.ts
 ## Update 32 — visible sun
 - Added a sun disc (1.6 deg bright core) with a wide soft glow (about 22 deg) in the sky, following the real sun position used for lighting and shadows (`render/environment.ts`). It is hidden below the horizon, turns warmer when low, is dimmed in overcast, is hidden behind terrain and buildings, and clouds are drawn over it. Checked in headless screenshots looking at the sun (clear sky, partly cloudy sky, low evening sun). No lens flare, no glare when looking directly at it, no god rays. Frame cost: two sprites.
 
+## Update 33 — aircraft reflections
+- The real 737 model arrived with Phong materials (no sky reflections at all, hence "no shine"). They are converted at load into physically based materials: clear-coated painted aluminium for the white paint, glossy glass for the windows, metallic roughness for engines/gear/wing hardware, matt rubber for tyres and dark trim (chosen by each material's colour, not hand-assigned per part, so a few parts may look slightly off).
+- All aircraft materials (737, C172, glider) now get the sky environment map assigned directly (this three.js version ignores the intensity setting otherwise) with a per-material strength, and it refreshes as the sun moves (`syncAircraftEnv` in `main.ts`). Checked in headless screenshots: wing and engine metal, window glass and fuselage show sky reflections. The fuselage shine is soft (no mirror effect, as intended); there are still no real-time reflections of the ground/buildings (sky only). Not checked: C172 and glider close-ups, and cost on a real GPU (a handful of extra shader features on about a hundred materials).
+- Files: `src/render/b737Model.ts`, `src/main.ts`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
