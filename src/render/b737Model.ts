@@ -396,11 +396,11 @@ export class B737Model {
     root.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) parts.push(`${m.name}:${(m.geometry.index?.count ?? 0) / 3}`); });
     console.info('737 glb bbox', box.min.toArray().map((v) => v.toFixed(2)), box.max.toArray().map((v) => v.toFixed(2)), 'parts', parts.length);
     (window as unknown as { __glb?: unknown }).__glb = { size: size.toArray(), ctr: ctr.toArray(), parts };
-    // glb axes: x = span (left is +x), y up, z = length (nose +z). Body frame: x forward, y right, z down; wheels' lowest point on z = 0.
-    const k = 35.79 / size.x, noseDir = 1;
+    // glb axes: x = span, y up, z = length (the nose is at -z; found by comparing against the nose-gear position). Body frame: x forward, y right, z down; wheels' lowest point on z = 0.
+    const k = 35.79 / size.x, noseDir = -1;
     const M = new THREE.Matrix4().set(
       0, 0, k * noseDir, 19.4 - k * noseDir * (noseDir > 0 ? box.max.z : box.min.z),
-      -k, 0, 0, k * ctr.x,
+      k * -noseDir, 0, 0, k * ctr.x * noseDir,
       0, -k, 0, k * 0.1 - 2.05, // lowest real geometry (engine nacelles, y = 0.1; a stray 1-triangle outlier at y = -5 is ignored) sits 2.0 m below the datum
       0, 0, 0, 1,
     );
