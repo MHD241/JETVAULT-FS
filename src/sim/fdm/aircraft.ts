@@ -511,16 +511,16 @@ export class Aircraft {
     {
       let stallMax = 0;
       for (const s of this.surfaces) if (s.def.role === 'wing') stallMax = Math.max(stallMax, s.stall);
-      const pre = clamp((this.alpha / DEG - (d.stallWarnAlpha - 3 - 0.15 * (this.flap / DEG))) / 3, 0, 1) * 0.45;
+      const pre = clamp((this.alpha / DEG - (d.stallWarnAlpha - 0.5 - 0.15 * (this.flap / DEG))) / 3, 0, 1) * 0.3;
       const target = this.onGround || this.tas < 15 ? 0 : Math.max(stallMax, pre);
       this.buffet += (target - this.buffet) * Math.min(1, dt * 8);
       if (this.buffet > 0.01) {
         const t = this.time;
         const n1 = Math.sin(t * 37.1) * 0.6 + Math.sin(t * 53.7 + 1.3) * 0.4, n2 = Math.sin(t * 29.3 + 0.7) * 0.6 + Math.sin(t * 61.9) * 0.4, n3 = Math.sin(t * 17.7 + 2.1);
         const k = this.buffet * this.buffet;
-        M.x += this.inertia.ixx * 1.6 * k * n1;
-        M.y += this.inertia.iyy * 0.9 * k * n2;
-        M.z += this.inertia.izz * 0.5 * k * n3;
+        M.x += this.inertia.ixx * 0.7 * k * n1;
+        M.y += this.inertia.iyy * 0.4 * k * n2;
+        M.z += this.inertia.izz * 0.2 * k * n3;
       }
     }
     const Iw = this.inertia.mul(this.omega);

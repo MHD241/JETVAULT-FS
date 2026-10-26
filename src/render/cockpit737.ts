@@ -37,7 +37,7 @@ export class Cockpit737Model {
   private gearPos = 0;
   private sbPos = 0;
   private flapPos = 0;
-  private mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.05, emissive: 0x15171a });
+  private mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.05, emissive: 0x15171a, side: THREE.DoubleSide });
 
   static async load(url: string): Promise<Cockpit737Model> {
     const [meta, buf] = await Promise.all([fetch(`${url}.json`).then((r) => r.json()), fetch(`${url}.bin`).then((r) => r.arrayBuffer())]);
@@ -51,7 +51,6 @@ export class Cockpit737Model {
     const sm = new THREE.Mesh(geometry(buf, stat), this.mat);
     sm.frustumCulled = false;
     this.root.add(sm);
-    this.root.add(this.ceiling());
     // pivot points (model units) for each moving part
     const bb = (n: string) => meta.parts[n].opaque!.bbox;
     const centre = (n: string) => { const b = bb(n); return new THREE.Vector3((b[0] + b[3]) / 2, (b[1] + b[4]) / 2, (b[2] + b[5]) / 2); };
@@ -70,38 +69,6 @@ export class Cockpit737Model {
       this.root.add(grp);
       this.parts[n] = { group: grp, pivot: pivots[n] };
     }
-  }
-
-  /**
-   * The source model has no roof: the overhead panel floats over the centre and the sky shows above
-   * the pilots. This adds a plain dark headliner that follows the model's own roof line (height by
-   * lateral distance and by station), so it meets the overhead panel, side walls and windshield header.
-   */
-  private ceiling(): THREE.Mesh {
-    const lerp = (pts: number[][], v: number) => {
-      if (v <= pts[0][0]) return pts[0][1];
-      for (let i = 1; i < pts.length; i++) if (v <= pts[i][0]) return pts[i - 1][1] + ((v - pts[i - 1][0]) / (pts[i][0] - pts[i - 1][0])) * (pts[i][1] - pts[i - 1][1]);
-      return pts[pts.length - 1][1];
-    };
-    const hx = [[0, 168], [30, 164], [40, 158], [50, 148], [56, 137], [60, 123]]; // by |x|
-    const hz = [[-60, 166], [0, 160], [40, 152], [60, 147], [78, 140], [84, 138]]; // by z (station)
-    const NX = 30, NZ = 20, X = 62, Z0 = -60, Z1 = 80;
-    const pos: number[] = [], idx: number[] = [];
-    for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
-      const x = -X + (2 * X * i) / NX, z = Z0 + ((Z1 - Z0) * j) / NZ;
-      pos.push(x, Math.min(lerp(hx, Math.abs(x)), lerp(hz, z)) - 0.4, z);
-    }
-    for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
-      const a = j * (NX + 1) + i;
-      idx.push(a, a + 1, a + NX + 1, a + 1, a + NX + 2, a + NX + 1);
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setIndex(idx);
-    g.computeVertexNormals();
-    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x4a4e54, roughness: 0.95, side: THREE.DoubleSide, emissive: 0x15171a }));
-    m.frustumCulled = false;
-    return m;
   }
 
   /** Screen quads: model-space rectangle (x range, y range at z) showing a UV crop of the canvas. */

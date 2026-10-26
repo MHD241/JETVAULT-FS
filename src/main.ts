@@ -819,7 +819,7 @@ class App implements MenuHost {
         cam.position.x += (Math.sin(t * 61) + Math.sin(t * 97)) * k; cam.position.y += (Math.sin(t * 73) + Math.sin(t * 113 + 1)) * k; cam.position.z += Math.sin(t * 83 + 2) * k;
         cam.rotateZ(Math.sin(t * 47) * 0.012 * b);
       }
-      const warn = !sim.paused && !ac.onGround && !ac.crashed && (ac.stallWarning || b > 0.1);
+      const warn = !sim.paused && !ac.onGround && !ac.crashed && b > 0.25; // only when really at the stall, not at the early warning
       this.stallEl.style.display = warn ? 'block' : 'none';
       if (warn) this.stallEl.style.opacity = b > 0.4 || Math.floor(performance.now() / 250) % 2 === 0 ? '1' : '0.35';
     }

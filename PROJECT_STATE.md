@@ -257,6 +257,12 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - **737 cockpit on phones:** the detailed cockpit model (same as desktop, animated yokes/levers, live displays) now loads on touch devices too, unless the LOW preset (render scale below 0.72) is chosen. Seen in a headless phone-size screenshot. **Real phone frame rate is NOT tested**: it adds about 235k triangles; if it is slow, use Settings -> Graphics -> LOW (simple cockpit). I could not make a lighter copy (the converter keeps ~200k triangles even at 0.02).
 - Files: `src/sim/fdm/aircraft.ts`, `src/sim/aircraft/{c172,b738,glider}.ts`, `src/render/{tyreSmoke,b737Model,airportMesh}.ts`, `src/sim/marshal.ts`, `src/main.ts`, tests `marshal.test.ts`, `collision.test.ts`, `b738.test.ts`.
 
+## Update 38 — "open roof" cause found, stall buffet softened
+- **Cockpit roof:** the uploaded cockpit model does contain a roof/headliner; it was invisible from inside because its faces point outward and the renderer culls back faces. The cockpit material is now double-sided, so the full model's own roof shows (my earlier added fake roof is removed). Seen in headless screenshots (looking up and forward): the roof is a plain light-grey surface (the model has no textures); the overhead panel and glareshield are visible. This is the full converted cockpit (about 235k triangles, shown on desktop and on phones unless Settings -> Graphics -> LOW).
+- **Lag:** I can only render in software here (no GPU), so I cannot tell you whether it lags on your device. Use the FPS overlay (debug key) in the cockpit view on your phone/PC; if it is slow, choose LOW (simple cockpit) and tell me the device and FPS so I can build a lighter copy.
+- **Stall too early:** the buffet/shake now starts 0.5 deg of angle of attack before the stall-warning angle (was 3 deg), is weaker (shake moments ~45 % of before) and the red STALL banner only shows when really stalled (not at the early warning). Actual stall angle and speed are unchanged (aerodynamics untouched; stall test still passes).
+- Files: `src/render/cockpit737.ts`, `src/sim/fdm/aircraft.ts`, `src/main.ts`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
