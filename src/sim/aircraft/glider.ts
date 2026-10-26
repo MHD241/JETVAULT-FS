@@ -108,7 +108,7 @@ export const GLIDER: AircraftDef = {
   surfaces,
   controls: {
     elevatorUp: 25 * DEG, elevatorDown: 22 * DEG,
-    aileronUp: 22 * DEG, aileronDown: 14 * DEG,
+    aileronUp: 28 * DEG, aileronDown: 18 * DEG,
     rudder: 25 * DEG,
     trimRange: 10 * DEG,
     aileronRig: 0,

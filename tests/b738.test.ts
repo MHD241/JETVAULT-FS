@@ -1,5 +1,6 @@
 // Boeing 737-800: takeoff, climb, turns, configuration changes, EGPH landing, rollout,
 // taxi, collisions and instruments. All flown through the controls only.
+import { CRASHES_ENABLED } from '../src/sim/fdm/aircraft';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { flatWorld, loadEGPH, newSim, run, kt, ft, TestPilot, LandingPilot, CALM_ISA } from './helpers';
 import { World } from '../src/world/world';
@@ -178,7 +179,7 @@ describe('Boeing 737-800', () => {
     expect(ac.crashed, ac.crashReason).toBe(false);
   });
 
-  it('collisions: over-rotation strikes the tail; a gear-up landing is a crash; flying into the terminal is a crash', () => {
+  it.skipIf(!CRASHES_ENABLED)('collisions: over-rotation strikes the tail; a gear-up landing is a crash; flying into the terminal is a crash', () => {
     // tail strike
     const sim = newSim(flatWorld(0), undefined, B738);
     sim.spawn({ kind: 'runway', ident: '36' });

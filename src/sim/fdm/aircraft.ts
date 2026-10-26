@@ -126,6 +126,9 @@ export interface SurfaceRuntime {
   force: Vec3;
 }
 
+/** Crashes are switched off for now: hard landings, collisions and ditching no longer destroy the aircraft. */
+export const CRASHES_ENABLED = false;
+
 export class Aircraft {
   readonly def: AircraftDef;
   pos = new Vec3();
@@ -182,6 +185,8 @@ export class Aircraft {
   maxLoadFactor = 1;
   minLoadFactor = 1;
   stallWarning = false;
+  /** Stall buffet intensity 0..1 (rises from ~3 deg before the stall warning angle; drives shake and the physical buffet moments). */
+  buffet = 0;
   fuelStarved = false;
 
   constructor(def: AircraftDef) {
@@ -502,6 +507,22 @@ export class Aircraft {
     const Fw = this.q.rotate(F).add(new Vec3(0, 0, this.mass * 9.80665));
     this.vel.addScaled(Fw, dt / this.mass);
     this.pos.addScaled(this.vel, dt);
+    // Stall buffet: separated flow shakes the airframe. Pre-stall onset a few degrees below the warning angle, full at the stall.
+    {
+      let stallMax = 0;
+      for (const s of this.surfaces) if (s.def.role === 'wing') stallMax = Math.max(stallMax, s.stall);
+      const pre = clamp((this.alpha / DEG - (d.stallWarnAlpha - 3 - 0.15 * (this.flap / DEG))) / 3, 0, 1) * 0.45;
+      const target = this.onGround || this.tas < 15 ? 0 : Math.max(stallMax, pre);
+      this.buffet += (target - this.buffet) * Math.min(1, dt * 8);
+      if (this.buffet > 0.01) {
+        const t = this.time;
+        const n1 = Math.sin(t * 37.1) * 0.6 + Math.sin(t * 53.7 + 1.3) * 0.4, n2 = Math.sin(t * 29.3 + 0.7) * 0.6 + Math.sin(t * 61.9) * 0.4, n3 = Math.sin(t * 17.7 + 2.1);
+        const k = this.buffet * this.buffet;
+        M.x += this.inertia.ixx * 1.6 * k * n1;
+        M.y += this.inertia.iyy * 0.9 * k * n2;
+        M.z += this.inertia.izz * 0.5 * k * n3;
+      }
+    }
     const Iw = this.inertia.mul(this.omega);
     const wdot = this.inertia.solve(M.sub(this.omega.cross(Iw)));
     this.omega.addScaled(wdot, dt);
@@ -513,7 +534,7 @@ export class Aircraft {
     // --- Damage / crash detection
     for (const e of ev) {
       this.events.push(e);
-      if (e.fatal && !this.crashed) {
+      if (e.fatal && !this.crashed && CRASHES_ENABLED) {
         this.crashed = true;
         this.crashReason = e.kind === 'building' ? `Collision with ${e.name}`
           : e.kind === 'prop' ? 'Propeller strike'

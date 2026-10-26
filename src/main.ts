@@ -36,6 +36,7 @@ import { CrashFx } from './render/crashFx';
 import { Buggy, launchPoints, nearestLaunchPoint, LaunchPoint, BUGGY_MAX_SPEED } from './sim/buggy';
 import { TreeField, FieldScenery, BuggyModel } from './render/gliderField';
 import { GroundVehicles } from './render/groundVehicles';
+import { TyreSmoke } from './render/tyreSmoke';
 import { MarshalFigure } from './render/marshalFigure';
 import { marshalCall, MarshalSignal } from './sim/marshal';
 import { findGateSites } from './world/obstacles';
@@ -87,6 +88,8 @@ class App implements MenuHost {
   private buggyModel = new BuggyModel();
   private retrieving = false;
   private winchFx = 0;
+  private tyreSmoke = new TyreSmoke();
+  private stallEl!: HTMLDivElement;
   // stand marshal
   private marshalFig = new MarshalFigure();
   private marshalStand: { east: number; north: number; heading: number } | null = null;
@@ -183,7 +186,11 @@ class App implements MenuHost {
     this.launchBtn.style.display = 'none';
     document.body.appendChild(this.launchBtn);
     this.launchBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('launch'); });
-    this.scene.add(this.buggyModel.group, this.marshalFig.group);
+    this.scene.add(this.buggyModel.group, this.marshalFig.group, this.tyreSmoke.group);
+    this.stallEl = document.createElement('div');
+    this.stallEl.textContent = 'STALL';
+    this.stallEl.style.cssText = 'position:fixed;left:50%;top:22%;transform:translateX(-50%);padding:6px 22px;border-radius:8px;background:rgba(200,30,30,0.85);color:#fff;font:800 28px system-ui,sans-serif;letter-spacing:0.12em;display:none;z-index:6;pointer-events:none';
+    document.body.appendChild(this.stallEl);
     {
       // soft contact shadow under the aircraft (ambient occlusion on the ground), on top of the sun shadow
       const cv = document.createElement('canvas'); cv.width = cv.height = 128;
@@ -309,6 +316,7 @@ class App implements MenuHost {
       this.scene.add(trees.group);
       gateStands = findGateSites(airport.gates ?? [], lp.buildings).map((s) => ({ east: s.stand[0], north: s.stand[1], heading: (s.stand[2] * Math.PI) / 180 }));
       const sites = gateStands;
+      ar.addLeadIns(gateStands);
       if (sites.length) {
         const veh = new GroundVehicles(sites, (e, n) => this.world.terrain.heightAt(e, n));
         extras.push(veh.group);
@@ -385,7 +393,7 @@ class App implements MenuHost {
       m.loadReal('./models/b738.fbx').catch((e) => console.warn('737 model not loaded, using the procedural one', e));
     }
     this.cockpit = glider ? new GliderCockpit() : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
-    if (jet && !IS_TOUCH) (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e));
+    if (jet && this.graphics.renderScale > 0.72) (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e));
     this.aircraftGroup.add(this.model.root, this.cockpit.root);
     if (this.rig) {
       this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
@@ -736,6 +744,7 @@ class App implements MenuHost {
       if (!sim.paused && this.simple.assists) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
     this.updateBuggy(dt);
+    if (!sim.paused) this.tyreSmoke.update(dt, ac, (e, n) => this.world.terrain.heightAt(e, n));
     this.updateMarshal(dt);
     if (!ac.crashed) nedToThree(ac.vel, this.lastVel);
     sim.advance(dt);
@@ -802,6 +811,18 @@ class App implements MenuHost {
     }
     this.rig.update(ac, dt);
     const cam = this.rig.camera;
+    {
+      // stall: the camera shudders with the airframe buffet and a banner flashes while the aircraft is stalled / about to
+      const b = sim.paused ? 0 : ac.buffet;
+      if (b > 0.03) {
+        const k = 0.05 * b * b + 0.004 * b, t = performance.now() / 1000;
+        cam.position.x += (Math.sin(t * 61) + Math.sin(t * 97)) * k; cam.position.y += (Math.sin(t * 73) + Math.sin(t * 113 + 1)) * k; cam.position.z += Math.sin(t * 83 + 2) * k;
+        cam.rotateZ(Math.sin(t * 47) * 0.012 * b);
+      }
+      const warn = !sim.paused && !ac.onGround && !ac.crashed && (ac.stallWarning || b > 0.1);
+      this.stallEl.style.display = warn ? 'block' : 'none';
+      if (warn) this.stallEl.style.opacity = b > 0.4 || Math.floor(performance.now() / 250) % 2 === 0 ? '1' : '0.35';
+    }
     // winch launch: widen the view and shake the camera while the cable is dragging the glider up
     const winching = !!ac.cable && !ac.cable.tow && ac.cableTension > 200 && !sim.paused;
     this.winchFx += ((winching ? Math.min(1, ac.cas / 18) : 0) - this.winchFx) * (1 - Math.exp(-dt * (winching ? 4 : 1.5)));

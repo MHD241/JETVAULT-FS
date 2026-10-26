@@ -129,7 +129,7 @@ export const C172: AircraftDef = {
   surfaces,
   controls: {
     elevatorUp: 28 * DEG, elevatorDown: 23 * DEG,
-    aileronUp: 20 * DEG, aileronDown: 15 * DEG,
+    aileronUp: 30 * DEG, aileronDown: 22 * DEG, // 1.5x the nominal travel: livelier roll (owner request)
     rudder: 17 * DEG,
     trimRange: 12 * DEG,
     aileronRig: 0.0165, // balances propeller torque at cruise power

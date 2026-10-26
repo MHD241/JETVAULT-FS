@@ -284,9 +284,35 @@ export class AirportRenderer {
     this.group.add(mesh);
   }
 
+  /** Yellow stand lead-in line (70 m, along the parking heading) ending in a stop bar at each gate's stop mark. */
+  addLeadIns(sites: { east: number; north: number; heading: number }[]) {
+    const pos: number[] = [], idx: number[] = [];
+    const quad = (cx: number, cy: number, ax: number, ay: number, len0: number, len1: number, hw: number) => {
+      // strip along (ax, ay) from len0 to len1 (m from the stop mark), half-width hw; right vector = (ay, -ax)
+      const rx = ay * hw, ry = -ax * hw, v = pos.length / 3;
+      for (const [l, s] of [[len0, -1], [len0, 1], [len1, -1], [len1, 1]] as const) {
+        const e = cx + ax * l + rx * s, n = cy + ay * l + ry * s;
+        pos.push(e, this.h(e, n) + 0.07, -n);
+      }
+      idx.push(v, v + 1, v + 2, v + 1, v + 3, v + 2);
+    };
+    for (const s of sites) {
+      const ax = -Math.sin(s.heading), ay = -Math.cos(s.heading); // from the stop mark back along the approach
+      for (let l = 0; l < 70; l += 7) quad(s.east, s.north, ax, ay, l, Math.min(70, l + 5), 0.3);
+      quad(s.east, s.north, ax, ay, -0.3, 0.3, 4); // stop bar across the line
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(idx);
+    g.computeVertexNormals();
+    const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xf0c020, roughness: 0.7, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 }));
+    mesh.name = 'stand lead-in lines';
+    this.group.add(mesh);
+  }
+
   private buildTaxiwayLines() {
     const pos: number[] = [], idx: number[] = [];
-    const w = 0.15;
+    const w = 0.32;
     for (const line of this.ap.taxiways) {
       // resample every 4 m so the line follows the terrain
       const pts: [number, number][] = [];

@@ -1,4 +1,5 @@
 // Crash and collision detection against real EGPH terrain and buildings.
+import { CRASHES_ENABLED } from '../src/sim/fdm/aircraft';
 import { describe, it, expect, beforeAll } from 'vitest';
 import { loadEGPH, flatWorld, newSim, run, CALM_ISA, LandingPilot, TestPilot } from './helpers';
 import { World } from '../src/world/world';
@@ -8,7 +9,8 @@ import { runwayEnd } from '../src/world/airport';
 let world: World;
 beforeAll(async () => { world = await loadEGPH(); });
 
-describe('crash and collision detection', () => {
+// Crashes are switched off for now (CRASHES_ENABLED = false in sim/fdm/aircraft.ts); these tests run again when it is switched back on.
+describe.skipIf(!CRASHES_ENABLED)('crash and collision detection', () => {
   it('a steep dive into the ground is detected as a crash', () => {
     const sim = newSim(flatWorld(0));
     sim.spawn({ kind: 'runway', ident: '36' });

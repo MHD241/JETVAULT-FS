@@ -315,8 +315,20 @@ export class B737Model {
     return g;
   }
 
+  /** Wing flex: tip rise in model units, driven by a spring-damper so the wings bounce when the load changes. */
+  private flexU = { value: 0 };
+  private flexPos = 0; private flexVel = 0;
+
   update(ac: Aircraft, c: FlightControls, dt: number, night: number) {
     this.t += dt;
+    {
+      // lift carried by the wings bends the tips up: ~0.8 m at 1 g in the air (less with fuel in the wings), more in turns and gusts; none on the ground
+      const target = ac.onGround && ac.tas < 40 ? 0 : 1.1 * Math.max(-0.5, Math.min(3, ac.loadFactor)) + 0.05 * ac.buffet;
+      const w = 9, z = 0.3, h = Math.min(dt, 0.05);
+      this.flexVel += (w * w * (target - this.flexPos) - 2 * z * w * this.flexVel) * h;
+      this.flexPos += this.flexVel * h;
+      this.flexU.value = this.flexPos * (1404.4 / 35.79);
+    }
     for (const f of this.flaps) f.rotation.y = ac.flap;
     this.ailL.rotation.y = ac.aileronL;
     this.ailR.rotation.y = ac.aileronR;
@@ -409,6 +421,12 @@ export class B737Model {
       else if (lum < 0.1 && (old.specular?.r ?? 0) > 0.05) r = new THREE.MeshPhysicalMaterial({ ...base, roughness: 0.06, metalness: 0.0, clearcoat: 1, clearcoatRoughness: 0.03 }); // glass
       else if (lum < 0.07) r = new THREE.MeshStandardMaterial({ ...base, roughness: 0.9, metalness: 0 }); // rubber, dark trim
       else r = new THREE.MeshPhysicalMaterial({ ...base, roughness: 0.33, metalness: 0.75, clearcoat: 0.3, clearcoatRoughness: 0.2 }); // engine, gear, bare metal
+      r.onBeforeCompile = (sh) => {
+        sh.uniforms.uFlex = this.flexU;
+        sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uFlex;')
+          .replace('#include <begin_vertex>', '#include <begin_vertex>\nfloat flexT = clamp((abs(position.x) - 90.0) / 600.0, 0.0, 1.0);\ntransformed.y += uFlex * flexT * flexT;');
+      };
+      r.customProgramCacheKey = () => 'b737flex';
       r.userData.envI = lum > 0.6 ? 2.0 : lum < 0.07 ? 0.4 : 2.2;
       pbr.set(mat, r);
       return r;

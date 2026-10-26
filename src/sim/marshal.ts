@@ -30,21 +30,25 @@ export function marshalCall(st: MarshalStand, a: MarshalAircraft): MarshalCall {
   const along = dx * fx + dy * fy, lateral = dx * rx + dy * ry;
   const distance = -along;
   // aim at the centreline: the line from the aircraft to a point on it ~one aircraft-length ahead of where it is now
-  const aim = Math.max(18, distance * 0.75);
+  const aim = Math.max(10, distance * 0.6);
   const want = st.heading - Math.atan2(Math.max(-30, Math.min(30, lateral)), aim);
   const turn = wrap(want - a.heading);
   const turnDeg = (turn * 180) / Math.PI;
+  const headErr = (wrap(a.heading - st.heading) * 180) / Math.PI; // + = nose right of the stand heading
   const mk = (signal: MarshalSignal, text: string): MarshalCall => ({ signal, distance, lateral, turnDeg, text });
-  if (distance < -2.5) return mk('overshoot', 'MARSHAL: STOP - you are past the stop mark. Set the brake; ask for pushback to reposition');
+  if (distance < -1.5) return mk('overshoot', 'MARSHAL: STOP - you are past the stop mark. Set the brake; ask for pushback to reposition');
   const stopped = a.speed < 0.4;
+  const crooked = Math.abs(headErr) > 3 || Math.abs(lateral) > 0.8;
   if (distance < 1.0 || (stopped && distance < 2.0)) {
     if (!a.parkingBrake) return mk('stop', 'MARSHAL: STOP - set the parking brake (K)');
-    if (a.enginesRunning) return mk('engines', 'MARSHAL: cut the engines (use the mixture/cut-off or throttle idle; the bridge can now connect)');
-    return mk('brakes', 'MARSHAL: parked. Chocks in. Connect the jet bridge (J)');
+    if (crooked) return mk('stop', `MARSHAL: NOT PARKED STRAIGHT - nose ${Math.abs(headErr).toFixed(0)} deg ${headErr > 0 ? 'right' : 'left'}, ${Math.abs(lateral).toFixed(1)} m ${lateral > 0 ? 'right' : 'left'} of the line. Release the brake and ask for pushback to straighten up`);
+    if (a.enginesRunning) return mk('engines', 'MARSHAL: cut the engines (the bridge can now connect)');
+    return mk('brakes', 'MARSHAL: parked on the line. Chocks in. Connect the jet bridge (J)');
   }
-  if (Math.abs(lateral) > 1.2 && distance < 10) return mk('stop', `MARSHAL: STOP - ${Math.abs(lateral).toFixed(1)} m ${lateral > 0 ? 'right' : 'left'} of the centreline, you cannot be corrected here`);
-  if (distance < 12 || (distance < 22 && a.speed > 3.5)) return mk('slow', `MARSHAL: slow - ${Math.max(0, distance).toFixed(0)} m to stop`);
-  if (turnDeg > 7) return mk('right', `MARSHAL: turn right  (${Math.round(distance)} m to go)`);
-  if (turnDeg < -7) return mk('left', `MARSHAL: turn left  (${Math.round(distance)} m to go)`);
+  if (Math.abs(lateral) > 0.8 && distance < 8) return mk('stop', `MARSHAL: STOP - ${Math.abs(lateral).toFixed(1)} m ${lateral > 0 ? 'right' : 'left'} of the centreline, you cannot be corrected here`);
+  if (distance < 14 && Math.abs(headErr) > 6) return mk('stop', `MARSHAL: STOP - not lined up (nose ${Math.abs(headErr).toFixed(0)} deg ${headErr > 0 ? 'right' : 'left'}). Stop and ask for pushback`);
+  if (distance < 10 || (distance < 20 && a.speed > 3.0)) return mk('slow', `MARSHAL: slow - ${Math.max(0, distance).toFixed(0)} m to stop`);
+  if (turnDeg > 3) return mk('right', `MARSHAL: turn right  (${Math.round(distance)} m to go)`);
+  if (turnDeg < -3) return mk('left', `MARSHAL: turn left  (${Math.round(distance)} m to go)`);
   return mk('ahead', `MARSHAL: come ahead - ${Math.round(distance)} m to stop`);
 }

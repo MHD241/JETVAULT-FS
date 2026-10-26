@@ -12,12 +12,17 @@ describe('stand marshal', () => {
     expect(c.signal).toBe('left'); expect(c.lateral).toBeGreaterThan(7);
   });
   it('tells you to turn right when you are left of the centreline', () => expect(marshalCall(st, ac(-8, -60)).signal).toBe('right'));
-  it('stops asking for a turn once pointed at the line', () => expect(marshalCall(st, ac(8, -60, -0.12)).signal).toBe('ahead'));
+  it('stops asking for a turn once pointed at the line', () => expect(marshalCall(st, ac(8, -60, -0.215)).signal).toBe('ahead'));
   it('says slow near the stop mark', () => expect(marshalCall(st, ac(0, -9, 0, 3)).signal).toBe('slow'));
   it('says stop on the mark, then engines off, then parked', () => {
     expect(marshalCall(st, ac(0, -0.3, 0, 1)).signal).toBe('stop');
     expect(marshalCall(st, ac(0, -0.3, 0, 0, true, true)).signal).toBe('engines');
     expect(marshalCall(st, ac(0, -0.3, 0, 0, true, false)).signal).toBe('brakes');
+  });
+  it('refuses a crooked park: nose 8 deg off, or 1.5 m off the line, at the stop mark', () => {
+    expect(marshalCall(st, ac(0, -0.3, 0.14, 0, true, false)).signal).toBe('stop');
+    expect(marshalCall(st, ac(1.5, -0.3, 0, 0, true, false)).signal).toBe('stop');
+    expect(marshalCall(st, ac(0.3, -0.3, 0.02, 0, true, false)).signal).toBe('brakes');
   });
   it('flags an overshoot', () => expect(marshalCall(st, ac(0, 4)).signal).toBe('overshoot'));
   it('works for any stand heading', () => {

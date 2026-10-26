@@ -107,7 +107,7 @@ export const B738: AircraftDef = {
   ],
   controls: {
     elevatorUp: 22 * DEG, elevatorDown: 15 * DEG,
-    aileronUp: 20 * DEG, aileronDown: 15 * DEG,
+    aileronUp: 30 * DEG, aileronDown: 22 * DEG, // 1.5x the nominal travel: livelier roll (owner request)
     rudder: 26 * DEG,
     trimRange: 9 * DEG, // stabiliser trim expressed as equivalent elevator (ESTIMATE)
     aileronRig: 0,
