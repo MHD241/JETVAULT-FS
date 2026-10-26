@@ -373,7 +373,7 @@ export class B737Model {
   }
 
   setCockpitView(inCockpit: boolean) {
-    this.fuselageMesh.visible = !inCockpit;
+    if (!this.glbLoaded) this.fuselageMesh.visible = !inCockpit; // the procedural body stays hidden once the supplied model is in
     if (this.real) this.real.visible = !inCockpit;
   }
 
@@ -418,6 +418,8 @@ export class B737Model {
     wrap.matrixAutoUpdate = false; wrap.matrix.copy(M); wrap.add(root);
     this.rig = null;
     // the glb has no landing gear: keep only the procedural gear (which follows the flight model) from the old exterior
+    this.glbLoaded = true;
+    this.fuselageMesh.visible = false;
     for (const c of this.exterior.children) if (!this.mainGear.includes(c as THREE.Group) && c !== this.noseGear) c.visible = false;
     if (this.real) this.root.remove(this.real);
     this.root.add(wrap);
@@ -425,6 +427,7 @@ export class B737Model {
     wrap.visible = true;
     void size; void ctr;
   }
+  glbLoaded = false;
   glbRoot: THREE.Object3D | null = null;
   glbBox: THREE.Box3 | null = null;
 
