@@ -401,7 +401,7 @@ export class B737Model {
     const M = new THREE.Matrix4().set(
       0, 0, k * noseDir, 19.4 - k * noseDir * (noseDir > 0 ? box.max.z : box.min.z),
       k * -noseDir, 0, 0, k * ctr.x * noseDir,
-      0, -k, 0, k * 0.1 - 2.05, // lowest real geometry (engine nacelles, y = 0.1; a stray 1-triangle outlier at y = -5 is ignored) sits 2.0 m below the datum
+      0, -k, 0, k * 0.1 - 1.05, // lowest real geometry (engine nacelles, y = 0.1; a stray 1-triangle outlier at y = -5 is ignored) sits 3.0 m below the datum (lowered so the body meets the gear tops)
       0, 0, 0, 1,
     );
     root.traverse((o) => {

@@ -37,7 +37,7 @@ export class Cockpit737Model {
   private gearPos = 0;
   private sbPos = 0;
   private flapPos = 0;
-  private mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.05, emissive: 0x15171a, side: THREE.DoubleSide });
+  private mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, emissive: 0x050607, side: THREE.DoubleSide, color: 0x474a4d, envMapIntensity: 0.25 }); // dark flight deck: the raw model colours blow out under the outdoor sun
 
   static async load(url: string): Promise<Cockpit737Model> {
     const [meta, buf] = await Promise.all([fetch(`${url}.json`).then((r) => r.json()), fetch(`${url}.bin`).then((r) => r.arrayBuffer())]);
