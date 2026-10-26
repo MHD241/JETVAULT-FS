@@ -390,7 +390,7 @@ class App implements MenuHost {
     this.model = glider ? new GliderModel() : jet ? new B737Model() : new C172Model();
     if (this.model instanceof B737Model) {
       const m = this.model;
-      m.loadReal('./models/b738.fbx').catch((e) => console.warn('737 model not loaded, using the procedural one', e));
+      (new URLSearchParams(location.search).has('oldmodel') ? m.loadReal('./models/b738.fbx') : m.loadGlb('./models/b738_geo.glb')).catch((e) => console.warn('737 model not loaded, using the procedural one', e));
     }
     this.cockpit = glider ? new GliderCockpit() : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
     if (jet && this.graphics.renderScale > 0.72) (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e));

@@ -382,6 +382,52 @@ export class B737Model {
    * supplied) and swaps it in for the procedural exterior. Parts are static except the landing gear, which
    * is picked out by position (low, near the main or nose gear) and hidden when the gear is up.
    */
+  /**
+   * Loads the supplied low-poly glTF 737 (13k triangles, textured, one mesh made of many parts) as the exterior.
+   * No separate control surfaces exist in the file, so the surface/flap/gear animation is not available for it.
+   */
+  async loadGlb(url: string) {
+    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+    const gltf = await new GLTFLoader().loadAsync(url);
+    const root = gltf.scene;
+    root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3()), ctr = box.getCenter(new THREE.Vector3());
+    const parts: string[] = [];
+    root.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) parts.push(`${m.name}:${(m.geometry.index?.count ?? 0) / 3}`); });
+    console.info('737 glb bbox', box.min.toArray().map((v) => v.toFixed(2)), box.max.toArray().map((v) => v.toFixed(2)), 'parts', parts.length);
+    (window as unknown as { __glb?: unknown }).__glb = { size: size.toArray(), ctr: ctr.toArray(), parts };
+    // glb axes: x = span (left is +x), y up, z = length (nose +z). Body frame: x forward, y right, z down; wheels' lowest point on z = 0.
+    const k = 35.79 / size.x, noseDir = 1;
+    const M = new THREE.Matrix4().set(
+      0, 0, k * noseDir, 19.4 - k * noseDir * (noseDir > 0 ? box.max.z : box.min.z),
+      -k, 0, 0, k * ctr.x,
+      0, -k, 0, k * 0.1 - 2.05, // lowest real geometry (engine nacelles, y = 0.1; a stray 1-triangle outlier at y = -5 is ignored) sits 2.0 m below the datum
+      0, 0, 0, 1,
+    );
+    root.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      m.castShadow = true; m.receiveShadow = true;
+      for (const mat of ([] as THREE.Material[]).concat(m.material)) {
+        const st = mat as THREE.MeshStandardMaterial;
+        if (st.isMeshStandardMaterial) { st.metalness = Math.min(st.metalness, 0.2); st.roughness = Math.max(0.35, Math.min(st.roughness, 0.6)); st.side = THREE.DoubleSide; }
+      }
+    });
+    this.restMatrix.copy(M);
+    const wrap = new THREE.Group();
+    wrap.matrixAutoUpdate = false; wrap.matrix.copy(M); wrap.add(root);
+    this.rig = null;
+    // the glb has no landing gear: keep only the procedural gear (which follows the flight model) from the old exterior
+    for (const c of this.exterior.children) if (!this.mainGear.includes(c as THREE.Group) && c !== this.noseGear) c.visible = false;
+    if (this.real) this.root.remove(this.real);
+    this.root.add(wrap);
+    this.real = wrap;
+    wrap.visible = true;
+    void size; void ctr;
+  }
+  glbRoot: THREE.Object3D | null = null;
+  glbBox: THREE.Box3 | null = null;
+
   async loadReal(url: string) {
     const { FBXLoader } = await import('three/examples/jsm/loaders/FBXLoader.js');
     const mgr = new THREE.LoadingManager();

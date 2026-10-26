@@ -263,6 +263,13 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - **Stall too early:** the buffet/shake now starts 0.5 deg of angle of attack before the stall-warning angle (was 3 deg), is weaker (shake moments ~45 % of before) and the red STALL banner only shows when really stalled (not at the early warning). Actual stall angle and speed are unchanged (aerodynamics untouched; stall test still passes).
 - Files: `src/render/cockpit737.ts`, `src/sim/fdm/aircraft.ts`, `src/main.ts`.
 
+## Update 39 — new 737 exterior (supplied glTF)
+- Your `b737.glb` is an old **glTF 1.0** file, which three.js cannot read, so I upgraded it to glTF 2.0 with `gltf-pipeline` and shipped it as `public/models/b738_geo.glb` (0.8 MB, 13k triangles, textured; the old `b738.fbx` stays in the repo and loads with `?oldmodel` in the address). The whole plane is one mesh: it is the **default 737 exterior now**.
+- Fit: scaled to the 737's 35.79 m wingspan (the model is shorter than a real -800: 34.9 m long), nose and wing sit where the flight model expects, wheels touch the ground in screenshots. The file has a stray 1-triangle outlier below the plane, which I ignore.
+- **What is lost compared with the previous model:** the file has **no separate control surfaces, flaps, spoilers or gear**, so ailerons, elevators, rudder, flaps and slats no longer move on the outside (the cockpit controls still move). I kept the procedural landing gear (it retracts, steers and compresses with the flight model) because the glTF has none; it looks plainer than the rest. The livery in the texture (a blue nose cone and blue cheat line) is whatever airline paint the file has; I did not repaint it. Engine fans do not spin.
+- **Licence warning:** the file looks like it comes from a flight-simulator project (AC3D-style material names). I do not know its licence; before you publish or sell the game, confirm you may use it (as you did for the cockpit) and keep that on record.
+- Files: `src/render/b737Model.ts` (`loadGlb`), `src/main.ts`, `public/models/b738_geo.glb`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
