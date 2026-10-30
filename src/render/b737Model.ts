@@ -251,7 +251,7 @@ export class B737Model {
       this.mainGear.push(g);
       this.exterior.add(g);
     }
-    this.noseGear.position.set(14.1, 0, 1.6);
+    this.noseGear.position.set(14.1, 0, 1.67); // wheel bottom matches 4.05 m tyre contact plane
     this.noseGear.add(strut(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 1.7), 0.09, 0.08, chrome));
     this.noseSteer.position.set(0, 0, 1.7);
     for (const dy of [-0.28, 0.28]) { const w = wheel(0.38, 0.24); w.position.set(-0.1, dy, 0.3); this.noseSteer.add(w); this.wheels.push(w); }
@@ -420,7 +420,7 @@ export class B737Model {
     wrap.matrixAutoUpdate = false; wrap.matrix.copy(M); wrap.add(root);
     this.rig = new B737GlbRig(root);
     console.info('737 glTF rig:', this.rig.report.join('; '));
-    // the glb has no landing gear: keep only the procedural gear (which follows the flight model) from the old exterior
+    // New glTF has no gear meshes. Keep the procedural assemblies attached at the FDM wheel contact coordinates.
     this.glbLoaded = true;
     this.fuselageMesh.visible = false;
     for (const c of this.exterior.children) if (!this.mainGear.includes(c as THREE.Group) && c !== this.noseGear) c.visible = false;

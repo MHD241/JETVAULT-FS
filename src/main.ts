@@ -397,8 +397,11 @@ class App implements MenuHost {
     this.aircraftGroup.add(this.model.root, this.cockpit.root);
     if (this.rig) {
       this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
+      // 737 clean-view camera: higher/forward seating keeps the PFD and windshield unobstructed.
+      // No changes to aircraft physics or world coordinates.
+      if (jet) this.rig.eye.set(14.47, -0.53, -0.93);
       this.rig.chaseDist = jet ? 60 : glider ? 24 : 16;
-      this.rig.headPitch = jet ? -0.32 : -0.2;
+      this.rig.headPitch = jet ? -0.18 : -0.2;
       if (jet) this.rig.wingCam.set(-6, -21, -2.5); else if (glider) this.rig.wingCam.set(-0.5, -9.5, -1.0); else this.rig.wingCam.set(-1.2, -6.6, -1.6);
     }
     if (this.debug) { this.scene.remove(this.debug.group); this.debug = new DebugView(this.sim.aircraft, this.world); this.scene.add(this.debug.group); }

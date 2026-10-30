@@ -37,6 +37,9 @@ export class Cockpit737Model {
   private gearPos = 0;
   private sbPos = 0;
   private flapPos = 0;
+  // Clean forward view: hide control wheels that obscure the primary instruments.
+  // Their controls still work in the flight model.
+  private cleanView = true;
   private mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, emissive: 0x050607, side: THREE.DoubleSide, color: 0x474a4d, envMapIntensity: 0.25 }); // dark flight deck: the raw model colours blow out under the outdoor sun
 
   static async load(url: string): Promise<Cockpit737Model> {
@@ -68,6 +71,7 @@ export class Cockpit737Model {
       grp.position.copy(pivots[n]);
       this.root.add(grp);
       this.parts[n] = { group: grp, pivot: pivots[n] };
+      if (this.cleanView && (n === 'yokeCap' || n === 'yokeFO')) grp.visible = false;
     }
   }
 
