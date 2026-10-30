@@ -263,6 +263,13 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - **Stall too early:** the buffet/shake now starts 0.5 deg of angle of attack before the stall-warning angle (was 3 deg), is weaker (shake moments ~45 % of before) and the red STALL banner only shows when really stalled (not at the early warning). Actual stall angle and speed are unchanged (aerodynamics untouched; stall test still passes).
 - Files: `src/render/cockpit737.ts`, `src/sim/fdm/aircraft.ts`, `src/main.ts`.
 
+## Update 42 — Clean 737 pilot view and nose gear alignment (2026-10-30)
+- Detailed cockpit remains in use. The two separate animated yoke wheels are hidden in the *rendered* detailed cockpit to keep the PFD and forward view clear. This does not disable roll or pitch input. The static control columns in the third-party cockpit mesh have NOT been separated; some obstruction can remain. This is not a recreation of the GeoFS cockpit.
+- 737 pilot-eye view set at body (14.47, -0.53, -0.93) vs the aircraft definition (14.2, -0.53, -0.72); default head pitch relaxed from -0.32 to -0.18 radians. These are presentation/camera changes only.
+- Procedural 737 nose-gear mount lowered 0.07 m (body z 1.60 to 1.67), to align the tyre's lowest point with the flight-model 4.05 m contact plane. Main gear is unchanged: nominal wheel bottom = 1.50 + 1.99 + 0.56 = 4.05 m. The supplied glTF lacks gear geometry; true gear-to-fuselage visual alignment still requires an external side-view screenshot.
+- Verification: static source review and arithmetic only. TypeScript, unit tests, build, and browser screenshot NOT RUN in this environment; Node modules unavailable. No claim of visual correctness. Full project packaged with existing internal paths preserved.
+- Next: inspect visual result on user's machine/browser; adjust gear attachment positions in model frame if still offset; consider optional cockpit clean/detailed toggle once browser tested.
+
 ## Update 39 — new 737 exterior (supplied glTF)
 - Your `b737.glb` is an old **glTF 1.0** file, which three.js cannot read, so I upgraded it to glTF 2.0 with `gltf-pipeline` and shipped it as `public/models/b738_geo.bin (a .glb renamed so it can be published)` (0.8 MB, 13k triangles, textured; the old `b738.fbx` stays in the repo and loads with `?oldmodel` in the address). The whole plane is one mesh: it is the **default 737 exterior now**.
 - Fit: scaled to the 737's 35.79 m wingspan (the model is shorter than a real -800: 34.9 m long), nose and wing sit where the flight model expects, wheels touch the ground in screenshots. The file has a stray 1-triangle outlier below the plane, which I ignore.
