@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { B737Rig } from './b737Rig';
+import { B737GlbRig } from './b737GlbRig';
 import { Aircraft } from '../sim/fdm/aircraft';
 import { FlightControls } from '../sim/controls';
 import { naca, airfoilPart, loftWing, orient, strut } from './c172Model';
@@ -99,7 +100,7 @@ export class B737Model {
   private t = 0;
   /** Real 737-800 mesh (public/models/b738.fbx) once loaded; replaces the procedural exterior. */
   private real: THREE.Group | null = null;
-  private rig: B737Rig | null = null;
+  private rig: B737Rig | B737GlbRig | null = null;
   private restMatrix = new THREE.Matrix4();
 
   constructor() {
@@ -384,7 +385,8 @@ export class B737Model {
    */
   /**
    * Loads the supplied low-poly glTF 737 (13k triangles, textured, one mesh made of many parts) as the exterior.
-   * No separate control surfaces exist in the file, so the surface/flap/gear animation is not available for it.
+   * Some trailing-edge panels are identifiable by glTF primitive bounds and are rigged;
+   * the procedural landing gear stays active.
    */
   async loadGlb(url: string) {
     const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
@@ -416,7 +418,8 @@ export class B737Model {
     this.restMatrix.copy(M);
     const wrap = new THREE.Group();
     wrap.matrixAutoUpdate = false; wrap.matrix.copy(M); wrap.add(root);
-    this.rig = null;
+    this.rig = new B737GlbRig(root);
+    console.info('737 glTF rig:', this.rig.report.join('; '));
     // the glb has no landing gear: keep only the procedural gear (which follows the flight model) from the old exterior
     this.glbLoaded = true;
     this.fuselageMesh.visible = false;
