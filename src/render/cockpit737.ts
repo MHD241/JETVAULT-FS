@@ -58,7 +58,20 @@ export class Cockpit737Model {
     this.root.matrixAutoUpdate = false;
     this.root.matrix.copy(TO_BODY);
     const stat = meta.parts.static.opaque!;
-    const sm = new THREE.Mesh(geometry(buf, stat), this.mat);
+    const sg = geometry(buf, stat);
+    {
+      // Remove the window pillars and roof-corner structure that block the pilot's forward view: anything ahead of the
+      // pilot's face, above the glareshield line and outboard of the display panel (model units: x left, y up, z forward).
+      const P = sg.getAttribute('position'), I = sg.getIndex()!, keep: number[] = [];
+      for (let t = 0; t < I.count; t += 3) {
+        const a = I.getX(t), b = I.getX(t + 1), c = I.getX(t + 2);
+        const x = (P.getX(a) + P.getX(b) + P.getX(c)) / 3, y = (P.getY(a) + P.getY(b) + P.getY(c)) / 3, z = (P.getZ(a) + P.getZ(b) + P.getZ(c)) / 3;
+        const pillar = z > 66 && y > 124 && Math.abs(x) > 16;
+        if (!pillar) keep.push(a, b, c);
+      }
+      sg.setIndex(keep);
+    }
+    const sm = new THREE.Mesh(sg, this.mat);
     sm.frustumCulled = false;
     this.root.add(sm);
     // pivot points (model units) for each moving part
