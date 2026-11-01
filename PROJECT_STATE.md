@@ -295,6 +295,11 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 ## Update 43 — yokes
 - The round steering-wheel rims are replaced by Boeing-style control yokes (U-shaped bar with upturned grips, hub and trim dial) on both sides, moved 0.3 m forward (column base x = 14.72 m) so they sit close to the panel and out of the pilot's face. Pitch still moves the column and roll turns the yoke. Seen in a headless screenshot looking down at the panel. File: `src/render/cockpitOwn.ts`.
 
+## Update 44 — cockpit gaps closed, black colour scheme
+- Gaps closed: filler panels between the main panel ends and the walls, a bulkhead behind the glareshield, a footwell board under the panel, and the side consoles and pedestal now extend to the panel face. Checked in headless screenshots looking forward and sideways; I did not re-check every angle after the last tweak (looking up at the overhead and straight down).
+- Colours: all cockpit materials and textures changed to near-black (panel #14161a, trim #24272b, seats black) with minimal sky reflection, so the deck no longer looks white/light blue under the daytime sun. Tell me if it is now too dark and which parts to lift.
+- File: `src/render/cockpitOwn.ts`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

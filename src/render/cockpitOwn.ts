@@ -51,7 +51,7 @@ function mainPanelTexture() {
   const W = 2080, H = Math.round((W * PH) / PW);
   const [c, g] = canvas(W, H);
   const X = (u: number) => ((u + PW / 2) / PW) * W, Y = (v: number) => (v / PH) * H, S = (m: number) => (m / PW) * W;
-  const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#2d3034'); gr.addColorStop(1, '#202327');
+  const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#14161a'); gr.addColorStop(1, '#0d0e11');
   g.fillStyle = gr; g.fillRect(0, 0, W, H); speckle(g, W, H, 9000, 0.05);
   // display bezels
   const bez = (u: number, v: number, s: number) => { g.fillStyle = '#0a0b0c'; g.fillRect(X(u) - S(s / 2 + 0.012), Y(v) - S(s / 2 + 0.012), S(s + 0.024), S(s + 0.024)); g.strokeStyle = '#4a4e53'; g.lineWidth = 2; g.strokeRect(X(u) - S(s / 2 + 0.012), Y(v) - S(s / 2 + 0.012), S(s + 0.024), S(s + 0.024)); g.fillStyle = '#000'; g.fillRect(X(u) - S(s / 2), Y(v) - S(s / 2), S(s), S(s)); };
@@ -82,7 +82,7 @@ const DISPLAYS: [number, number][] = [[-0.80, 0.17], [-0.56, 0.17], [0, 0.17], [
 
 function overheadTexture() {
   const [c, g] = canvas(1024, 1024);
-  g.fillStyle = '#26292d'; g.fillRect(0, 0, 1024, 1024); speckle(g, 1024, 1024, 12000, 0.05);
+  g.fillStyle = '#121316'; g.fillRect(0, 0, 1024, 1024); speckle(g, 1024, 1024, 12000, 0.05);
   const secs = ['ELEC', 'FUEL', 'HYD', 'APU', 'ENG START', 'ANTI-ICE', 'AIR COND', 'PRESS', 'LIGHTS', 'FLT CONTROL', 'IRS', 'NAV'];
   secs.forEach((s, i) => {
     const x = 36 + (i % 4) * 246, y = 36 + Math.floor(i / 4) * 316;
@@ -95,7 +95,7 @@ function overheadTexture() {
 
 function pedestalTexture() {
   const [c, g] = canvas(300, 1000);
-  g.fillStyle = '#34383d'; g.fillRect(0, 0, 300, 1000); speckle(g, 300, 1000, 5000, 0.06);
+  g.fillStyle = '#17191c'; g.fillRect(0, 0, 300, 1000); speckle(g, 300, 1000, 5000, 0.06);
   for (const x of [20, 160]) { // two CDUs
     g.fillStyle = '#050607'; g.fillRect(x, 20, 120, 120); g.fillStyle = '#9cf0a8'; g.font = '700 12px monospace'; g.textAlign = 'left';
     ['  THRUST LIM', ' TO 1  24K', ' RTE   POS INIT', ' <INDEX     ACT>'].forEach((t, i) => g.fillText(t, x + 6, 40 + i * 26));
@@ -123,10 +123,10 @@ export class CockpitOwn {
 
   constructor(live: THREE.Texture, crops: { pfd: number[]; nd: number[]; eng: number[]; mcp: number[] }, cw: number, ch: number) {
     const R = this.root;
-    const dark = new THREE.MeshStandardMaterial({ color: 0x24272b, roughness: 0.8, emissive: 0x050607 });
-    const mid = new THREE.MeshStandardMaterial({ color: 0x3a3e43, roughness: 0.75, emissive: 0x070809 });
-    const light = new THREE.MeshStandardMaterial({ color: 0x5b6067, roughness: 0.9, emissive: 0x0d0e10 });
-    const black = new THREE.MeshStandardMaterial({ color: 0x0f1012, roughness: 0.6 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x0d0e10, roughness: 1, emissive: 0x020202 });
+    const mid = new THREE.MeshStandardMaterial({ color: 0x16181b, roughness: 1, emissive: 0x030303 });
+    const light = new THREE.MeshStandardMaterial({ color: 0x24272b, roughness: 1, emissive: 0x040404 });
+    const black = new THREE.MeshStandardMaterial({ color: 0x040405, roughness: 1 });
     const box = (m: THREE.Material, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, parent: THREE.Object3D = R) => {
       const b = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), m); b.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); parent.add(b); return b;
     };
@@ -136,7 +136,7 @@ export class CockpitOwn {
       p.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), b.clone().sub(a).normalize()); R.add(p); return p;
     };
     // ---- shell: floor, back bulkhead, side walls below the windows, ceiling, side windows' frames
-    box(new THREE.MeshStandardMaterial({ color: 0x1b1d20, roughness: 1 }), 12.4, 15.3, -1.5, 1.5, 0.42, 0.46);
+    box(new THREE.MeshStandardMaterial({ color: 0x0a0a0b, roughness: 1 }), 12.4, 15.3, -1.5, 1.5, 0.42, 0.46);
     box(dark, 12.35, 12.4, -1.5, 1.5, -1.3, 0.46);
     for (const s of [-1, 1]) {
       box(light, 12.4, 15.3, s * 1.5 - 0.03, s * 1.5 + 0.03, -0.42, 0.44); // wall below the window
@@ -152,11 +152,16 @@ export class CockpitOwn {
     post(dark, P(0, 0).add(new THREE.Vector3(0, 0, -0.04)), new THREE.Vector3(14.78, 0, -1.18), 0.035, 0.035);
     post(black, new THREE.Vector3(15.05, -1.45, -0.5), new THREE.Vector3(15.05, 1.45, -0.5), 0.05, 0.05);
     // ---- glareshield + main panel
-    box(black, 15.0, 15.36, -1.45, 1.45, -0.52, -0.44);
+    box(black, 15.0, 15.36, -1.52, 1.52, -0.52, -0.44);
     const mp = mainPanelTexture();
-    const pm = new THREE.MeshStandardMaterial({ map: mp, roughness: 0.9, emissive: 0x0a0b0c, emissiveMap: mp, emissiveIntensity: 0.3, side: THREE.DoubleSide });
+    const pm = new THREE.MeshStandardMaterial({ map: mp, roughness: 0.9, emissive: 0x0a0b0c, emissiveMap: mp, emissiveIntensity: 0.18, side: THREE.DoubleSide });
     this.quad(pm, P(-PW / 2, 0), P(PW / 2, 0), P(-PW / 2, PH), P(PW / 2, PH), [0, 1, 0, 1]);
-    box(dark, 14.3, 15.05, -1.45, 1.45, 0.18, 0.46); // panel bottom / footwell front
+    box(dark, 14.3, 15.12, -1.5, 1.5, 0.1, 0.46); // panel bottom / footwell front
+    for (const sg of [-1, 1]) { // filler panels from the main panel's ends to the walls, and the nose bulkhead behind the glareshield
+      this.quad(dark, P(sg * 1.3, 0), P(sg * 1.52, 0), P(sg * 1.3, PH), P(sg * 1.52, PH), [0, 1, 0, 1]);
+      box(dark, 14.3, 15.36, sg * 1.45, sg * 1.52, -0.52, 0.46);
+    }
+    box(dark, 15.3, 15.36, -1.52, 1.52, -0.52, 0.46);
     // ---- live displays on the six bezels + MCP
     const dn = (u: number, v: number, s: number, rect: number[]) => this.quad(new THREE.MeshBasicMaterial({ map: live, toneMapped: false, side: THREE.DoubleSide }),
       P(u - s / 2, v - s / 2).add(new THREE.Vector3(-0.004, 0, 0)), P(u + s / 2, v - s / 2).add(new THREE.Vector3(-0.004, 0, 0)), P(u - s / 2, v + s / 2).add(new THREE.Vector3(-0.004, 0, 0)), P(u + s / 2, v + s / 2).add(new THREE.Vector3(-0.004, 0, 0)),
@@ -167,15 +172,15 @@ export class CockpitOwn {
     // ---- overhead panel (with instanced toggle switches on its underside)
     const oh = overheadTexture();
     const ohA = new THREE.Vector3(14.9, -0.62, -1.12), ohB = new THREE.Vector3(14.9, 0.62, -1.12), ohC = new THREE.Vector3(13.7, -0.62, -1.3), ohD = new THREE.Vector3(13.7, 0.62, -1.3);
-    this.quad(new THREE.MeshStandardMaterial({ map: oh, roughness: 0.8, emissive: 0x111214, emissiveMap: oh, emissiveIntensity: 0.5, side: THREE.DoubleSide }), ohA, ohB, ohC, ohD, [0, 1, 0, 1]);
+    this.quad(new THREE.MeshStandardMaterial({ map: oh, roughness: 0.8, emissive: 0x111214, emissiveMap: oh, emissiveIntensity: 0.28, side: THREE.DoubleSide }), ohA, ohB, ohC, ohD, [0, 1, 0, 1]);
     const caps = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.008, 0.01, 0.035, 6), new THREE.MeshStandardMaterial({ color: 0xd8dcdf, roughness: 0.4, metalness: 0.5 }), 96);
     const m4 = new THREE.Matrix4();
     for (let i = 0; i < 96; i++) { const u = ((i % 16) + 0.5) / 16, v = (Math.floor(i / 16) + 0.5) / 6; const p = ohA.clone().lerp(ohB, u).lerp(ohC.clone().lerp(ohD, u), v); m4.makeTranslation(p.x, p.y, p.z + 0.02 + Math.random() * 0.01); caps.setMatrixAt(i, m4); }
     R.add(caps);
     // ---- pedestal with thrust levers, speedbrake, flaps, trim wheels
     const pt = pedestalTexture();
-    box(mid, 13.55, 14.95, -0.2, 0.2, 0.0, 0.44);
-    this.quad(new THREE.MeshStandardMaterial({ map: pt, roughness: 0.8, emissive: 0x101112, emissiveMap: pt, emissiveIntensity: 0.5, side: THREE.DoubleSide }), new THREE.Vector3(14.95, -0.2, -0.003), new THREE.Vector3(14.95, 0.2, -0.003), new THREE.Vector3(13.55, -0.2, -0.003), new THREE.Vector3(13.55, 0.2, -0.003), [0, 1, 0, 1]);
+    box(mid, 13.55, 15.12, -0.2, 0.2, 0.0, 0.44);
+    this.quad(new THREE.MeshStandardMaterial({ map: pt, roughness: 0.8, emissive: 0x101112, emissiveMap: pt, emissiveIntensity: 0.28, side: THREE.DoubleSide }), new THREE.Vector3(14.95, -0.2, -0.003), new THREE.Vector3(14.95, 0.2, -0.003), new THREE.Vector3(13.55, -0.2, -0.003), new THREE.Vector3(13.55, 0.2, -0.003), [0, 1, 0, 1]);
     const lever = (len: number, mat: THREE.Material, knobMat: THREE.Material, x: number, y: number) => {
       const g = new THREE.Group(); g.position.set(x, y, -0.003);
       const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.011, len, 8), mat); rod.rotation.x = Math.PI / 2; rod.position.z = -len / 2; g.add(rod);
@@ -189,9 +194,9 @@ export class CockpitOwn {
     { this.gear.position.copy(P(0.27, 0.285)).add(new THREE.Vector3(-0.012, 0, 0)); const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.07, 8), light); rod.rotation.z = Math.PI / 2; rod.position.x = -0.035; this.gear.add(rod); const k = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 10), new THREE.MeshStandardMaterial({ color: 0xcfd3d6, roughness: 0.4 })); k.position.x = -0.08; this.gear.add(k); R.add(this.gear); }
     // ---- seats, side consoles, control columns
     for (const s of [-1, 1]) {
-      const seat = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.95 });
+      const seat = new THREE.MeshStandardMaterial({ color: 0x111214, roughness: 1 });
       box(seat, 13.1, 13.6, s * 0.53 - 0.24, s * 0.53 + 0.24, 0.18, 0.28); box(seat, 13.0, 13.12, s * 0.53 - 0.23, s * 0.53 + 0.23, -0.5, 0.2);
-      box(mid, 13.7, 14.85, s * 1.0, s * 1.4, 0.05, 0.44); // side console
+      box(mid, 13.7, 15.12, s * 1.0, s * 1.5, 0.05, 0.44); // side console
       const til = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 8), light); til.position.set(14.5, s * 1.15, 0.0); R.add(til);
       const col = new THREE.Group(); col.position.set(14.72, s * 0.53, 0.0); R.add(col);
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.45, 10), dark); shaft.position.z = 0.22; col.add(shaft);
@@ -211,7 +216,7 @@ export class CockpitOwn {
       col.add(wheel); this.yokes.push({ g: col, base: 14.72 });
       (col as THREE.Group & { wheel?: THREE.Group }).wheel = wheel;
     }
-    R.traverse((o) => { o.frustumCulled = false; });
+    R.traverse((o) => { o.frustumCulled = false; const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (m && m.isMeshStandardMaterial) m.envMapIntensity = 0.05; });
     void gloss;
   }
 
