@@ -399,7 +399,7 @@ class App implements MenuHost {
       this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
       // 737 clean-view camera: higher/forward seating keeps the PFD and windshield unobstructed.
       // No changes to aircraft physics or world coordinates.
-      if (jet) this.rig.eye.set(13.75, -0.53, -0.74); // was 14.47,-0.93: that put the eye through the window frame of the real deck model
+      if (jet) this.rig.eye.set(14.4, -0.53, -0.68); // was 14.47,-0.93: that put the eye through the window frame of the real deck model
       this.rig.chaseDist = jet ? 60 : glider ? 24 : 16;
       this.rig.headPitch = jet ? -0.17 : -0.2;
       if (jet) { this.rig.fovCockpit = 76; this.rig.camera.fov = this.rig.mode === 'cockpit' ? 76 : this.rig.camera.fov; this.rig.camera.updateProjectionMatrix(); }
