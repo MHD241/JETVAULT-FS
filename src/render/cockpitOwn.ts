@@ -193,13 +193,22 @@ export class CockpitOwn {
       box(seat, 13.1, 13.6, s * 0.53 - 0.24, s * 0.53 + 0.24, 0.18, 0.28); box(seat, 13.0, 13.12, s * 0.53 - 0.23, s * 0.53 + 0.23, -0.5, 0.2);
       box(mid, 13.7, 14.85, s * 1.0, s * 1.4, 0.05, 0.44); // side console
       const til = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.09, 8), light); til.position.set(14.5, s * 1.15, 0.0); R.add(til);
-      const col = new THREE.Group(); col.position.set(14.4, s * 0.53, 0.0); R.add(col);
+      const col = new THREE.Group(); col.position.set(14.72, s * 0.53, 0.0); R.add(col);
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.45, 10), dark); shaft.position.z = 0.22; col.add(shaft);
-      const wheel = new THREE.Group(); wheel.position.set(-0.04, 0, -0.07);
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.165, 0.014, 8, 30).rotateY(Math.PI / 2), black); wheel.add(rim);
-      const hub = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.2, 0.16), dark); hub.position.x = 0.0; wheel.add(hub);
-      for (const a of [0, Math.PI / 2, Math.PI]) { const sp = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.015, 0.33), black); sp.rotation.x = a; wheel.add(sp); }
-      col.add(wheel); this.yokes.push({ g: col, base: 14.4 });
+      // Boeing-style control yoke: a U/butterfly shaped bar with an upturned grip on each side, not a round wheel
+      const wheel = new THREE.Group(); wheel.position.set(-0.05, 0, -0.06);
+      const half = (sgn: number) => new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, sgn * 0.0, 0.06), new THREE.Vector3(0, sgn * 0.09, 0.075), new THREE.Vector3(0, sgn * 0.17, 0.045),
+        new THREE.Vector3(0, sgn * 0.205, -0.03), new THREE.Vector3(0, sgn * 0.195, -0.11),
+      ]);
+      for (const sg of [-1, 1]) {
+        wheel.add(new THREE.Mesh(new THREE.TubeGeometry(half(sg), 20, 0.015, 8), black));
+        const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.022, 0.1, 10), dark); grip.position.set(0, sg * 0.197, -0.095); grip.rotation.x = 0.06 * sg; wheel.add(grip);
+        const btn = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.014, 0.02), light); btn.position.set(-0.022, sg * 0.197, -0.12); wheel.add(btn);
+      }
+      const hub = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.13, 0.11), dark); hub.position.set(0, 0, 0.04); wheel.add(hub);
+      const dial = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.075, 0.05), new THREE.MeshStandardMaterial({ color: 0xcfd3d6, roughness: 0.5 })); dial.position.set(-0.04, 0, 0.04); wheel.add(dial);
+      col.add(wheel); this.yokes.push({ g: col, base: 14.72 });
       (col as THREE.Group & { wheel?: THREE.Group }).wheel = wheel;
     }
     R.traverse((o) => { o.frustumCulled = false; });
@@ -218,7 +227,7 @@ export class CockpitOwn {
   update(dt: number, c: FlightControls, eff: { pitch: number; roll: number }) {
     const k = 1 - Math.exp(-dt * 8);
     for (const y of this.yokes) {
-      y.g.position.x = y.base - eff.pitch * 0.07;
+      y.g.position.x = y.base - eff.pitch * 0.05;
       (y.g as THREE.Group & { wheel?: THREE.Group }).wheel!.rotation.x = eff.roll * 1.2;
     }
     const thr = -0.12 - c.throttle * 0.7;

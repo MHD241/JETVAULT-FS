@@ -292,6 +292,9 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - Honest limits: stylised proportions drawn from public 737NG layout knowledge and the GeoFS reference picture only for layout, not copied; no side-window glass, no seat detail, panels are simple; no clickable switches; overhead switches are static. Needs your feedback on proportions and what to add (more panels, chrome, lighting at night).
 - Files: `src/render/cockpitOwn.ts`, `src/render/b737Cockpit.ts`.
 
+## Update 43 — yokes
+- The round steering-wheel rims are replaced by Boeing-style control yokes (U-shaped bar with upturned grips, hub and trim dial) on both sides, moved 0.3 m forward (column base x = 14.72 m) so they sit close to the panel and out of the pilot's face. Pitch still moves the column and roll turns the yoke. Seen in a headless screenshot looking down at the panel. File: `src/render/cockpitOwn.ts`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
