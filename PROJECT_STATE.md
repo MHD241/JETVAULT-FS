@@ -270,6 +270,11 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - **Licence warning:** the file looks like it comes from a flight-simulator project (AC3D-style material names). I do not know its licence; before you publish or sell the game, confirm you may use it (as you did for the cockpit) and keep that on record.
 - Files: `src/render/b737Model.ts` (`loadGlb`), `src/main.ts`, `public/models/b738_geo.bin (a .glb renamed so it can be published)`.
 
+## Update 40 — 737 flight deck look and camera
+- Flight-deck colours are remapped to a dark charcoal palette (light-grey trim and switch caps stay lighter), the material is darker and matt, so the deck reads as a real 737 instead of white. Eye point moved back/up (14.0, -0.53, -0.82 m body frame), cockpit field of view 82 deg and looking slightly down, to frame glareshield, both displays and the wheel like your GeoFS reference. Checked with headless screenshots (looking up); I did not capture the exact straight-ahead framing, so the camera match is approximate.
+- Not done: your reference shows textured panel faces (printed labels, gauges); this model has no textures, so panels stay plain dark. No GeoFS assets are used. Also this update's small earlier changes (body lowered onto the gear, darker deck) are covered here.
+- Files: `src/render/cockpit737.ts`, `src/sim/aircraft/b738.ts`, `src/main.ts`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

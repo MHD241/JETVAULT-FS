@@ -398,7 +398,8 @@ class App implements MenuHost {
     if (this.rig) {
       this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
       this.rig.chaseDist = jet ? 60 : glider ? 24 : 16;
-      this.rig.headPitch = jet ? -0.32 : -0.2;
+      this.rig.headPitch = jet ? -0.1 : -0.2;
+      if (jet) { this.rig.fovCockpit = 82; this.rig.camera.fov = this.rig.mode === 'cockpit' ? 82 : this.rig.camera.fov; this.rig.camera.updateProjectionMatrix(); }
       if (jet) this.rig.wingCam.set(-6, -21, -2.5); else if (glider) this.rig.wingCam.set(-0.5, -9.5, -1.0); else this.rig.wingCam.set(-1.2, -6.6, -1.6);
     }
     if (this.debug) { this.scene.remove(this.debug.group); this.debug = new DebugView(this.sim.aircraft, this.world); this.scene.add(this.debug.group); }

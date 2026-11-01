@@ -22,7 +22,14 @@ function geometry(buf: ArrayBuffer, c: Chunk, pivot?: THREE.Vector3): THREE.Buff
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(buf, c.pos, c.nv * 3), 3));
   g.setAttribute('normal', new THREE.BufferAttribute(new Int8Array(buf, c.nor, c.nv * 4), 4, true));
-  g.setAttribute('color', new THREE.BufferAttribute(new Uint8Array(buf, c.col, c.nv * 4), 4, true));
+  // restyle the model's raw colours into a dark charcoal flight deck (like a real 737: dark grey panels, light-grey trim, lighter switch caps)
+  const src = new Uint8Array(buf, c.col, c.nv * 4), col = new Uint8Array(c.nv * 4);
+  for (let i = 0; i < c.nv; i++) {
+    const lum = (0.3 * src[i * 4] + 0.59 * src[i * 4 + 1] + 0.11 * src[i * 4 + 2]) / 255;
+    const v = Math.round(255 * (0.10 + 0.55 * lum * lum));
+    col[i * 4] = v; col[i * 4 + 1] = Math.round(v * 1.02); col[i * 4 + 2] = Math.round(v * 1.08); col[i * 4 + 3] = 255;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 4, true));
   g.setIndex(new THREE.BufferAttribute(new Uint32Array(buf, c.idx, c.ni), 1));
   if (pivot) g.translate(-pivot.x, -pivot.y, -pivot.z);
   g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 400); // unused vertices may hold NaN
@@ -37,7 +44,7 @@ export class Cockpit737Model {
   private gearPos = 0;
   private sbPos = 0;
   private flapPos = 0;
-  private mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, emissive: 0x050607, side: THREE.DoubleSide, color: 0x474a4d, envMapIntensity: 0.25 }); // dark flight deck: the raw model colours blow out under the outdoor sun
+  private mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, emissive: 0x050607, side: THREE.DoubleSide, color: 0x6a6d70, envMapIntensity: 0.2 }); // dark flight deck: the raw model colours blow out under the outdoor sun
 
   static async load(url: string): Promise<Cockpit737Model> {
     const [meta, buf] = await Promise.all([fetch(`${url}.json`).then((r) => r.json()), fetch(`${url}.bin`).then((r) => r.arrayBuffer())]);

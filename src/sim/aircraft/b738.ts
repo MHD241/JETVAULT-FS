@@ -160,7 +160,7 @@ export const B738: AircraftDef = {
   spawnHeight: 3.85,
   tailArm: 17,
   stallWarnAlpha: 12,
-  eye: new Vec3(14.2, -0.53, -0.72),
+  eye: new Vec3(14.0, -0.53, -0.82), // raised and set back a little: sees the glareshield, both displays and the wheel, like the reference view
   profile: {
     takeoffTrim: 0.25, takeoffFlapLever: 3,
     approachKias: 145, approachThrottle: 0.55, approachFlapLever: 7, approachTrim: 0.3, approachPitchDeg: 1.5,
