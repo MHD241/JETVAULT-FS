@@ -181,14 +181,24 @@ export class CockpitOwn {
     const pt = pedestalTexture();
     box(mid, 13.55, 15.12, -0.2, 0.2, 0.0, 0.44);
     this.quad(new THREE.MeshStandardMaterial({ map: pt, roughness: 0.8, emissive: 0x101112, emissiveMap: pt, emissiveIntensity: 0.28, side: THREE.DoubleSide }), new THREE.Vector3(14.95, -0.2, -0.003), new THREE.Vector3(14.95, 0.2, -0.003), new THREE.Vector3(13.55, -0.2, -0.003), new THREE.Vector3(13.55, 0.2, -0.003), [0, 1, 0, 1]);
-    const lever = (len: number, mat: THREE.Material, knobMat: THREE.Material, x: number, y: number) => {
+    // thrust levers: tall tapered levers with a ribbed grip, TOGA button and a reverse-thrust lever each, in a slotted quadrant
+    const lever = (len: number, mat: THREE.Material, knobMat: THREE.Material, x: number, y: number, thick = 0.014) => {
       const g = new THREE.Group(); g.position.set(x, y, -0.003);
-      const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.011, len, 8), mat); rod.rotation.x = Math.PI / 2; rod.position.z = -len / 2; g.add(rod);
-      const k = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.034, 0.05), knobMat); k.position.z = -len - 0.02; g.add(k); R.add(g); return g;
+      const rod = new THREE.Mesh(new THREE.CylinderGeometry(thick * 0.8, thick, len, 10), mat); rod.rotation.x = Math.PI / 2; rod.position.z = -len / 2; g.add(rod);
+      const k = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.045, 0.085), knobMat); k.position.set(0, 0, -len - 0.035); g.add(k);
+      const top = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.012), knobMat); top.position.set(0.005, 0, -len - 0.085); g.add(top);
+      for (let r = 0; r < 4; r++) { const rib = new THREE.Mesh(new THREE.BoxGeometry(0.072, 0.047, 0.006), black); rib.position.set(0, 0, -len - 0.01 - r * 0.02); g.add(rib); }
+      R.add(g); return g;
     };
-    for (const y of [-0.06, 0.06]) this.throttle.push(lever(0.2, light, mid, 14.35, y));
-    this.speedbrake = lever(0.17, light, new THREE.MeshStandardMaterial({ color: 0x9a2f2f, roughness: 0.6 }), 14.55, -0.15);
-    this.flap = lever(0.14, light, new THREE.MeshStandardMaterial({ color: 0xcfd3d6, roughness: 0.6 }), 14.62, 0.15);
+    const grey = new THREE.MeshStandardMaterial({ color: 0x3a3d41, roughness: 0.7 });
+    for (const y of [-0.06, 0.06]) {
+      this.throttle.push(lever(0.3, light, grey, 14.35, y));
+      const toga = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.016, 0.014), new THREE.MeshStandardMaterial({ color: 0xd8dcdf, roughness: 0.5 })); toga.position.set(-0.04, y, -0.37); R.add(toga); this.throttle[this.throttle.length - 1].add(toga); toga.position.set(-0.04, 0, -0.32 - 0.05);
+    }
+    // quadrant slots
+    for (const y of [-0.06, 0.06]) box(black, 14.0, 14.62, y - 0.012, y + 0.012, -0.004, -0.001);
+    this.speedbrake = lever(0.2, light, new THREE.MeshStandardMaterial({ color: 0x9a2f2f, roughness: 0.6 }), 14.62, -0.155, 0.011);
+    this.flap = lever(0.17, light, new THREE.MeshStandardMaterial({ color: 0xcfd3d6, roughness: 0.6 }), 14.7, 0.15, 0.011);
     for (const s of [-1, 1]) { const w = new THREE.Group(); w.position.set(14.0, s * 0.215, 0.1); const d = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.03, 18), black); w.add(d); const t = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.034, 0.02), light); t.position.set(0.07, 0, 0); w.add(t); R.add(w); this.trim.push(w); }
     // ---- gear lever on the main panel
     { this.gear.position.copy(P(0.27, 0.285)).add(new THREE.Vector3(-0.012, 0, 0)); const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.07, 8), light); rod.rotation.z = Math.PI / 2; rod.position.x = -0.035; this.gear.add(rod); const k = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 10), new THREE.MeshStandardMaterial({ color: 0xcfd3d6, roughness: 0.4 })); k.position.x = -0.08; this.gear.add(k); R.add(this.gear); }
@@ -201,7 +211,7 @@ export class CockpitOwn {
       const col = new THREE.Group(); col.position.set(14.72, s * 0.53, 0.0); R.add(col);
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.026, 0.45, 10), dark); shaft.position.z = 0.22; col.add(shaft);
       // Boeing-style control yoke: a U/butterfly shaped bar with an upturned grip on each side, not a round wheel
-      const wheel = new THREE.Group(); wheel.position.set(-0.05, 0, -0.06);
+      const wheel = new THREE.Group(); wheel.position.set(-0.07, 0, -0.08); wheel.scale.setScalar(1.55);
       const half = (sgn: number) => new THREE.CatmullRomCurve3([
         new THREE.Vector3(0, sgn * 0.0, 0.06), new THREE.Vector3(0, sgn * 0.09, 0.075), new THREE.Vector3(0, sgn * 0.17, 0.045),
         new THREE.Vector3(0, sgn * 0.205, -0.03), new THREE.Vector3(0, sgn * 0.195, -0.11),

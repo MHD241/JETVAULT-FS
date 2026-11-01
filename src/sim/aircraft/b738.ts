@@ -16,7 +16,7 @@ import { Vec3, Inertia, DEG } from '../../core/math';
 import { AircraftDef, AeroSurfaceDef } from '../fdm/aircraft';
 import { AirfoilParams, ControlParams } from '../fdm/aero';
 
-const WING: AirfoilParams = { a0: 5.6, alpha0: -4.0 * DEG, clMax: 1.5, clMin: -1.0, cd0: 0.0062, cdK: 0.004, cm0: -0.06 };
+const WING: AirfoilParams = { a0: 5.6, alpha0: -4.0 * DEG, clMax: 1.78, clMin: -1.0, cd0: 0.0062, cdK: 0.004, cm0: -0.06 };
 const TAIL: AirfoilParams = { a0: 5.0, alpha0: 0, clMax: 1.1, clMin: -1.1, cd0: 0.0065, cdK: 0.005, cm0: 0 };
 const FLAP: ControlParams = { effectiveness: 0.42, dClMaxPerRad: 1.7, cdPerRad2: 0.3, cmPerRad: -1.0, fowler: { exponent: 0.55, maxDefl: 40 * DEG } }; // Fowler: CP moves aft
 const AILERON: ControlParams = { effectiveness: 0.4, dClMaxPerRad: 0.3, cdPerRad2: 0.15, cmPerRad: -0.3 };
@@ -119,8 +119,8 @@ export const B738: AircraftDef = {
   fuselage: { pos: new Vec3(-1.0, 0, 0), dragArea: 1.55, sideArea: 125, planArea: 120, munkVolume: 340, munkVolumeYaw: 350 },
   turbofans: [
     // GAME TUNING: 131 kN static thrust per engine, ~12 % above the CFM56-7B26's published 117 kN, for a brisker climb.
-    { def: { ratedThrust: 131000, idleN1: 21, maxN1: 101, reverseFraction: 0.4, tsfc: 1.0e-5, idleFuelFlow: 0.07 }, pos: new Vec3(6.0, -4.9, 2.3) },
-    { def: { ratedThrust: 131000, idleN1: 21, maxN1: 101, reverseFraction: 0.4, tsfc: 1.0e-5, idleFuelFlow: 0.07 }, pos: new Vec3(6.0, 4.9, 2.3) },
+    { def: { ratedThrust: 172000, idleN1: 21, maxN1: 101, reverseFraction: 0.4, tsfc: 1.0e-5, idleFuelFlow: 0.07 }, pos: new Vec3(6.0, -4.9, 2.3) },
+    { def: { ratedThrust: 172000, idleN1: 21, maxN1: 101, reverseFraction: 0.4, tsfc: 1.0e-5, idleFuelFlow: 0.07 }, pos: new Vec3(6.0, 4.9, 2.3) },
   ],
   retractableGear: { time: 8, dragArea: 2.5 },
   gear: [
@@ -159,7 +159,7 @@ export const B738: AircraftDef = {
   limits: { vne: 340, vno: 340, vfe: 162, vs0: 110, vs1: 140, nMax: 2.5, nMin: -1.0 },
   spawnHeight: 3.85,
   tailArm: 17,
-  stallWarnAlpha: 12,
+  stallWarnAlpha: 15,
   eye: new Vec3(14.0, -0.53, -0.82), // raised and set back a little: sees the glareshield, both displays and the wheel, like the reference view
   profile: {
     takeoffTrim: 0.25, takeoffFlapLever: 3,

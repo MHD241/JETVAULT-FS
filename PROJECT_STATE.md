@@ -300,6 +300,14 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - Colours: all cockpit materials and textures changed to near-black (panel #14161a, trim #24272b, seats black) with minimal sky reflection, so the deck no longer looks white/light blue under the daytime sun. Tell me if it is now too dark and which parts to lift.
 - File: `src/render/cockpitOwn.ts`.
 
+## Update 45 — yokes, thrust levers, speed, stall, takeoff feel
+- **Yokes** 1.55x bigger (seen in a screenshot). **Thrust levers** rebuilt: taller tapered levers with ribbed grips, a TOGA button, slotted quadrant, longer speedbrake and flap levers (`render/cockpitOwn.ts`). I could not get a clear screenshot of the new levers (the camera sits behind the panel edge), so their look is **not visually verified**.
+- **Why it stopped at ~200 kt:** the hands-off auto-trim holds vertical speed, and the wing stalled at 12 deg with the engines at 131 kN each. Now: engines 172 kN each (737-800 CFM56-7B27 takeoff rating is about 121 kN, so this is deliberately stronger than real, as you asked), wing max lift raised (clMax 1.5 -> 1.78) so it stalls later, stall-warning angle 12 -> 15 deg. New test run, 3,000 ft, full power, auto-trim: 200 -> 546 KIAS in 150 s (before: stalled and shook at about 200). 
+- **Speed ceiling:** added compressibility drag above Mach 0.72 for jets so it cannot reach silly speeds: at 30,000 ft full power it climbs to about 491 KTAS (Mach 0.84) in 250 s and keeps rising slowly. Not tuned to real Mach 0.82 cruise, and the low-altitude top speed (above the 340 kt design limit) is still unrealistically high: there is no structural over-speed warning.
+- **Stall less sensitive:** later stall as above; shake/banner unchanged (they start at the stall).
+- **Takeoff feel:** liftoff test now about 26 s (was 39 s; the old test limit of 28 s was lowered to 22 s). Taking off, the camera has a light, speed-scaled rumble and the field of view widens by up to 7 deg as you accelerate (`main.ts`). Amounts are small by design; not checked on a real device.
+- Files: `src/sim/aircraft/b738.ts`, `src/sim/fdm/aircraft.ts`, `src/main.ts`, `src/render/cockpitOwn.ts`, `tests/b738.test.ts`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

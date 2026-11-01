@@ -507,6 +507,13 @@ export class Aircraft {
     const Fw = this.q.rotate(F).add(new Vec3(0, 0, this.mass * 9.80665));
     this.vel.addScaled(Fw, dt / this.mass);
     this.pos.addScaled(this.vel, dt);
+    // Compressibility (wave) drag: a swept-wing jet cannot be pushed far past its cruise Mach (drag climbs steeply above ~M0.78)
+    if (d.turbofans && this.mach > 0.72 && this.tas > 5) {
+      const dm = this.mach - 0.72, cdw = 0.01 + 13 * dm * dm * (1 + 10 * dm);
+      const dir = vb.scale(-1 / Math.max(vb.len(), 1));
+      F.addIn(dir.scale(this.qbar * 125 * cdw));
+    }
+
     // Stall buffet: separated flow shakes the airframe. Pre-stall onset a few degrees below the warning angle, full at the stall.
     {
       let stallMax = 0;

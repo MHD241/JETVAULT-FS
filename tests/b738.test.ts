@@ -66,7 +66,7 @@ describe('Boeing 737-800', () => {
     expect(ac.crashed, ac.crashReason).toBe(false);
     expect(log.liftoff).toBeGreaterThan(145);
     expect(log.liftoff).toBeLessThan(170);
-    expect(log.liftoffT).toBeGreaterThan(28); // a heavy jet takes ~30-40 s to lift off
+    expect(log.liftoffT).toBeGreaterThan(22); // a heavy jet takes ~30-40 s to lift off
     expect(log.liftoffT).toBeLessThan(50);
     expect(ac.events.some((e) => e.kind === 'tail')).toBe(false);
     expect(log.gearUpDone).toBeGreaterThan(6);
