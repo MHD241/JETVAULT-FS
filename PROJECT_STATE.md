@@ -282,6 +282,10 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - Not done: your reference shows textured panel faces (printed labels, gauges); this model has no textures, so panels stay plain dark. No GeoFS assets are used. Also this update's small earlier changes (body lowered onto the gear, darker deck) are covered here.
 - Files: `src/render/cockpit737.ts`, `src/sim/aircraft/b738.ts`, `src/main.ts`.
 
+## Update 41 — cockpit camera and pillars
+- Eye set to (13.75, -0.53, -0.74) body metres, field of view 76 deg, pitch -0.17, to match the layout of the GeoFS reference screenshot (both displays and pedestal in the lower half, runway through the windshield). The window pillars/roof-corner struts ahead of the pilot and outboard of 16 model units are deleted from the static mesh (`render/cockpit737.ts`), so the roof edge above the windshield is ragged where they were. Checked in one headless screenshot at the runway start.
+- **Not "exactly" the reference:** GeoFS uses a textured, differently proportioned cockpit; this model has no textures, so panel labels, gauges and shading differ. The match is the camera framing and dark colour scheme only. The control wheels are hidden by the cleanView setting (added by another editor of the repo); say if you want them back.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
