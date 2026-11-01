@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { B737Rig } from './b737Rig';
+import { B737GlbRig } from './b737GlbRig';
 import { Aircraft } from '../sim/fdm/aircraft';
 import { FlightControls } from '../sim/controls';
 import { naca, airfoilPart, loftWing, orient, strut } from './c172Model';
@@ -99,7 +100,7 @@ export class B737Model {
   private t = 0;
   /** Real 737-800 mesh (public/models/b738.fbx) once loaded; replaces the procedural exterior. */
   private real: THREE.Group | null = null;
-  private rig: B737Rig | null = null;
+  private rig: B737Rig | B737GlbRig | null = null;
   private restMatrix = new THREE.Matrix4();
 
   constructor() {
@@ -250,7 +251,7 @@ export class B737Model {
       this.mainGear.push(g);
       this.exterior.add(g);
     }
-    this.noseGear.position.set(14.1, 0, 1.6);
+    this.noseGear.position.set(14.1, 0, 1.67); // wheel bottom matches 4.05 m tyre contact plane
     this.noseGear.add(strut(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 1.7), 0.09, 0.08, chrome));
     this.noseSteer.position.set(0, 0, 1.7);
     for (const dy of [-0.28, 0.28]) { const w = wheel(0.38, 0.24); w.position.set(-0.1, dy, 0.3); this.noseSteer.add(w); this.wheels.push(w); }
@@ -384,7 +385,8 @@ export class B737Model {
    */
   /**
    * Loads the supplied low-poly glTF 737 (13k triangles, textured, one mesh made of many parts) as the exterior.
-   * No separate control surfaces exist in the file, so the surface/flap/gear animation is not available for it.
+   * Some trailing-edge panels are identifiable by glTF primitive bounds and are rigged;
+   * the procedural landing gear stays active.
    */
   async loadGlb(url: string) {
     const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
@@ -416,8 +418,9 @@ export class B737Model {
     this.restMatrix.copy(M);
     const wrap = new THREE.Group();
     wrap.matrixAutoUpdate = false; wrap.matrix.copy(M); wrap.add(root);
-    this.rig = null;
-    // the glb has no landing gear: keep only the procedural gear (which follows the flight model) from the old exterior
+    this.rig = new B737GlbRig(root);
+    console.info('737 glTF rig:', this.rig.report.join('; '));
+    // New glTF has no gear meshes. Keep the procedural assemblies attached at the FDM wheel contact coordinates.
     this.glbLoaded = true;
     this.fuselageMesh.visible = false;
     for (const c of this.exterior.children) if (!this.mainGear.includes(c as THREE.Group) && c !== this.noseGear) c.visible = false;
