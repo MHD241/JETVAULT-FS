@@ -308,6 +308,13 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - **Takeoff feel:** liftoff test now about 26 s (was 39 s; the old test limit of 28 s was lowered to 22 s). Taking off, the camera has a light, speed-scaled rumble and the field of view widens by up to 7 deg as you accelerate (`main.ts`). Amounts are small by design; not checked on a real device.
 - Files: `src/sim/aircraft/b738.ts`, `src/sim/fdm/aircraft.ts`, `src/main.ts`, `src/render/cockpitOwn.ts`, `tests/b738.test.ts`.
 
+## Update 46 — Cockpit Studio
+- New 3D editor `studio.html` (+ `src/studio/studio.ts`, `src/studio/parts.ts`) for hand-building the flight deck. Shapes: rounded box (round edges and smoothness sliders), rounded cylinder (round edges), sphere, cone, ring, capsule/handle, flat panel, **live screen** (shows the game's PFD / ND / engine display / autopilot panel). **Connectors**: a tube joining two parts, follows them when moved. Tools: move/rotate/size gizmo (W/E/R), snap (1 cm / 5 cm / off), duplicate, mirror left-right, delete, undo/redo (Ctrl+Z / Ctrl+Y), part list and numeric fields, colour/roughness/metal/glow, save/load a `.json` file, export `.glb`, autosave in the browser. A blue dot marks the pilot's eye and an arrow the nose.
+- **Use in the game:** the "Use in the game" button saves your design for the 737; the game (same browser) then builds it instead of the built-in cockpit (`src/render/cockpitCustom.ts`; turn it off again in the studio). Checked headlessly: added shapes, made a connector, switched it on, and the game showed the live PFD on my test screen part. Studio axes: X forward, Y up, Z right, origin on the floor at the pilot seat; mapped to the aircraft body frame in the game.
+- **"Only me":** a passcode you choose on first visit (stored hashed in this browser). This is **not real security**: anyone who can open the page can bypass it, and a design lives in your browser's storage, so use "Save file" for backups and to move it to another device. Real protection would need a login on a server or private hosting.
+- Not yet: parts do not animate (yokes, levers, gear lever stay still in your cockpit), no grouping, no extrude/lathe sketching, no textures/labels, no multi-select; the studio page itself is not linked from the game (open `studio.html` by its address).
+- Open: how to open it on the published page (the artifact viewer serves it as a separate page).
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

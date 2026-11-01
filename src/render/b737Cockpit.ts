@@ -10,6 +10,7 @@ import { Region } from './cockpit';
 import { AirportData } from '../world/airport';
 import { Cockpit737Model } from './cockpit737';
 import { CockpitOwn } from './cockpitOwn';
+import { CockpitCustom, loadCustomDesign } from './cockpitCustom';
 
 const PX = 1400; // px per metre
 const W = 1.6, H = 0.62;
@@ -129,6 +130,15 @@ export class B737Cockpit {
 
   /** Replace the simple procedural deck with the detailed model (desktop); the displays are mapped onto its screens. */
   async useDetailed(url: string) {
+    const mine = loadCustomDesign();
+    if (mine) {
+      // the cockpit you built in the Cockpit Studio (turn off with "In the game: ON" in the studio)
+      const c = new CockpitCustom(mine, this.tex, { pfd: this.L.pfd, nd: this.L.nd, eng: this.L.eng, mcp: this.L.mcp }, CW, CH);
+      for (const ch of [...this.root.children]) ch.visible = false;
+      this.root.add(c.root);
+      this.detail = c;
+      return;
+    }
     if (!new URLSearchParams(location.search).has('oldcockpit')) {
       // our own modelled and textured flight deck (default)
       const own = new CockpitOwn(this.tex, { pfd: this.L.pfd, nd: this.L.nd, eng: this.L.eng, mcp: this.L.mcp }, CW, CH);
