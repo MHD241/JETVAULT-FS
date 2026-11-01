@@ -9,6 +9,7 @@ import { Simulation } from '../sim/simulation';
 import { Region } from './cockpit';
 import { AirportData } from '../world/airport';
 import { Cockpit737Model } from './cockpit737';
+import { CockpitOwn } from './cockpitOwn';
 
 const PX = 1400; // px per metre
 const W = 1.6, H = 0.62;
@@ -27,7 +28,7 @@ export class B737Cockpit {
   private timer = 0;
   private yoke = new THREE.Group();
   private thrustLevers: THREE.Mesh[] = [];
-  private detail: Cockpit737Model | null = null;
+  private detail: { update(dt: number, c: import('../sim/controls').FlightControls, eff: { pitch: number; roll: number }): void } | null = null;
 
   constructor(private sim: Simulation, private airport: AirportData) {
     const cv = document.createElement('canvas');
@@ -128,6 +129,14 @@ export class B737Cockpit {
 
   /** Replace the simple procedural deck with the detailed model (desktop); the displays are mapped onto its screens. */
   async useDetailed(url: string) {
+    if (!new URLSearchParams(location.search).has('oldcockpit')) {
+      // our own modelled and textured flight deck (default)
+      const own = new CockpitOwn(this.tex, { pfd: this.L.pfd, nd: this.L.nd, eng: this.L.eng, mcp: this.L.mcp }, CW, CH);
+      for (const ch of [...this.root.children]) ch.visible = false;
+      this.root.add(own.root);
+      this.detail = own;
+      return;
+    }
     const m = await Cockpit737Model.load(url);
     for (const ch of [...this.root.children]) ch.visible = false;
     const t = this.tex, z = 86.4, [px, py, pw, ph] = this.L.pfd, [nx, ny, nw, nh] = this.L.nd, [ex, ey, ew, eh] = this.L.eng;
