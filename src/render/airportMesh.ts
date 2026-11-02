@@ -9,6 +9,19 @@ import { TerrainOverlay } from './terrainMesh';
 
 const OVERLAY_PX = 4096;
 
+/**
+ * Ground paint (lines, markings) is drawn on top of the terrain mesh. With a logarithmic depth buffer polygonOffset does
+ * nothing, and the terrain mesh at distance is coarser than the real ground, so the paint sank out of sight. Pull the
+ * painted fragments slightly towards the camera in depth instead (about 0.4 m at 100 m, growing with distance).
+ */
+function paintOnTop<T extends THREE.Material>(mat: T): T {
+  mat.onBeforeCompile = (sh) => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <logdepthbuf_fragment>', '#include <logdepthbuf_fragment>\n#ifdef USE_LOGDEPTHBUF\n gl_FragDepth -= 3.5e-4;\n#endif');
+  };
+  mat.customProgramCacheKey = () => 'paintOnTop';
+  return mat;
+}
+
 export function buildPavementOverlay(ap: AirportData): TerrainOverlay {
   // square around all paved features
   const xs: number[] = [], ys: number[] = [];
@@ -274,10 +287,10 @@ export class AirportRenderer {
     // make sure faces point up regardless of runway direction
     const nrm = g.getAttribute('normal');
     if (nrm.getY(0) < 0) { g.setIndex(idx.map((_, k) => idx[k - (k % 3) + [0, 2, 1][k % 3]])); g.computeVertexNormals(); }
-    const mat = new THREE.MeshStandardMaterial({
+    const mat = paintOnTop(new THREE.MeshStandardMaterial({
       map: rw.surface === 'grass' ? grassRunwayTexture(rw) : runwayTexture(rw), roughness: rw.surface === 'grass' ? 1 : 0.85, metalness: 0,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
-    });
+    }));
     const mesh = new THREE.Mesh(g, mat);
     mesh.receiveShadow = true;
     mesh.name = `runway ${rw.id}`;
@@ -305,7 +318,7 @@ export class AirportRenderer {
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setIndex(idx);
     g.computeVertexNormals();
-    const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xf0c020, roughness: 0.7, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 }));
+    const mesh = new THREE.Mesh(g, paintOnTop(new THREE.MeshStandardMaterial({ color: 0xf0c020, roughness: 0.7, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6 })));
     mesh.name = 'stand lead-in lines';
     this.group.add(mesh);
   }
@@ -341,10 +354,10 @@ export class AirportRenderer {
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setIndex(idx);
     g.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({
+    const mat = paintOnTop(new THREE.MeshStandardMaterial({
       color: 0xd8a920, roughness: 0.7, side: THREE.DoubleSide,
       polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6,
-    });
+    }));
     const mesh = new THREE.Mesh(g, mat);
     mesh.name = 'taxiway centrelines';
     this.group.add(mesh);

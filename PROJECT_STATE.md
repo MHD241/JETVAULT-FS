@@ -344,6 +344,9 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - **Whole yoke moves:** the control column (the stick below each wheel) is now part of the yoke: in pitch the whole column and wheel swing about the column's foot, in roll the wheel turns about its axle (checked in a screenshot with full pitch and roll). Both captain's and first officer's yokes. The column pieces were found by inspecting the model (meshes `Cylinder126` and `Cylinder129`); anything else attached to the columns is not moved.
 - **Less sensitive near the centre:** mouse and touch-joystick pitch/roll now use a response curve (30 % linear + 70 % cubic): near the centre the aircraft moves much less per mouse movement, full deflection is still reached near the edge. This changes the feel of every aircraft. Not flown by hand; if it is now too dull or too twitchy at the edge tell me and I will retune the mix. Files: `src/input/simpleControls.ts`, `src/render/cockpitFull.ts`, `src/render/b737Cockpit.ts`.
 
+## Update 53 — ground lines no longer sink under the apron
+- Cause: with the logarithmic depth buffer, polygonOffset has no effect, and the terrain mesh at range is coarser than the real ground, so painted lines (stand lead-ins, stop bars, taxiway centrelines, runway paint) disappeared into the floor at a distance and from low angles. Fix: the line and runway materials now pull their fragments slightly towards the camera in depth (`paintOnTop` in `src/render/airportMesh.ts`, about 0.4 m at 100 m, more with distance). Checked in two headless screenshots at a gate: the lead-in line, stop bar and centreline are continuous. Not checked: other airports at night, or very long taxiway runs.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
