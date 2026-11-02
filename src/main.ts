@@ -406,6 +406,7 @@ class App implements MenuHost {
     const jet = this.sim.def.id === 'b738';
     const glider = !!this.sim.def.glider;
     this.model = glider ? new GliderModel() : jet ? new B737Model() : new C172Model();
+    if (this.model instanceof GliderModel && !new URLSearchParams(location.search).has('oldglider')) this.model.loadGlb('./models/glider_underpoly.bin').catch((e) => console.warn('glider model not loaded, using the procedural one', e));
     if (this.model instanceof B737Model) {
       const m = this.model;
       (new URLSearchParams(location.search).has('oldmodel') ? m.loadReal('./models/b738.fbx') : m.loadGlb('./models/b738_geo.bin')).catch((e) => console.warn('737 model not loaded, using the procedural one', e));

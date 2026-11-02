@@ -55,6 +55,40 @@ export class GliderModel {
   private brakes: THREE.Object3D[] = [];
   private wheel: THREE.Object3D;
   landingLight = new THREE.SpotLight(0xffffff, 0);
+  /** Supplied glider mesh (UNDERPOLY, CC BY 4.0): replaces the procedural exterior once loaded. */
+  private glb: { root: THREE.Object3D; ailL?: THREE.Object3D; ailR?: THREE.Object3D; rudder?: THREE.Object3D; hideInCockpit: THREE.Object3D[] } | null = null;
+
+  /** Loads the glTF sailplane, orients it from its named parts (canopy ahead of the rudder, ailerons left/right) and fits it to the flight model. */
+  async loadGlb(url: string) {
+    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+    const gltf = await new GLTFLoader().loadAsync(url);
+    const scene = gltf.scene; scene.updateMatrixWorld(true);
+    const named = (frag: string) => { let f: THREE.Object3D | null = null; scene.traverse((o) => { if (!f && o.name.includes(frag) && (o as THREE.Mesh).isMesh) f = o; }); return f as THREE.Object3D | null; };
+    const centre = (o: THREE.Object3D | null) => o ? new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()) : new THREE.Vector3();
+    const door = named('_Door_Vehicle'), rud = named('Rudder'), aL = named('Aileron_L'), aR = named('Aileron_R'), wR = named('Wheel_R');
+    // forward axis: from the rudder to the canopy, in the horizontal plane (the model is Y-up after the loader's transforms)
+    const fwd = centre(door).sub(centre(rud)); fwd.y = 0; fwd.normalize();
+    const up = new THREE.Vector3(0, 1, 0), right = new THREE.Vector3().crossVectors(fwd, up);
+    const rSide = centre(aR).sub(centre(aL)).dot(right); // right aileron should be on the right
+    const box = new THREE.Box3().setFromObject(scene);
+    const bodyBox = new THREE.Box3().setFromObject(named('_Body_Vehicle') ?? scene);
+    const span = Math.abs(bodyBox.getSize(new THREE.Vector3()).dot(new THREE.Vector3(Math.abs(right.x), 0, Math.abs(right.z))));
+    const k = 17.0 / Math.max(span, 1); // fit the wingspan to 17 m (the flight model's)
+    console.info('glider glb: span', span.toFixed(2), 'scale', k.toFixed(3), 'right aileron on the right:', rSide > 0, 'box', box.min.toArray().map((v) => v.toFixed(2)), box.max.toArray().map((v) => v.toFixed(2)));
+    // body = (fwd, right, down): rows of the matrix are the model-space axes
+    const M = new THREE.Matrix4().set(fwd.x * k, 0, fwd.z * k, 0, right.x * k, 0, right.z * k, 0, 0, -k, 0, 0, 0, 0, 0, 1);
+    M.set(fwd.x * k, fwd.y * k, fwd.z * k, 0, right.x * k, right.y * k, right.z * k, 0, -up.x * k, -up.y * k, -up.z * k, 0, 0, 0, 0, 1);
+    const wheel = centre(wR), low = box.min.y;
+    // place: main wheel under the flight model's main-gear attach (x = 0.15), lowest point on the gear plane (z = 0.55 below the datum)
+    const wp = wheel.clone().applyMatrix4(M);
+    M.setPosition(0.15 - wp.x, 0 - wp.y + 0, 0.55 - new THREE.Vector3(0, low, 0).applyMatrix4(M).z);
+    const wrap = new THREE.Group(); wrap.matrixAutoUpdate = false; wrap.matrix.copy(M); wrap.add(scene);
+    scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+    for (const c of [...this.exterior.children]) c.visible = false;
+    this.root.add(wrap);
+    this.glb = { root: wrap, ailL: aL?.parent ?? undefined, ailR: aR?.parent ?? undefined, rudder: rud?.parent ?? undefined, hideInCockpit: [door].filter(Boolean) as THREE.Object3D[] };
+    void rSide;
+  }
 
   constructor() {
     this.root.name = 'Glider';
@@ -124,6 +158,12 @@ export class GliderModel {
   }
 
   update(ac: Aircraft, _c: FlightControls, _dt: number, _night: number) {
+    if (this.glb) {
+      if (this.glb.ailL) this.glb.ailL.rotation.x = ac.aileronL;
+      if (this.glb.ailR) this.glb.ailR.rotation.x = ac.aileronR;
+      if (this.glb.rudder) this.glb.rudder.rotation.z = ac.rudder;
+      return;
+    }
     this.ailL.rotation.y = ac.aileronL;
     this.ailR.rotation.y = ac.aileronR;
     this.elev.rotation.y = ac.elevator;
@@ -132,6 +172,7 @@ export class GliderModel {
   }
 
   setCockpitView(inCockpit: boolean) {
+    if (this.glb) { for (const o of this.glb.hideInCockpit) o.visible = !inCockpit; return; }
     this.exterior.children[0].visible = !inCockpit;
     this.exterior.children[1].visible = !inCockpit;
   }
