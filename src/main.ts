@@ -6,7 +6,8 @@ import { Simulation, SpawnKind } from './sim/simulation';
 import { C172 } from './sim/aircraft/c172';
 import { B738 } from './sim/aircraft/b738';
 import { GLIDER } from './sim/aircraft/glider';
-import { GliderModel, GliderCockpit } from './render/gliderModel';
+import { GliderModel } from './render/gliderModel';
+import { GliderCockpit } from './render/cockpitGlider';
 import { Vario } from './ui/vario';
 import { currentRegion } from './world/region';
 import { airportCentre } from './world/airport';
@@ -36,6 +37,7 @@ import { CrashFx } from './render/crashFx';
 import { Buggy, launchPoints, nearestLaunchPoint, LaunchPoint, BUGGY_MAX_SPEED } from './sim/buggy';
 import { TreeField, FieldScenery, BuggyModel } from './render/gliderField';
 import { GroundVehicles } from './render/groundVehicles';
+import { generateCity } from './world/city';
 import { loadCustomDesign } from './render/cockpitCustom';
 import { STUDIO_ORIGIN } from './studio/parts';
 import { TyreSmoke } from './render/tyreSmoke';
@@ -85,7 +87,7 @@ class App implements MenuHost {
   sim!: Simulation;
   world!: World;
   terrain!: TerrainRenderer;
-  private patchRender = new Map<string, { airport: AirportRenderer; buildings: BuildingsRenderer; extras: THREE.Object3D[]; scenery?: FieldScenery; sites: { east: number; north: number; heading: number }[] }>();
+  private patchRender = new Map<string, { airport: AirportRenderer; buildings: BuildingsRenderer; extras: THREE.Object3D[]; city?: BuildingsRenderer; scenery?: FieldScenery; sites: { east: number; north: number; heading: number }[] }>();
   // glider retrieval: a buggy to tow a landed glider back to a winch launch point
   private buggy = new Buggy();
   private buggyModel = new BuggyModel();
@@ -338,7 +340,14 @@ class App implements MenuHost {
         this.scene.add(scenery.group);
       }
     }
-    this.patchRender.set(pm.id, { airport: ar, buildings: br, extras, scenery, sites: gateStands });
+    let city: BuildingsRenderer | undefined;
+    if (airport.icao === 'EGPH') {
+      // Edinburgh city to the east, generated on the land-cover built-up cells (illustrative, not the real buildings)
+      city = new BuildingsRenderer(generateCity(this.world));
+      city.maxDistance = this.graphics.buildingDistanceKm * 1000;
+      this.scene.add(city.group);
+    }
+    this.patchRender.set(pm.id, { airport: ar, buildings: br, extras, city, scenery, sites: gateStands });
     this.jetBridges.addPatch(pm.id, airport.gates ?? [], lp.buildings, (e, n) => this.world.terrain.heightAt(e, n) - 0.2);
     this.minimap?.addPatch(pm.id, { cx: pm.cx, cy: pm.cy, half: pm.imgHalf, imagery: (imagery?.texture.image as CanvasImageSource) ?? null, roads: roadsJson, airport });
     if (this.world.airport === airport) this.placeTower();
@@ -349,7 +358,7 @@ class App implements MenuHost {
     this.jetBridges.removePatch(id);
     this.minimap?.removePatch(id);
     const r = this.patchRender.get(id);
-    if (r) { disposeTree(r.airport.group); r.buildings.dispose(); for (const x of r.extras) { this.scene.remove(x); disposeTree(x); } this.patchRender.delete(id); }
+    if (r) { disposeTree(r.airport.group); r.buildings.dispose(); r.city?.dispose(); for (const x of r.extras) { this.scene.remove(x); disposeTree(x); } this.patchRender.delete(id); }
   }
 
   /** Loads patches the aircraft is approaching and releases the ones it has left (hysteresis: 12 km in, 30 km out). */
@@ -401,7 +410,7 @@ class App implements MenuHost {
       const m = this.model;
       (new URLSearchParams(location.search).has('oldmodel') ? m.loadReal('./models/b738.fbx') : m.loadGlb('./models/b738_geo.bin')).catch((e) => console.warn('737 model not loaded, using the procedural one', e));
     }
-    this.cockpit = glider ? new GliderCockpit() : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
+    this.cockpit = glider ? new GliderCockpit(this.sim) : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
     if (jet && this.graphics.renderScale > 0.72) (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e));
     this.aircraftGroup.add(this.model.root, this.cockpit.root);
     if (this.rig) {
@@ -508,7 +517,7 @@ class App implements MenuHost {
       this.scene.traverse((o) => { const m = (o as THREE.Mesh).material; if (m) for (const x of ([] as THREE.Material[]).concat(m)) x.needsUpdate = true; });
     }
     this.terrain.detail = g.terrainDetail;
-    for (const r of this.patchRender.values()) r.buildings.maxDistance = g.buildingDistanceKm * 1000;
+    for (const r of this.patchRender.values()) { r.buildings.maxDistance = g.buildingDistanceKm * 1000; if (r.city) r.city.maxDistance = g.buildingDistanceKm * 1000; }
   }
 
   private resize() {
@@ -873,7 +882,7 @@ class App implements MenuHost {
     this.terrain.update(cam.position, sim.simTime);
     this.terrain.setNight(this.env.night);
     this.terrain.setWet(sim.weather.rain > 0.1 ? Math.min(1, sim.weather.rain * 1.5) : 0);
-    for (const r of this.patchRender.values()) { r.airport.update(cam.position, this.env.lightLevel, window.innerHeight / 1000); r.buildings.update(cam.position, this.env.night); }
+    for (const r of this.patchRender.values()) { r.airport.update(cam.position, this.env.lightLevel, window.innerHeight / 1000); r.buildings.update(cam.position, this.env.night); r.city?.update(cam.position, this.env.night); }
     this.streamTimer -= dt;
     if (this.streamTimer <= 0) { this.streamTimer = 0.5; this.streamPatches(); }
     this.debug.update();
