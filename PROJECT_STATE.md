@@ -339,6 +339,11 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - Not done: the screens were placed from my earlier estimate, so they may be a little off the bezels (the captain's PFD is partly hidden behind the yoke in the default view); no CC-BY change notice beyond the About-page credit.
 - Files: `src/render/cockpitFull.ts`, `src/render/b737Cockpit.ts`, `src/render/cockpitCustom.ts`, `src/main.ts`, `public/models/cockpit_full.bin`.
 
+## Update 52 — original cockpit colours, whole-yoke movement, centre-soft controls
+- **Original colours:** the full cockpit now uses the model's own material colours, roughness and metalness, unchanged (my darkening is removed), so it looks light grey / white-ish in daylight like the file itself. Tell me if you want it darker again: it is one line in `src/render/cockpitFull.ts`.
+- **Whole yoke moves:** the control column (the stick below each wheel) is now part of the yoke: in pitch the whole column and wheel swing about the column's foot, in roll the wheel turns about its axle (checked in a screenshot with full pitch and roll). Both captain's and first officer's yokes. The column pieces were found by inspecting the model (meshes `Cylinder126` and `Cylinder129`); anything else attached to the columns is not moved.
+- **Less sensitive near the centre:** mouse and touch-joystick pitch/roll now use a response curve (30 % linear + 70 % cubic): near the centre the aircraft moves much less per mouse movement, full deflection is still reached near the edge. This changes the feel of every aircraft. Not flown by hand; if it is now too dull or too twitchy at the edge tell me and I will retune the mix. Files: `src/input/simpleControls.ts`, `src/render/cockpitFull.ts`, `src/render/b737Cockpit.ts`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

@@ -117,20 +117,21 @@ export class SimpleControls {
   update(dt: number, c: FlightControls, ac: Aircraft) {
     // stick: touch joystick, else mouse position (dead zone in the centre)
     const dz = (v: number, d: number) => (Math.abs(v) < d ? 0 : Math.sign(v) * (Math.abs(v) - d) / (1 - d));
+    // response curve: much finer control near the centre, full deflection at the edge (0.3 linear + 0.7 cubic)
+    const expo = (v: number) => { const x = Math.max(-1, Math.min(1, v)); return 0.3 * x + 0.7 * x * x * x; };
     let pitch = 0, roll = 0;
     if (IS_TOUCH) {
       // smooth the raw finger position (low-pass) and soften the centre with an expo curve
       const a = 1 - Math.exp(-dt / 0.07);
       this.joySmooth.x += (this.joy.x - this.joySmooth.x) * a;
       this.joySmooth.y += (this.joy.y - this.joySmooth.y) * a;
-      const expo = (v: number) => 0.45 * v + 0.55 * v * v * v;
       pitch = expo(this.joySmooth.y); roll = expo(this.joySmooth.x);
       if (this.knobEl) {
         const R = (this.knobEl.parentElement as HTMLElement).clientWidth / 2;
         this.knobEl.style.transform = `translate(${this.joySmooth.x * R * 0.62}px, ${this.joySmooth.y * R * 0.62}px)`;
       }
     }
-    else if (this.mouse.active) { pitch = dz(this.mouse.y, 0.06) * 1.3; roll = dz(this.mouse.x, 0.06) * 1.3; }
+    else if (this.mouse.active) { pitch = expo(dz(this.mouse.y, 0.06) * 1.3); roll = expo(dz(this.mouse.x, 0.06) * 1.3); }
     // touch: with the stick released in the air, gently level the wings (aileron input only)
     const stickFree = IS_TOUCH ? Math.abs(this.joy.x) < 0.05 : Math.abs(roll) < 0.03;
     if ((IS_TOUCH || this.arcade) && !ac.onGround && stickFree) {

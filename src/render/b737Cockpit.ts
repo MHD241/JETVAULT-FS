@@ -30,7 +30,7 @@ export class B737Cockpit {
   private timer = 0;
   private yoke = new THREE.Group();
   private thrustLevers: THREE.Mesh[] = [];
-  private detail: { update(dt: number, c: import('../sim/controls').FlightControls, eff: { pitch: number; roll: number }): void } | null = null;
+  detail: { update(dt: number, c: import('../sim/controls').FlightControls, eff: { pitch: number; roll: number }): void } | null = null;
 
   constructor(private sim: Simulation, private airport: AirportData) {
     const cv = document.createElement('canvas');
