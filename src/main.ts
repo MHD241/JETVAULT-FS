@@ -36,6 +36,8 @@ import { CrashFx } from './render/crashFx';
 import { Buggy, launchPoints, nearestLaunchPoint, LaunchPoint, BUGGY_MAX_SPEED } from './sim/buggy';
 import { TreeField, FieldScenery, BuggyModel } from './render/gliderField';
 import { GroundVehicles } from './render/groundVehicles';
+import { loadCustomDesign } from './render/cockpitCustom';
+import { STUDIO_ORIGIN } from './studio/parts';
 import { TyreSmoke } from './render/tyreSmoke';
 import { MarshalFigure } from './render/marshalFigure';
 import { marshalCall, MarshalSignal } from './sim/marshal';
@@ -400,7 +402,8 @@ class App implements MenuHost {
       this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
       // 737 clean-view camera: higher/forward seating keeps the PFD and windshield unobstructed.
       // No changes to aircraft physics or world coordinates.
-      if (jet) this.rig.eye.set(14.4, -0.53, -0.68); // was 14.47,-0.93: that put the eye through the window frame of the real deck model
+      if (jet) this.rig.eye.set(14.4, -0.53, -0.68);
+      if (jet) { const my = loadCustomDesign(); if (my?.eye) this.rig.eye.set(STUDIO_ORIGIN.x + my.eye[0], my.eye[2], STUDIO_ORIGIN.z - my.eye[1]); } // eye placed in the Cockpit Studio // was 14.47,-0.93: that put the eye through the window frame of the real deck model
       this.rig.chaseDist = jet ? 60 : glider ? 24 : 16;
       this.rig.headPitch = jet ? -0.17 : -0.2;
       if (jet) { this.rig.fovCockpit = 76; this.rig.camera.fov = this.rig.mode === 'cockpit' ? 76 : this.rig.camera.fov; this.rig.camera.updateProjectionMatrix(); }

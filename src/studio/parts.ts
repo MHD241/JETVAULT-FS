@@ -18,7 +18,7 @@ export interface Part {
   /** connector ends: ids of two other parts */
   a?: number; b?: number;
 }
-export interface Design { version: 1; nextId: number; parts: Part[] }
+export interface Design { version: 1; nextId: number; parts: Part[]; /** pilot's eye (the game camera), studio X forward, Y up, Z right */ eye?: [number, number, number] }
 
 export const STUDIO_ORIGIN = { x: 13.5, y: 0, z: 0.45 };
 export const EYE_STUDIO = { X: 0.9, Y: 1.13, Z: -0.53 };

@@ -33,6 +33,8 @@ async function gate(): Promise<void> {
 let design: Design = { version: 1, nextId: 1, parts: [] };
 const undoStack: string[] = [], redoStack: string[] = [];
 let selected: number | null = null;
+let eyeSelected = false;
+const getEye = (): [number, number, number] => design.eye ?? [EYE_STUDIO.X, EYE_STUDIO.Y, EYE_STUDIO.Z];
 let snap = 0.01;
 const snapshot = () => JSON.stringify(design);
 function commit() { undoStack.push(snapshot()); if (undoStack.length > 100) undoStack.shift(); redoStack.length = 0; autosave(); }
@@ -53,15 +55,17 @@ const sun = new THREE.DirectionalLight(0xffffff, 2.2); sun.position.set(-2, 4, -
 const grid = new THREE.GridHelper(4, 40, 0x3a424d, 0x252b33); grid.position.set(0.5, 0, 0); scene.add(grid);
 scene.add(new THREE.AxesHelper(0.4));
 // reference: pilot eye, the windshield glass plane and the aircraft nose direction
-const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), new THREE.MeshBasicMaterial({ color: 0x4f8ef7 })); eye.position.set(EYE_STUDIO.X, EYE_STUDIO.Y, EYE_STUDIO.Z); scene.add(eye);
+const eye = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), new THREE.MeshBasicMaterial({ color: 0x4f8ef7 })); eye.scale.setScalar(1.6); scene.add(eye);
+const eyeGlow = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 12), new THREE.MeshBasicMaterial({ color: 0x4f8ef7, transparent: true, opacity: 0.25, depthTest: false })); eye.add(eyeGlow);
 const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0.3, 0.02, 0), 0.5, 0x4f8ef7); scene.add(arrow);
 const root = new THREE.Group(); scene.add(root);
 const gizmo = new TransformControls(camera, renderer.domElement); scene.add(gizmo.getHelper());
 gizmo.setTranslationSnap(snap); gizmo.setScaleSnap(0.05); gizmo.setRotationSnap(THREE.MathUtils.degToRad(5));
 const meshes = new Map<number, THREE.Mesh>();
 
+function placeEye() { eye.position.set(...getEye()); }
 function rebuild() {
-  gizmo.detach();
+  gizmo.detach(); placeEye();
   for (const m of meshes.values()) { m.geometry.dispose(); (m.material as THREE.Material).dispose(); root.remove(m); }
   meshes.clear();
   for (const p of design.parts) { const m = buildMesh(p, design.parts); meshes.set(p.id, m); root.add(m); }
@@ -75,11 +79,12 @@ function refreshPart(p: Part) {
   if (selected === p.id && p.type !== 'connector') gizmo.attach(meshes.get(p.id)!);
 }
 function refreshMeshSelection() {
+  if (eyeSelected) { gizmo.setMode('translate'); gizmo.attach(eye); return; }
   const p = part(selected);
   if (p && p.type !== 'connector') gizmo.attach(meshes.get(p.id)!); else gizmo.detach();
   for (const m of meshes.values()) { const mat = m.material as THREE.MeshStandardMaterial; if (mat.emissive && (m.userData.partId === selected)) { mat.emissiveIntensity = Math.max(mat.emissiveIntensity, 0.0); } }
 }
-function select(id: number | null) { selected = id; refreshMeshSelection(); renderUI(); }
+function select(id: number | null) { selected = id; eyeSelected = false; refreshMeshSelection(); renderUI(); }
 
 // ---------------------------------------------------------------- editing
 function addPart(type: PartType, extra: Partial<Part> = {}) {
@@ -103,8 +108,9 @@ function bake(p: Part, m: THREE.Mesh) {
 }
 gizmo.addEventListener('dragging-changed', (e) => {
   orbit.enabled = !(e as unknown as { value: boolean }).value;
+  if (!(e as unknown as { value: boolean }).value && eyeSelected) { design.eye = eye.position.toArray().map((v) => Math.round(v * 1000) / 1000) as [number, number, number]; commit(); renderRight(); return; }
   const p = part(selected), m = p && meshes.get(p.id);
-  if (!(e as unknown as { value: boolean }).value && p && m) {
+  if (!(e as unknown as { value: boolean }).value && p && m && !eyeSelected) {
     p.pos = m.position.toArray().map((v) => Math.round(v * 10000) / 10000) as [number, number, number];
     const e2 = new THREE.Euler().setFromQuaternion(m.quaternion, 'YXZ');
     p.rot = [e2.x, e2.y, e2.z].map((v) => Math.round((v * 180) / Math.PI * 10) / 10) as [number, number, number];
@@ -151,7 +157,8 @@ function renderTop() {
   b('Save file', save); b('Load file', load); b('Export GLB', exportGlb); sep();
   const use = localStorage.getItem(USE_KEY) === '1';
   b(use ? 'In the game: ON' : 'Use in the game', () => { localStorage.setItem(USE_KEY, use ? '0' : '1'); autosave(); msg(use ? 'The game will use its built-in cockpit' : 'Saved. Open the game (same browser) and pick the 737: it now loads your cockpit'); renderTop(); }, use);
-  b('View eye', () => { camera.position.set(EYE_STUDIO.X, EYE_STUDIO.Y, EYE_STUDIO.Z); orbit.target.set(EYE_STUDIO.X + 1, EYE_STUDIO.Y - 0.2, EYE_STUDIO.Z); });
+  b('Select eye (camera)', () => { selected = null; eyeSelected = true; refreshMeshSelection(); renderUI(); }, eyeSelected);
+  b('View from eye', () => { const e = getEye(); camera.position.set(e[0], e[1], e[2]); orbit.target.set(e[0] + 1, e[1] - 0.2, e[2]); });
 }
 function renderLeft() {
   const l = $('left'); l.innerHTML = '<h4>Add shape</h4>';
@@ -170,6 +177,11 @@ function renderRight() {
   const R = $('right'); R.innerHTML = `<h4>Parts (${design.parts.length})</h4><div id="list"></div>`;
   const list = $('list');
   for (const p of design.parts) { const d = document.createElement('div'); d.textContent = p.name; if (p.id === selected) d.className = 'sel'; d.onclick = () => select(p.id); list.appendChild(d); }
+  if (eyeSelected) {
+    R.insertAdjacentHTML('beforeend', '<h4>Pilot eye = the game camera</h4><div style="color:#8b94a0;margin-bottom:8px">Drag the blue ball, or type exact positions. The game views from here.</div>');
+    (['X forward', 'Y up', 'Z right'] as const).forEach((l, i) => num(R, l, getEye()[i], -3, 3, 0.005, (n) => { const e = getEye(); e[i] = n; design.eye = e; placeEye(); }));
+    const rs = document.createElement('button'); rs.textContent = 'Reset to default seat'; rs.onclick = () => { delete design.eye; commit(); placeEye(); renderRight(); }; R.appendChild(rs); return;
+  }
   const p = part(selected); if (!p) { R.insertAdjacentHTML('beforeend', '<div style="color:#8b94a0">Nothing selected. Add a shape on the left, or click a part.</div>'); return; }
   const redo = () => refreshPart(p);
   R.insertAdjacentHTML('beforeend', '<h4>Part</h4>');
@@ -219,7 +231,8 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4 || gizmo.dragging) return;
   const r = renderer.domElement.getBoundingClientRect();
   ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
-  const hit = ray.intersectObjects([...meshes.values()].filter((m) => m.visible), false)[0];
+  const eh = ray.intersectObject(eyeGlow, false)[0], hit = ray.intersectObjects([...meshes.values()].filter((m) => m.visible), false)[0];
+  if (eh && (!hit || eh.distance <= hit.distance + 0.05)) { selected = null; eyeSelected = true; refreshMeshSelection(); renderUI(); return; }
   select(hit ? (hit.object.userData.partId as number) : null);
 });
 window.addEventListener('keydown', (e) => {

@@ -315,6 +315,9 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - Not yet: parts do not animate (yokes, levers, gear lever stay still in your cockpit), no grouping, no extrude/lathe sketching, no textures/labels, no multi-select; the studio page itself is not linked from the game (open `studio.html` by its address).
 - Open: how to open it on the published page (the artifact viewer serves it as a separate page).
 
+## Update 47 — placeable eye in the Cockpit Studio
+- The blue pilot-eye ball in the studio is now a real object: click it (or "Select eye (camera)"), drag it with the gizmo or type X forward / Y up / Z right, "Reset to default seat" undoes it, "View from eye" looks from it. It is saved in the design (`design.eye`) and the game uses it as the 737 cockpit camera when "In the game" is ON. Test: eye set to (1.2, 1.3, -0.53) in the studio -> game camera at body (14.7, -0.53, -0.85), exactly as converted. The look direction is unchanged (forward, with the normal head-look). Files: `src/studio/studio.ts`, `src/studio/parts.ts`, `src/main.ts`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
