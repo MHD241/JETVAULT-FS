@@ -328,6 +328,10 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - Studio button **Import .glb**: pick a glTF-binary 2.0 file; it becomes a part (moved/rotated/sized like any other, Scale field and Size gizmo; first fit to about 40 cm). Models are stored in the browser's IndexedDB (`src/studio/modelStore.ts`), shared with the game; **Save file** embeds them in the `.json` (the file gets large), **Load file** restores them. Old glTF 1.0 files are refused with a message (your first 737 file was one; convert it in Blender or similar). Tested headlessly: imported a 0.8 MB glb, it appears and selects in the studio; the game loaded with it switched on and showed no errors. **Not verified:** that the model is visible from inside the cockpit view (my test used the chase view), animations inside the glb are ignored, textures are kept but not lit specially, very large files may be slow.
 - Files: `src/studio/modelStore.ts`, `src/studio/parts.ts`, `src/studio/studio.ts`.
 
+## Update 50 — easier to find an imported model
+- After importing, the studio now reports meshes, triangles and the original size, refuses empty or compressed (Draco) files with a clear message, draws a blue bounding box around the selected part, and has **Focus selected (F)**. Headless test: a 13k-triangle model imports at 40 cm and F frames it. Likely reasons you could not see yours: it was only 40 cm at the pilot's right and small in a big grid, or the studio and the game were opened from different web addresses (browser storage is per address, so a model imported on one is not visible on the other; open both from the same site).
+- Files: `src/studio/studio.ts`, `src/studio/modelStore.ts`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

@@ -40,7 +40,8 @@ export function loadScene(id: string): Promise<THREE.Group | null> {
 }
 export async function measure(buf: ArrayBuffer) {
   const g = await parse(buf), box = new THREE.Box3().setFromObject(g), size = box.getSize(new THREE.Vector3());
-  return { size, max: Math.max(size.x, size.y, size.z) };
+  let meshes = 0, tris = 0; g.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { meshes++; tris += (m.geometry.index?.count ?? m.geometry.getAttribute('position').count) / 3; } });
+  return { size, max: Math.max(size.x, size.y, size.z), meshes, tris };
 }
 /** Adds the stored model as a child of `holder`, centred on its own bounding box. */
 export async function attachModel(holder: THREE.Object3D, modelId: string) {

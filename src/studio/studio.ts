@@ -146,6 +146,12 @@ function connect() {
   const other = others.find((p) => p.id !== s.id)!;
   addPart('connector', { a: s.id, b: other.id, color: '#2a2d32', pos: [0, 0, 0] });
 }
+function focus() {
+  const o = eyeSelected ? eye : meshes.get(selected ?? -1); if (!o) { msg('Select a part first'); return; }
+  const box = new THREE.Box3().setFromObject(o), c = box.getCenter(new THREE.Vector3()), r = Math.max(0.1, box.getSize(new THREE.Vector3()).length());
+  orbit.target.copy(c); camera.position.copy(c).add(new THREE.Vector3(-1, 0.7, -1).normalize().multiplyScalar(r * 1.6));
+}
+const selBox = new THREE.Box3Helper(new THREE.Box3(), 0x4f8ef7); selBox.visible = false; scene.add(selBox);
 function msg(s: string) { $('msg').textContent = s; }
 
 // ---------------------------------------------------------------- UI
@@ -161,6 +167,7 @@ function renderTop() {
   b('Import .glb', importGlb); b('Save file', save); b('Load file', load); b('Export GLB', exportGlb); sep();
   const use = localStorage.getItem(USE_KEY) === '1';
   b(use ? 'In the game: ON' : 'Use in the game', () => { localStorage.setItem(USE_KEY, use ? '0' : '1'); autosave(); msg(use ? 'The game will use its built-in cockpit' : 'Saved. Open the game (same browser) and pick the 737: it now loads your cockpit'); renderTop(); }, use);
+  b('Focus selected (F)', focus);
   b('Select eye (camera)', () => { selected = null; eyeSelected = true; refreshMeshSelection(); renderUI(); }, eyeSelected);
   b('View from eye', () => { const e = getEye(); camera.position.set(e[0], e[1], e[2]); orbit.target.set(e[0] + 1, e[1] - 0.2, e[2]); });
 }
@@ -231,12 +238,13 @@ async function importGlb() {
     const buf = await f.arrayBuffer(), bad = checkGlb(buf);
     if (bad) { msg(bad); return; }
     try {
-      const { max } = await measure(buf);
+      const { max, meshes: nm, tris, size } = await measure(buf);
+      if (!nm || !isFinite(max) || max <= 0) { msg('That .glb contains no visible meshes (it may be empty, or use Draco/mesh compression, which this studio cannot read)'); return; }
       const id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
       await putModel(id, buf);
       const scale = max > 0 ? Math.round((0.4 / max) * 10000) / 10000 : 1; // first fit to about 40 cm; change Scale afterwards
       addPart('model', { name: f.name.replace(/\.glb$/i, ''), modelId: id, d: { scale }, pos: [0.9, 1.0, 0] });
-      msg('Imported ' + f.name + ' (' + (buf.byteLength / 1e6).toFixed(1) + ' MB): resized to about 40 cm, use Scale or the Size gizmo to fit it');
+      msg('Imported ' + f.name + ': ' + nm + ' meshes, ' + Math.round(tris) + ' triangles, original size ' + size.x.toFixed(2) + ' x ' + size.y.toFixed(2) + ' x ' + size.z.toFixed(2) + ' units. Fitted to about 40 cm; it is now selected (press F to look at it)');
     } catch { msg('Could not read that .glb'); }
   };
   i.click();
@@ -267,11 +275,12 @@ window.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); if (undoStack.length > 1) { redoStack.push(undoStack.pop()!); restore(undoStack[undoStack.length - 1]); autosave(); } }
   else if ((e.ctrlKey || e.metaKey) && (k === 'y' || (e.shiftKey && k === 'z'))) { e.preventDefault(); const s = redoStack.pop(); if (s) { undoStack.push(s); restore(s); autosave(); } }
   else if (k === 'w') { gizmo.setMode('translate'); renderTop(); } else if (k === 'e') { gizmo.setMode('rotate'); renderTop(); } else if (k === 'r') { gizmo.setMode('scale'); renderTop(); }
-  else if (k === 'd') duplicate(); else if (k === 'm') mirror(); else if (k === 'c') connect(); else if (k === 'delete' || k === 'backspace') remove();
+  else if (k === 'f') focus(); else if (k === 'd') duplicate(); else if (k === 'm') mirror(); else if (k === 'c') connect(); else if (k === 'delete' || k === 'backspace') remove();
 });
 function resize() { const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
 window.addEventListener('resize', resize);
-function frame() { orbit.update(); renderer.render(scene, camera); requestAnimationFrame(frame); }
+function frame() { orbit.update();
+  { const o = meshes.get(selected ?? -1); if (o && !eyeSelected) { const b = new THREE.Box3().setFromObject(o); if (!b.isEmpty()) { selBox.box.copy(b); selBox.visible = true; } else selBox.visible = false; } else selBox.visible = false; } renderer.render(scene, camera); requestAnimationFrame(frame); }
 
 // ---------------------------------------------------------------- start
 gate().then(() => {
