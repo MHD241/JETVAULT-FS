@@ -347,6 +347,10 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 ## Update 53 — ground lines no longer sink under the apron
 - Cause: with the logarithmic depth buffer, polygonOffset has no effect, and the terrain mesh at range is coarser than the real ground, so painted lines (stand lead-ins, stop bars, taxiway centrelines, runway paint) disappeared into the floor at a distance and from low angles. Fix: the line and runway materials now pull their fragments slightly towards the camera in depth (`paintOnTop` in `src/render/airportMesh.ts`, about 0.4 m at 100 m, more with distance). Checked in two headless screenshots at a gate: the lead-in line, stop bar and centreline are continuous. Not checked: other airports at night, or very long taxiway runs.
 
+## Update 54 — real 737 cockpit colours
+- The model has no textures, so its colours were plain light grey. I sampled the colours of a real 737NG flight-deck photo you showed (instrument panel #44484a, glareshield #43474e, overhead #42423e, pedestal #48443f, walls/trim #8a8883) plus a dark floor (#3a3835, my guess) and applied them by region to the model's large surfaces as vertex colours (`src/render/cockpitFull.ts`). Small parts (switch caps, labels, keys, yoke, displays) keep the model's own colours. Checked in one headless screenshot: charcoal panels, dark overhead, grey walls.
+- **Limits, honestly:** this is a region-based approximation from one photo, not an exact copy: real cockpits have printed panel markings, painted panel sections and two tones that this untextured model cannot show; lighting in the sim and in a photo differ, so the on-screen result will not match pixel for pixel. If a region looks wrong (say which: overhead, panel, walls, floor) I can retune its hex colour. Only visible with the full cockpit file (repository build).
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

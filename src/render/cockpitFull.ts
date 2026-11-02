@@ -50,6 +50,27 @@ export class CockpitFull {
       box.setFromBufferAttribute(g.getAttribute('position') as THREE.BufferAttribute).getCenter(c);
       let owner: string | null = null;
       if (box.getSize(new THREE.Vector3()).length() < 30) for (const n of PART_NAMES) { const b = boxes[n]; if (c.x >= b[0] - 0.6 && c.x <= b[3] + 0.6 && c.y >= b[1] - 0.6 && c.y <= b[4] + 0.6 && c.z >= b[2] - 0.6 && c.z <= b[5] + 0.6) { owner = n; break; } }
+      {
+        // colours of a real 737NG flight deck, sampled from a cockpit photograph: charcoal instrument panels and glareshield,
+        // dark overhead, brown-grey pedestal and floor, mid-grey walls and trim. Small parts (switch caps, labels, keys) keep the model's own colours.
+        const src = Array.isArray(m.material) ? m.material[0] : m.material, sm = src as THREE.MeshStandardMaterial;
+        const col = (sm.color ? sm.color.clone() : new THREE.Color(0.5, 0.5, 0.5));
+        const size = box.getSize(new THREE.Vector3()).length();
+        if (!owner && size >= 5 && !m.name.startsWith('Text')) {
+          const lum = (col.r + col.g + col.b) / 3;
+          if (lum > 0.12) {
+            const z = c.z, y = c.y, x = c.x;
+            if (y < 56) col.set('#3a3835');                                                  // floor
+            else if (y > 140 && z > 20) col.set('#42423e');                                  // overhead panel
+            else if (Math.abs(x) < 12 && y < 112 && z > 40 && z < 90) col.set('#48443f');    // centre pedestal
+            else if (z > 60 && y > 94) col.set('#44484a');                                   // main panel, glareshield, side panels
+            else col.set('#8a8883');                                                         // walls, ceiling, window frames, trim
+          }
+        }
+        const n = g.getAttribute('position').count, arr = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) { arr[i * 3] = col.r; arr[i * 3 + 1] = col.g; arr[i * 3 + 2] = col.b; }
+        g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+      }
       this.triangles += g.index!.count / 3;
       if (owner) { partGeos[owner].push(g); partMats[owner].push(Array.isArray(m.material) ? m.material[0] : m.material); }
       else { const mat = Array.isArray(m.material) ? m.material[0] : m.material; let l = byMat.get(mat); if (!l) { l = []; byMat.set(mat, l); } l.push(g); }
@@ -58,7 +79,7 @@ export class CockpitFull {
     // the model's own colours, roughness and metalness, unchanged
     const mk = (src: THREE.Material) => {
       const s = src as THREE.MeshStandardMaterial;
-      return new THREE.MeshStandardMaterial({ color: s.color ? s.color.clone() : new THREE.Color(0.5, 0.5, 0.5), roughness: s.roughness ?? 0.8, metalness: s.metalness ?? 0, side: THREE.DoubleSide, envMapIntensity: 0.6 });
+      return new THREE.MeshStandardMaterial({ vertexColors: true, roughness: Math.max(0.7, s.roughness ?? 0.8), metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.3 });
     };
     for (const [mat, list] of byMat) {
       const merged = mergeGeometries(list, false);
