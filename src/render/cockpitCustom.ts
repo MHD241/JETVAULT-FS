@@ -8,7 +8,8 @@ export const CUSTOM_KEY = 'jetvault.studio.cockpit', CUSTOM_USE = 'jetvault.stud
 
 export function loadCustomDesign(): Design | null {
   try {
-    if (localStorage.getItem(CUSTOM_USE) !== '1') return null;
+    // the studio design is only used when asked for (?mycockpit); by default the game shows the full supplied cockpit
+    if (localStorage.getItem(CUSTOM_USE) !== '1' || !new URLSearchParams(location.search).has('mycockpit')) return null;
     const d = JSON.parse(localStorage.getItem(CUSTOM_KEY) ?? 'null') as Design | null;
     return d && d.parts?.length ? d : null;
   } catch { return null; }

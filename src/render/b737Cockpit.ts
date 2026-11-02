@@ -10,6 +10,7 @@ import { Region } from './cockpit';
 import { AirportData } from '../world/airport';
 import { Cockpit737Model } from './cockpit737';
 import { CockpitOwn } from './cockpitOwn';
+import { CockpitFull } from './cockpitFull';
 import { CockpitCustom, loadCustomDesign } from './cockpitCustom';
 
 const PX = 1400; // px per metre
@@ -138,6 +139,26 @@ export class B737Cockpit {
       this.root.add(c.root);
       this.detail = c;
       return;
+    }
+    if (!new URLSearchParams(location.search).has('owncockpit')) {
+      try {
+        // the full supplied flight-deck model (all 1.75 M triangles), screens mapped onto its displays
+        const meta = await (await fetch(`${url}.json`)).json();
+        const boxes: Record<string, number[]> = {};
+        for (const k of Object.keys(meta.parts)) boxes[k] = meta.parts[k].opaque.bbox;
+        const f = await CockpitFull.load('./models/cockpit_full.bin', boxes);
+        const t = this.tex, z = 86.4, [px, py, pw, ph] = this.L.pfd, [nx, ny, nw, nh] = this.L.nd, [ex, ey, ew, eh] = this.L.eng, [mx, my, mw, mh] = this.L.mcp;
+        f.addScreen(t, 21.9, 16.0, 108.6, 114.7, z, [px, py, pw, ph], CW, CH);
+        f.addScreen(t, 14.5, 8.6, 108.6, 114.7, z, [nx, ny, nw, nh], CW, CH);
+        f.addScreen(t, 3.5, -2.8, 108.6, 114.7, z, [ex, ey, ew, eh], CW, CH);
+        f.addScreen(t, -5.8, -12.5, 108.6, 114.7, z, [nx, ny, nw, nh], CW, CH);
+        f.addScreen(t, -13.0, -20.0, 108.6, 114.7, z, [px, py, pw, ph], CW, CH);
+        f.addScreen(t, 6.5, -4.2, 119.9, 123.8, z - 0.1, [mx, my, mw, mh], CW, CH);
+        for (const ch of [...this.root.children]) ch.visible = false;
+        this.root.add(f.root); this.detail = f;
+        console.info('full cockpit loaded:', f.triangles, 'triangles');
+        return;
+      } catch (e) { console.warn('full cockpit model unavailable, using the built-in deck', e); }
     }
     if (!new URLSearchParams(location.search).has('oldcockpit')) {
       // our own modelled and textured flight deck (default)
