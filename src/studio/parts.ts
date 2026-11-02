@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 
-export type PartType = 'box' | 'cylinder' | 'sphere' | 'cone' | 'torus' | 'capsule' | 'plane' | 'screen' | 'connector';
+export type PartType = 'box' | 'cylinder' | 'sphere' | 'cone' | 'torus' | 'capsule' | 'hollowsphere' | 'hollowcapsule' | 'plane' | 'screen' | 'connector';
 export type ScreenKind = 'pfd' | 'nd' | 'eng' | 'mcp';
 
 export interface Part {
@@ -29,7 +29,9 @@ export const DEFAULTS: Record<PartType, Record<string, number>> = {
   sphere: { r: 0.12 },
   cone: { r: 0.12, h: 0.25, sides: 24 },
   torus: { R: 0.15, tube: 0.02 },
-  capsule: { r: 0.04, len: 0.2 },
+  capsule: { r: 0.04, len: 0.2, sx: 1, sz: 1 },
+  hollowsphere: { r: 0.15, wall: 0.01, opening: 70 },
+  hollowcapsule: { r: 0.05, len: 0.2, wall: 0.006 },
   plane: { w: 0.4, h: 0.3 },
   screen: { w: 0.2, h: 0.2 },
   connector: { radius: 0.02, sides: 12 },
@@ -53,7 +55,26 @@ export function geometryFor(p: Part): THREE.BufferGeometry {
     case 'sphere': return new THREE.SphereGeometry(d.r, 32, 20);
     case 'cone': return new THREE.ConeGeometry(d.r, d.h, Math.round(d.sides));
     case 'torus': return new THREE.TorusGeometry(d.R, d.tube, 12, 40);
-    case 'capsule': return new THREE.CapsuleGeometry(d.r, d.len, 6, 14);
+    case 'capsule': { const g = new THREE.CapsuleGeometry(d.r, d.len, 8, 20); g.scale(d.sx, 1, d.sz); return g; }
+    case 'hollowsphere': {
+      // a spherical shell with real wall thickness and a round opening (opening = half-angle of the hole, degrees; 0 = closed)
+      const R = d.r, t = Math.min(d.wall, R - 0.001), a0 = (Math.max(0, d.opening) * Math.PI) / 180, pts: THREE.Vector2[] = [];
+      const n = 28;
+      for (let i = 0; i <= n; i++) { const a = a0 + ((Math.PI - a0) * i) / n; pts.push(new THREE.Vector2(Math.sin(a) * R, Math.cos(a) * R)); }
+      for (let i = n; i >= 0; i--) { const a = a0 + ((Math.PI - a0) * i) / n; pts.push(new THREE.Vector2(Math.sin(a) * (R - t), Math.cos(a) * (R - t))); }
+      pts.push(pts[0].clone());
+      const g = new THREE.LatheGeometry(pts, 40); return g;
+    }
+    case 'hollowcapsule': {
+      // a capsule-shaped tube with wall thickness, closed at the bottom and open at the top
+      const R = d.r, t = Math.min(d.wall, R - 0.001), h = d.len / 2, pts: THREE.Vector2[] = [], n = 14;
+      pts.push(new THREE.Vector2(R, h));
+      pts.push(new THREE.Vector2(R, -h));
+      for (let i = 1; i <= n; i++) { const a = (i / n) * (Math.PI / 2); pts.push(new THREE.Vector2(Math.cos(a) * R, -h - Math.sin(a) * R)); }
+      for (let i = n; i >= 1; i--) { const a = (i / n) * (Math.PI / 2); pts.push(new THREE.Vector2(Math.cos(a) * (R - t), -h - Math.sin(a) * (R - t))); }
+      pts.push(new THREE.Vector2(R - t, -h)); pts.push(new THREE.Vector2(R - t, h)); pts.push(pts[0].clone());
+      return new THREE.LatheGeometry(pts, 36);
+    }
     case 'plane': case 'screen': return new THREE.PlaneGeometry(d.w, d.h);
     case 'connector': return new THREE.CylinderGeometry(d.radius, d.radius, 1, Math.round(d.sides));
   }
@@ -61,7 +82,7 @@ export function geometryFor(p: Part): THREE.BufferGeometry {
 
 export function materialFor(p: Part): THREE.Material {
   if (p.type === 'screen') return new THREE.MeshBasicMaterial({ color: '#0a0b0c', side: THREE.DoubleSide });
-  return new THREE.MeshStandardMaterial({ color: p.color, roughness: p.rough, metalness: p.metal, emissive: p.color, emissiveIntensity: p.emissive, side: p.type === 'plane' ? THREE.DoubleSide : THREE.FrontSide });
+  return new THREE.MeshStandardMaterial({ color: p.color, roughness: p.rough, metalness: p.metal, emissive: p.color, emissiveIntensity: p.emissive, side: p.type === 'plane' || p.type === 'hollowsphere' || p.type === 'hollowcapsule' ? THREE.DoubleSide : THREE.FrontSide });
 }
 
 /** Fit a unit cylinder between two points (for connectors). */

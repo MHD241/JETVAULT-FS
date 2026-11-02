@@ -60,7 +60,7 @@ const eyeGlow = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 12), new THREE
 const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0.3, 0.02, 0), 0.5, 0x4f8ef7); scene.add(arrow);
 const root = new THREE.Group(); scene.add(root);
 const gizmo = new TransformControls(camera, renderer.domElement); scene.add(gizmo.getHelper());
-gizmo.setTranslationSnap(snap); gizmo.setScaleSnap(0.05); gizmo.setRotationSnap(THREE.MathUtils.degToRad(5));
+gizmo.setTranslationSnap(snap); gizmo.setScaleSnap(null); gizmo.setRotationSnap(THREE.MathUtils.degToRad(5));
 const meshes = new Map<number, THREE.Mesh>();
 
 function placeEye() { eye.position.set(...getEye()); }
@@ -101,7 +101,9 @@ function bake(p: Part, m: THREE.Mesh) {
     case 'sphere': d.r *= all; break;
     case 'cone': d.r *= avg; d.h *= s.y; break;
     case 'torus': d.R *= all; d.tube *= all; break;
-    case 'capsule': d.r *= avg; d.len *= s.y; break;
+    case 'capsule': d.sx *= s.x; d.sz *= s.z; d.len *= s.y; break;
+    case 'hollowsphere': d.r *= all; d.wall *= all; break;
+    case 'hollowcapsule': d.r *= avg; d.wall *= avg; d.len *= s.y; break;
     case 'plane': case 'screen': d.w *= s.x; d.h *= s.y; break;
   }
   for (const k of Object.keys(d)) d[k] = Math.round(d[k] * 10000) / 10000;
@@ -162,9 +164,9 @@ function renderTop() {
 }
 function renderLeft() {
   const l = $('left'); l.innerHTML = '<h4>Add shape</h4>';
-  const names: [PartType, string][] = [['box', 'Rounded box'], ['cylinder', 'Cylinder (rounded)'], ['sphere', 'Sphere'], ['cone', 'Cone'], ['torus', 'Ring / torus'], ['capsule', 'Capsule / handle'], ['plane', 'Flat panel'], ['screen', 'Live screen']];
+  const names: [PartType, string][] = [['box', 'Rounded box'], ['cylinder', 'Cylinder (rounded)'], ['sphere', 'Sphere'], ['cone', 'Cone'], ['torus', 'Ring / torus'], ['capsule', 'Capsule / handle'], ['hollowsphere', 'Hollow sphere'], ['hollowcapsule', 'Hollow capsule'], ['plane', 'Flat panel'], ['screen', 'Live screen']];
   for (const [t, n] of names) { const e = document.createElement('button'); e.textContent = n; e.onclick = () => addPart(t); l.appendChild(e); }
-  l.insertAdjacentHTML('beforeend', '<h4>Keys</h4><div style="color:#8b94a0;line-height:1.6">W/E/R move, rotate, size<br>D duplicate, M mirror<br>C connector, Del delete<br>Ctrl+Z / Ctrl+Y undo, redo<br>Click a part to select<br>Drag = orbit, wheel = zoom, right drag = pan</div>');
+  l.insertAdjacentHTML('beforeend', '<h4>Keys</h4><div style="color:#8b94a0;line-height:1.6">W/E/R move, rotate, size<br>D duplicate, M mirror<br>C connector, Del delete<br>Ctrl+Z / Ctrl+Y undo, redo<br>Click a part to select<br>Drag = orbit, wheel = zoom, right drag = pan</div><h4>Credit</h4><div style="color:#8b94a0;line-height:1.5;font-size:11px">"Boeing 737-800 Cockpit" (https://skfb.ly/oSGxK) by hakai315 is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).</div>');
 }
 function num(parent: HTMLElement, label: string, v: number, min: number, max: number, step: number, set: (n: number) => void) {
   const r = document.createElement('div'); r.className = 'row';
@@ -196,7 +198,8 @@ function renderRight() {
     box: [['Width', 0.01, 3, 0.005], ['Height', 0.01, 3, 0.005], ['Depth', 0.01, 3, 0.005], ['Round edges', 0, 0.3, 0.001], ['Smoothness', 1, 10, 1]],
     cylinder: [['Radius top', 0.005, 1, 0.002], ['Radius bottom', 0.005, 1, 0.002], ['Height', 0.01, 3, 0.005], ['Sides', 6, 64, 1], ['Round edges', 0, 0.2, 0.001]],
     sphere: [['Radius', 0.005, 1, 0.002]], cone: [['Radius', 0.005, 1, 0.002], ['Height', 0.01, 2, 0.005], ['Sides', 4, 64, 1]],
-    torus: [['Ring radius', 0.02, 1, 0.002], ['Tube radius', 0.002, 0.2, 0.001]], capsule: [['Radius', 0.003, 0.5, 0.001], ['Length', 0.01, 2, 0.005]],
+    torus: [['Ring radius', 0.02, 1, 0.002], ['Tube radius', 0.002, 0.2, 0.001]], capsule: [['Radius', 0.003, 0.5, 0.0005], ['Length', 0, 2, 0.001], ['Stretch width', 0.2, 6, 0.01], ['Stretch depth', 0.2, 6, 0.01]],
+    hollowsphere: [['Radius', 0.01, 1, 0.001], ['Wall thickness', 0.001, 0.2, 0.0005], ['Opening angle', 0, 170, 1]], hollowcapsule: [['Radius', 0.01, 0.6, 0.001], ['Length', 0, 2, 0.001], ['Wall thickness', 0.001, 0.1, 0.0005]],
     plane: [['Width', 0.01, 3, 0.005], ['Height', 0.01, 3, 0.005]], screen: [['Width', 0.02, 1, 0.005], ['Height', 0.02, 1, 0.005]], connector: [['Thickness', 0.002, 0.2, 0.001], ['Sides', 4, 32, 1]],
   };
   const keys = Object.keys(DEFAULTS[p.type]);

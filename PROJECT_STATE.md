@@ -318,6 +318,12 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 ## Update 47 — placeable eye in the Cockpit Studio
 - The blue pilot-eye ball in the studio is now a real object: click it (or "Select eye (camera)"), drag it with the gizmo or type X forward / Y up / Z right, "Reset to default seat" undoes it, "View from eye" looks from it. It is saved in the design (`design.eye`) and the game uses it as the 737 cockpit camera when "In the game" is ON. Test: eye set to (1.2, 1.3, -0.53) in the studio -> game camera at body (14.7, -0.53, -0.85), exactly as converted. The look direction is unchanged (forward, with the normal head-look). Files: `src/studio/studio.ts`, `src/studio/parts.ts`, `src/main.ts`.
 
+## Update 48 — studio shapes and credit
+- Capsule is now free-form: the size snap on the resize gizmo is off for every shape, and the capsule has radius, length (0 allowed), and independent width/depth stretch with fine steps (0.0005 m).
+- New shapes: **Hollow sphere** (radius, wall thickness, opening angle: 0 = closed shell) and **Hollow capsule** (radius, length, wall thickness; open at the top). Seen in a headless screenshot of the studio. Not checked: inner-wall shading in the game, and very thin walls at small sizes.
+- Credit added to the game's About page, the studio's side panel and the third-party notes: "Boeing 737-800 Cockpit" (https://skfb.ly/oSGxK) by hakai315 is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/). CC BY 4.0 also asks you to say if changes were made: the model was converted, simplified and recoloured here; add that wording if you publish. The About text still says the 737 exterior's licence is unverified.
+- Files: `src/studio/parts.ts`, `src/studio/studio.ts`, `src/ui/menu.ts`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
