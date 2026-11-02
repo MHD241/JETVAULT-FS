@@ -324,6 +324,10 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - Credit added to the game's About page, the studio's side panel and the third-party notes: "Boeing 737-800 Cockpit" (https://skfb.ly/oSGxK) by hakai315 is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/). CC BY 4.0 also asks you to say if changes were made: the model was converted, simplified and recoloured here; add that wording if you publish. The About text still says the 737 exterior's licence is unverified.
 - Files: `src/studio/parts.ts`, `src/studio/studio.ts`, `src/ui/menu.ts`.
 
+## Update 49 — import .glb into the studio
+- Studio button **Import .glb**: pick a glTF-binary 2.0 file; it becomes a part (moved/rotated/sized like any other, Scale field and Size gizmo; first fit to about 40 cm). Models are stored in the browser's IndexedDB (`src/studio/modelStore.ts`), shared with the game; **Save file** embeds them in the `.json` (the file gets large), **Load file** restores them. Old glTF 1.0 files are refused with a message (your first 737 file was one; convert it in Blender or similar). Tested headlessly: imported a 0.8 MB glb, it appears and selects in the studio; the game loaded with it switched on and showed no errors. **Not verified:** that the model is visible from inside the cockpit view (my test used the chase view), animations inside the glb are ignored, textures are kept but not lit specially, very large files may be slow.
+- Files: `src/studio/modelStore.ts`, `src/studio/parts.ts`, `src/studio/studio.ts`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

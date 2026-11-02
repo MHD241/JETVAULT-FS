@@ -3,9 +3,10 @@
 // Body (FRD) = (13.5 + X, Z, 0.45 - Y).
 
 import * as THREE from 'three';
+import { attachModel } from './modelStore';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 
-export type PartType = 'box' | 'cylinder' | 'sphere' | 'cone' | 'torus' | 'capsule' | 'hollowsphere' | 'hollowcapsule' | 'plane' | 'screen' | 'connector';
+export type PartType = 'box' | 'cylinder' | 'sphere' | 'cone' | 'torus' | 'capsule' | 'hollowsphere' | 'hollowcapsule' | 'model' | 'plane' | 'screen' | 'connector';
 export type ScreenKind = 'pfd' | 'nd' | 'eng' | 'mcp';
 
 export interface Part {
@@ -17,6 +18,8 @@ export interface Part {
   screen?: ScreenKind;
   /** connector ends: ids of two other parts */
   a?: number; b?: number;
+  /** imported .glb (type 'model'): key in the browser's IndexedDB */
+  modelId?: string;
 }
 export interface Design { version: 1; nextId: number; parts: Part[]; /** pilot's eye (the game camera), studio X forward, Y up, Z right */ eye?: [number, number, number] }
 
@@ -30,6 +33,7 @@ export const DEFAULTS: Record<PartType, Record<string, number>> = {
   cone: { r: 0.12, h: 0.25, sides: 24 },
   torus: { R: 0.15, tube: 0.02 },
   capsule: { r: 0.04, len: 0.2, sx: 1, sz: 1 },
+  model: { scale: 1 },
   hollowsphere: { r: 0.15, wall: 0.01, opening: 70 },
   hollowcapsule: { r: 0.05, len: 0.2, wall: 0.006 },
   plane: { w: 0.4, h: 0.3 },
@@ -55,6 +59,7 @@ export function geometryFor(p: Part): THREE.BufferGeometry {
     case 'sphere': return new THREE.SphereGeometry(d.r, 32, 20);
     case 'cone': return new THREE.ConeGeometry(d.r, d.h, Math.round(d.sides));
     case 'torus': return new THREE.TorusGeometry(d.R, d.tube, 12, 40);
+    case 'model': return new THREE.BufferGeometry();
     case 'capsule': { const g = new THREE.CapsuleGeometry(d.r, d.len, 8, 20); g.scale(d.sx, 1, d.sz); return g; }
     case 'hollowsphere': {
       // a spherical shell with real wall thickness and a round opening (opening = half-angle of the hole, degrees; 0 = closed)
@@ -81,6 +86,7 @@ export function geometryFor(p: Part): THREE.BufferGeometry {
 }
 
 export function materialFor(p: Part): THREE.Material {
+  if (p.type === 'model') return new THREE.MeshBasicMaterial({ visible: false });
   if (p.type === 'screen') return new THREE.MeshBasicMaterial({ color: '#0a0b0c', side: THREE.DoubleSide });
   return new THREE.MeshStandardMaterial({ color: p.color, roughness: p.rough, metalness: p.metal, emissive: p.color, emissiveIntensity: p.emissive, side: p.type === 'plane' || p.type === 'hollowsphere' || p.type === 'hollowcapsule' ? THREE.DoubleSide : THREE.FrontSide });
 }
@@ -96,6 +102,7 @@ export function placeConnector(mesh: THREE.Mesh, a: THREE.Vector3, b: THREE.Vect
 export function buildMesh(p: Part, all: Part[]): THREE.Mesh {
   const m = new THREE.Mesh(geometryFor(p), materialFor(p));
   m.userData.partId = p.id;
+  if (p.type === 'model') { if (p.modelId) void attachModel(m, p.modelId); m.scale.setScalar(p.d.scale || 1); }
   if (p.type === 'connector') {
     const A = all.find((x) => x.id === p.a), B = all.find((x) => x.id === p.b);
     if (A && B) placeConnector(m, new THREE.Vector3(...A.pos), new THREE.Vector3(...B.pos)); else m.visible = false;

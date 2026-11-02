@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
+import { putModel, checkGlb, measure, toBase64, fromBase64 } from './modelStore';
 import { Design, Part, PartType, DEFAULTS, buildMesh, EYE_STUDIO, ScreenKind } from './parts';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -102,6 +103,7 @@ function bake(p: Part, m: THREE.Mesh) {
     case 'cone': d.r *= avg; d.h *= s.y; break;
     case 'torus': d.R *= all; d.tube *= all; break;
     case 'capsule': d.sx *= s.x; d.sz *= s.z; d.len *= s.y; break;
+    case 'model': d.scale *= all; break;
     case 'hollowsphere': d.r *= all; d.wall *= all; break;
     case 'hollowcapsule': d.r *= avg; d.wall *= avg; d.len *= s.y; break;
     case 'plane': case 'screen': d.w *= s.x; d.h *= s.y; break;
@@ -156,7 +158,7 @@ function renderTop() {
   for (const [label, mode] of [['Move (W)', 'translate'], ['Rotate (E)', 'rotate'], ['Size (R)', 'scale']] as const) b(label, () => { gizmo.setMode(mode); renderTop(); }, gizmo.mode === mode); sep();
   b(snap ? `Snap ${snap * 100} cm` : 'Snap off', () => { snap = snap === 0.01 ? 0.05 : snap === 0.05 ? 0 : 0.01; gizmo.setTranslationSnap(snap || null); renderTop(); }, !!snap); sep();
   b('Duplicate (D)', duplicate); b('Mirror L/R (M)', mirror); b('Connector (C)', connect); b('Delete (Del)', remove); sep();
-  b('Save file', save); b('Load file', load); b('Export GLB', exportGlb); sep();
+  b('Import .glb', importGlb); b('Save file', save); b('Load file', load); b('Export GLB', exportGlb); sep();
   const use = localStorage.getItem(USE_KEY) === '1';
   b(use ? 'In the game: ON' : 'Use in the game', () => { localStorage.setItem(USE_KEY, use ? '0' : '1'); autosave(); msg(use ? 'The game will use its built-in cockpit' : 'Saved. Open the game (same browser) and pick the 737: it now loads your cockpit'); renderTop(); }, use);
   b('Select eye (camera)', () => { selected = null; eyeSelected = true; refreshMeshSelection(); renderUI(); }, eyeSelected);
@@ -199,7 +201,7 @@ function renderRight() {
     cylinder: [['Radius top', 0.005, 1, 0.002], ['Radius bottom', 0.005, 1, 0.002], ['Height', 0.01, 3, 0.005], ['Sides', 6, 64, 1], ['Round edges', 0, 0.2, 0.001]],
     sphere: [['Radius', 0.005, 1, 0.002]], cone: [['Radius', 0.005, 1, 0.002], ['Height', 0.01, 2, 0.005], ['Sides', 4, 64, 1]],
     torus: [['Ring radius', 0.02, 1, 0.002], ['Tube radius', 0.002, 0.2, 0.001]], capsule: [['Radius', 0.003, 0.5, 0.0005], ['Length', 0, 2, 0.001], ['Stretch width', 0.2, 6, 0.01], ['Stretch depth', 0.2, 6, 0.01]],
-    hollowsphere: [['Radius', 0.01, 1, 0.001], ['Wall thickness', 0.001, 0.2, 0.0005], ['Opening angle', 0, 170, 1]], hollowcapsule: [['Radius', 0.01, 0.6, 0.001], ['Length', 0, 2, 0.001], ['Wall thickness', 0.001, 0.1, 0.0005]],
+    model: [['Scale', 0.001, 20, 0.001]], hollowsphere: [['Radius', 0.01, 1, 0.001], ['Wall thickness', 0.001, 0.2, 0.0005], ['Opening angle', 0, 170, 1]], hollowcapsule: [['Radius', 0.01, 0.6, 0.001], ['Length', 0, 2, 0.001], ['Wall thickness', 0.001, 0.1, 0.0005]],
     plane: [['Width', 0.01, 3, 0.005], ['Height', 0.01, 3, 0.005]], screen: [['Width', 0.02, 1, 0.005], ['Height', 0.02, 1, 0.005]], connector: [['Thickness', 0.002, 0.2, 0.001], ['Sides', 4, 32, 1]],
   };
   const keys = Object.keys(DEFAULTS[p.type]);
@@ -222,8 +224,29 @@ function renderUI() { renderTop(); renderRight(); }
 
 // ---------------------------------------------------------------- files
 function download(name: string, data: BlobPart, type: string) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
-function save() { download('jetvault-cockpit.json', JSON.stringify(design, null, 1), 'application/json'); msg('Saved a copy to your downloads. It is also autosaved in this browser'); }
-function load() { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json'; i.onchange = async () => { const f = i.files?.[0]; if (!f) return; try { design = JSON.parse(await f.text()); commit(); selected = null; rebuild(); } catch { msg('That file is not a cockpit design'); } }; i.click(); }
+async function importGlb() {
+  const i = document.createElement('input'); i.type = 'file'; i.accept = '.glb,model/gltf-binary';
+  i.onchange = async () => {
+    const f = i.files?.[0]; if (!f) return;
+    const buf = await f.arrayBuffer(), bad = checkGlb(buf);
+    if (bad) { msg(bad); return; }
+    try {
+      const { max } = await measure(buf);
+      const id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+      await putModel(id, buf);
+      const scale = max > 0 ? Math.round((0.4 / max) * 10000) / 10000 : 1; // first fit to about 40 cm; change Scale afterwards
+      addPart('model', { name: f.name.replace(/\.glb$/i, ''), modelId: id, d: { scale }, pos: [0.9, 1.0, 0] });
+      msg('Imported ' + f.name + ' (' + (buf.byteLength / 1e6).toFixed(1) + ' MB): resized to about 40 cm, use Scale or the Size gizmo to fit it');
+    } catch { msg('Could not read that .glb'); }
+  };
+  i.click();
+}
+async function save() {
+  const models: Record<string, string> = {};
+  for (const p of design.parts) if (p.type === 'model' && p.modelId) { const { getModel } = await import('./modelStore'); const b = await getModel(p.modelId); if (b) models[p.modelId] = toBase64(b); }
+  download('jetvault-cockpit.json', JSON.stringify({ ...design, models }, null, 1), 'application/json'); msg('Saved a copy to your downloads (imported models are inside the file). It is also autosaved in this browser');
+}
+function load() { const i = document.createElement('input'); i.type = 'file'; i.accept = '.json'; i.onchange = async () => { const f = i.files?.[0]; if (!f) return; try { const d = JSON.parse(await f.text()) as Design & { models?: Record<string, string> }; for (const [id, b] of Object.entries(d.models ?? {})) await putModel(id, fromBase64(b)); delete d.models; design = d; commit(); selected = null; rebuild(); } catch { msg('That file is not a cockpit design'); } }; i.click(); }
 function exportGlb() { new GLTFExporter().parse(root, (r) => download('cockpit.glb', r as ArrayBuffer, 'model/gltf-binary'), () => msg('Export failed'), { binary: true }); }
 
 // ---------------------------------------------------------------- input
@@ -234,9 +257,9 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4 || gizmo.dragging) return;
   const r = renderer.domElement.getBoundingClientRect();
   ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
-  const eh = ray.intersectObject(eyeGlow, false)[0], hit = ray.intersectObjects([...meshes.values()].filter((m) => m.visible), false)[0];
+  const eh = ray.intersectObject(eyeGlow, false)[0], hit = ray.intersectObjects([...meshes.values()].filter((m) => m.visible), true)[0];
   if (eh && (!hit || eh.distance <= hit.distance + 0.05)) { selected = null; eyeSelected = true; refreshMeshSelection(); renderUI(); return; }
-  select(hit ? (hit.object.userData.partId as number) : null);
+  select(hit ? ((() => { let o: THREE.Object3D | null = hit.object; while (o && o.userData.partId === undefined) o = o.parent; return o ? (o.userData.partId as number) : null; })()) : null);
 });
 window.addEventListener('keydown', (e) => {
   const t = e.target as HTMLElement; if (t && ['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName)) return;
