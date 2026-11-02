@@ -44,6 +44,7 @@ import { marshalCall, MarshalSignal } from './sim/marshal';
 import { findGateSites } from './world/obstacles';
 
 const loadingMsg = document.getElementById('loading-msg')!;
+declare const __BUILD_ID__: string;
 const loadingBar = document.getElementById('loading-bar')!;
 let step = 0;
 const progress = (m: string) => { step++; loadingMsg.textContent = m; loadingBar.style.width = `${Math.min(100, step * 11)}%`; };
@@ -190,6 +191,11 @@ class App implements MenuHost {
     document.body.appendChild(this.launchBtn);
     this.launchBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('launch'); });
     this.scene.add(this.buggyModel.group, this.marshalFig.group, this.tyreSmoke.group);
+    const stamp = document.createElement('div');
+    stamp.textContent = 'build ' + __BUILD_ID__;
+    stamp.style.cssText = 'position:fixed;right:8px;bottom:4px;font:10px system-ui,sans-serif;color:rgba(255,255,255,0.55);text-shadow:0 0 3px #000;z-index:5;pointer-events:none';
+    document.body.appendChild(stamp);
+    console.info('JetVault build', __BUILD_ID__);
     this.stallEl = document.createElement('div');
     this.stallEl.textContent = 'STALL';
     this.stallEl.style.cssText = 'position:fixed;left:50%;top:22%;transform:translateX(-50%);padding:6px 22px;border-radius:8px;background:rgba(200,30,30,0.85);color:#fff;font:800 28px system-ui,sans-serif;letter-spacing:0.12em;display:none;z-index:6;pointer-events:none';

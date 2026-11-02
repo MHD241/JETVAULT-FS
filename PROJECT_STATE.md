@@ -351,6 +351,9 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - The model has no textures, so its colours were plain light grey. I sampled the colours of a real 737NG flight-deck photo you showed (instrument panel #44484a, glareshield #43474e, overhead #42423e, pedestal #48443f, walls/trim #8a8883) plus a dark floor (#3a3835, my guess) and applied them by region to the model's large surfaces as vertex colours (`src/render/cockpitFull.ts`). Small parts (switch caps, labels, keys, yoke, displays) keep the model's own colours. Checked in one headless screenshot: charcoal panels, dark overhead, grey walls.
 - **Limits, honestly:** this is a region-based approximation from one photo, not an exact copy: real cockpits have printed panel markings, painted panel sections and two tones that this untextured model cannot show; lighting in the sim and in a photo differ, so the on-screen result will not match pixel for pixel. If a region looks wrong (say which: overhead, panel, walls, floor) I can retune its hex colour. Only visible with the full cockpit file (repository build).
 
+## Update 55 — build stamp
+- A small "build <commit> <time>" label now shows at the bottom right of the game (and in the browser console) so we can tell which version a browser is really running (reports of a white cockpit after the colour update could be a cached old build). `vite.config.ts`, `src/main.ts`.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
