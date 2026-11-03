@@ -364,6 +364,10 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - Ailerons and the rudder are tied to the sim's deflections (rotating the model's own parts about their local X/Z axes): **I did not verify that they hinge in the right direction or at the right axis**. The airbrakes are part of the body mesh and do not move; the landing gear does not retract (a glider's is fixed here anyway); the canopy hides in the cockpit view. CC BY asks you to say if you changed the model: it was scaled and repositioned only.
 - The file is small enough to ship on the artifact page.
 
+## Update 58 — glider cockpit redone to match a modern glider (reference photo)
+- The earlier glider cockpit was my plain placeholder (black box, white sides). Rebuilt (`src/render/cockpitGlider.ts`) after your reference (Aerofly-style): blue interior shell, black coaming, two large dials (airspeed, altimeter) with yellow rings, a centre glass display with a live artificial horizon, speed, altitude and vertical speed from the simulation, smaller vario and compass below, slip ball, cable-release and canopy handles, control stick, airbrake handle, pedals. Checked in headless screenshots. The new supplied glider exterior is now hidden in the cockpit view (it was filling the screen).
+- Not matching the reference: it has no printed labels, no moving map on the screen, the interior is simple blocks (not the curved moulded shell), no rear seat, no canopy glass, the lower panel area is a plain black box. Needle directions on the dials were not verified over time.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

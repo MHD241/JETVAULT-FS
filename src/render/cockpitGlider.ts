@@ -51,11 +51,12 @@ export class GliderCockpit {
   private pedals: THREE.Group[] = [];
   private needles: Record<string, THREE.Group> = {};
   private ball!: THREE.Mesh;
+  private screenG!: CanvasRenderingContext2D; private screenTex!: THREE.CanvasTexture; private screenT = 0;
   private compass!: THREE.Mesh;
 
   constructor(private sim?: Simulation) {
     const R = this.root;
-    const white = mat(0xdfe2e4, 0.55), grey = mat(0x6b7077, 0.8), black = mat(0x0f1012, 0.9), seat = mat(0x2d2f33, 1), trim = mat(0x1a1b1d, 0.9);
+    const white = mat(0x2b5199, 0.6), grey = mat(0x1f3a70, 0.7), black = mat(0x0f1012, 0.9), seat = mat(0x2d2f33, 1), trim = mat(0x14151a, 0.9); // blue interior like a modern glider
     const box = (m: THREE.Material, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, p: THREE.Object3D = R) => { const b = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), m); b.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); p.add(b); return b; };
     const rod = (m: THREE.Material, a: THREE.Vector3, b: THREE.Vector3, r: number, p: THREE.Object3D = R) => { const len = a.distanceTo(b), c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 10), m); c.position.copy(a).add(b).multiplyScalar(0.5); c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize()); p.add(c); return c; };
     // ---- fuselage shell: floor, sides (curved below the canopy rail), rear bulkhead, front bulkhead behind the panel
@@ -72,17 +73,22 @@ export class GliderCockpit {
     // ---- instrument panel (slightly tilted) with the dials
     const panel = new THREE.Group(); panel.position.set(1.46, 0, -0.33); panel.rotation.y = 0.2; R.add(panel);
     const pm = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.62, 0.3), mat(0x16181a, 0.9)); panel.add(pm);
-    const dials: [string, number, number, number][] = [['asi', -0.16, -0.085, 0.062], ['alt', 0.16, -0.085, 0.062], ['vario', -0.16, 0.055, 0.052], ['compass', 0.16, 0.055, 0.052]];
+    const dials: [string, number, number, number][] = [['asi', -0.2, -0.1, 0.068], ['alt', 0.2, -0.1, 0.068], ['vario', -0.2, 0.065, 0.05], ['compass', 0.2, 0.065, 0.05]];
     const kinds: Record<string, 'asi' | 'alt' | 'vario' | 'compass'> = { asi: 'asi', alt: 'alt', vario: 'vario', compass: 'compass' };
     for (const [k, y, z, r] of dials) {
       const face = new THREE.Mesh(new THREE.CircleGeometry(r, 40), new THREE.MeshBasicMaterial({ map: dialTexture(kinds[k]) }));
       face.rotation.y = -Math.PI / 2; face.position.set(-0.0105, y, z); panel.add(face);
-      const bezel = new THREE.Mesh(new THREE.TorusGeometry(r + 0.004, 0.006, 8, 40), mat(0x8a8f95, 0.4, 0.6)); bezel.rotation.y = Math.PI / 2; bezel.position.set(-0.011, y, z); panel.add(bezel);
+      const ring = k === 'asi' || k === 'alt'; const bezel = new THREE.Mesh(new THREE.TorusGeometry(r + 0.004, ring ? 0.008 : 0.006, 8, 40), ring ? mat(0xf0c020, 0.4, 0.2) : mat(0x8a8f95, 0.4, 0.6)); bezel.rotation.y = Math.PI / 2; bezel.position.set(-0.011, y, z); panel.add(bezel);
       if (k === 'compass') { this.compass = face; continue; }
       const nd = new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.004, r * 0.85), new THREE.MeshBasicMaterial({ color: 0xf2f2f2 }));
       nd.geometry.translate(0, 0, -r * 0.4); // pivot at the dial centre, needle points "up" (-z)
       const g = new THREE.Group(); g.position.set(-0.0125, y, z); g.add(nd); panel.add(g); this.needles[k] = g;
     }
+    // centre glass display: artificial horizon over a map, with speed and altitude (redrawn from the simulation)
+    const sc = document.createElement('canvas'); sc.width = 320; sc.height = 240; this.screenG = sc.getContext('2d')!; this.screenTex = new THREE.CanvasTexture(sc); this.screenTex.colorSpace = THREE.SRGBColorSpace;
+    const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.15), new THREE.MeshBasicMaterial({ map: this.screenTex, toneMapped: false }));
+    scr.rotation.y = -Math.PI / 2; scr.rotation.z = Math.PI / 2; scr.position.set(-0.0105, 0, -0.02); panel.add(scr);
+    const sb = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.22, 0.17), mat(0x050506, 0.3)); sb.position.set(-0.008, 0, -0.02); panel.add(sb);
     // slip ball (tell-tale) below the dials
     const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.18, 12), mat(0x222428, 0.3)); tube.rotation.x = Math.PI / 2; tube.position.set(-0.012, 0, 0.125); panel.add(tube);
     this.ball = new THREE.Mesh(new THREE.SphereGeometry(0.009, 12, 8), new THREE.MeshBasicMaterial({ color: 0xf2f2f2 })); this.ball.position.set(-0.016, 0, 0.125); panel.add(this.ball);
@@ -135,6 +141,24 @@ export class GliderCockpit {
     set('alt', ((ind.altitudeFt % 1000) / 1000) * 2 * Math.PI * -1);
     set('vario', clamp(ind.vsiFpm / 196.85, -5, 5) / 5 * (135 * Math.PI / 180) * -1);
     this.ball.position.y = clamp(ind.slipBall, -1, 1) * 0.06;
+    this.screenT += dt;
+    if (this.screenT > 0.05) {
+      this.screenT = 0;
+      const g = this.screenG, W = 320, H = 240, pitch = (ind.pitchDeg * 3.2), roll = (-ind.rollDeg * Math.PI) / 180;
+      g.save(); g.fillStyle = '#000'; g.fillRect(0, 0, W, H); g.beginPath(); g.rect(0, 0, W, H); g.clip();
+      g.translate(W / 2, H / 2); g.rotate(roll);
+      g.fillStyle = '#3d7fd0'; g.fillRect(-400, -400 + pitch, 800, 400); g.fillStyle = '#7a5a30'; g.fillRect(-400, pitch, 800, 400);
+      g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(-400, pitch); g.lineTo(400, pitch); g.stroke();
+      for (let d = -30; d <= 30; d += 10) { if (!d) continue; g.beginPath(); g.moveTo(-24, pitch - d * 3.2); g.lineTo(24, pitch - d * 3.2); g.stroke(); }
+      g.restore();
+      g.fillStyle = '#ffd24a'; g.fillRect(W / 2 - 40, H / 2 - 1, 28, 3); g.fillRect(W / 2 + 12, H / 2 - 1, 28, 3); g.fillRect(W / 2 - 2, H / 2 - 2, 4, 4);
+      g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(0, 0, 70, H); g.fillRect(W - 70, 0, 70, H);
+      g.fillStyle = '#fff'; g.font = '700 26px Arial'; g.textAlign = 'center';
+      g.fillText(String(Math.round(ind.iasKt)), 35, H / 2 + 8); g.fillText(String(Math.round(ind.altitudeFt)), W - 35, H / 2 + 8);
+      g.font = '600 12px Arial'; g.fillStyle = '#9fd0ff'; g.fillText('KT', 35, 20); g.fillText('FT', W - 35, 20);
+      g.fillStyle = '#7CFC9a'; g.font = '700 16px Arial'; g.fillText((ind.vsiFpm / 196.85).toFixed(1) + ' m/s', W / 2, H - 14);
+      this.screenTex.needsUpdate = true;
+    }
     this.compass.rotation.z = (ind.compassDeg * Math.PI) / 180;
   }
 }

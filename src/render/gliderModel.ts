@@ -172,7 +172,7 @@ export class GliderModel {
   }
 
   setCockpitView(inCockpit: boolean) {
-    if (this.glb) { for (const o of this.glb.hideInCockpit) o.visible = !inCockpit; return; }
+    if (this.glb) { this.glb.root.visible = !inCockpit; return; } // the outside model's fuselage would fill the pilot's view
     this.exterior.children[0].visible = !inCockpit;
     this.exterior.children[1].visible = !inCockpit;
   }
