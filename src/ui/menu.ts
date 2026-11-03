@@ -256,6 +256,7 @@ export class Menu {
     const blurb: Record<string, string> = {
       c172s: 'Lycoming IO-360 180 hp · fixed-pitch prop · steam gauges · validated against the POH',
       glider: 'Unpowered 17 m two-seater, ~32:1 glide · winch launch · thermals and ridge lift · airbrakes',
+      darter: 'FICTIONAL 6 m rocket glider built for the bungee launch (N at a launch point): Mach 1 in seconds, then a fast glide · wave drag above Mach 0.9',
       b738: '2 x CFM56-7B26 (117 kN) · glass PFD/ND · flaps, slats, spoilers, reversers, retractable gear',
     };
     for (const d of this.host.aircraftDefs) {

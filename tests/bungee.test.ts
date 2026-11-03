@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { flatWorld, newSim, run, kt } from './helpers';
 import { GLIDER } from '../src/sim/aircraft/glider';
+import { DARTER } from '../src/sim/aircraft/darter';
 import { clamp, DEG } from '../src/core/math';
 
 describe('bungee launch (game invention)', () => {
@@ -19,5 +20,24 @@ describe('bungee launch (game invention)', () => {
     });
     console.log(`bungee: peak ${vmax.toFixed(0)} m/s (${kt(vmax).toFixed(0)} kt, M${(vmax / 340).toFixed(2)}), released at ${rel.toFixed(1)} s, top ${hmax.toFixed(0)} m AGL`);
     expect(vmax).toBeGreaterThan(150);
+  });
+
+  it('the Darter keeps its speed and climbs far higher than the ASK-21 after the same launch', () => {
+    const res: Record<string, { vmax: number; top: number; v20: number; crashed: boolean }> = {};
+    for (const def of [GLIDER, DARTER]) {
+      const sim = newSim(flatWorld(0), undefined, def);
+      sim.spawn({ kind: 'runway', ident: '36' });
+      const ac = sim.aircraft; run(sim, 2); sim.startBungee();
+      let vmax = 0, top = 0, v20 = 0;
+      run(sim, 40, (t) => {
+        sim.controls.roll = clamp(-2 * ac.euler[0] - ac.omega.x, -0.5, 0.5);
+        sim.controls.pitch = clamp(6 * ((ac.cable ? 10 : ac.agl < 2500 ? 28 : 0) * DEG - ac.euler[1]) - 1.5 * ac.omega.y, -0.8, 0.8) * (ac.cas > 30 ? 1 : 0);
+        vmax = Math.max(vmax, ac.tas); top = Math.max(top, ac.agl); if (t > 19.99 && t < 20.01) v20 = ac.tas;
+      });
+      res[def.id] = { vmax, top, v20, crashed: ac.crashed };
+    }
+    console.log('bungee compare', JSON.stringify(res));
+    expect(res.darter.vmax).toBeGreaterThan(250);
+    expect(res.darter.top).toBeGreaterThan(res.glider.top);
   });
 });

@@ -6,6 +6,7 @@ import { Simulation, SpawnKind } from './sim/simulation';
 import { C172 } from './sim/aircraft/c172';
 import { B738 } from './sim/aircraft/b738';
 import { GLIDER } from './sim/aircraft/glider';
+import { DARTER } from './sim/aircraft/darter';
 import { GliderModel } from './render/gliderModel';
 import { GliderCockpit } from './render/cockpitGlider';
 import { Vario } from './ui/vario';
@@ -106,7 +107,7 @@ class App implements MenuHost {
   private streamTimer = 0;
   model!: C172Model | B737Model | GliderModel;
   cockpit!: Cockpit | B737Cockpit | GliderCockpit;
-  aircraftDefs: AircraftDef[] = [C172, B738, GLIDER];
+  aircraftDefs: AircraftDef[] = [C172, B738, GLIDER, DARTER];
   env!: EnvironmentRenderer;
   rig!: CameraRig;
   debug!: DebugView;
@@ -411,6 +412,7 @@ class App implements MenuHost {
       const m = this.model;
       (new URLSearchParams(location.search).has('oldmodel') ? m.loadReal('./models/b738.fbx') : m.loadGlb('./models/b738_geo.bin')).catch((e) => console.warn('737 model not loaded, using the procedural one', e));
     }
+    if (this.sim.def.id === 'darter') this.model.root.scale.setScalar(0.48); // the glider mesh, shrunk to the Darter's 6 m span (placeholder look)
     this.cockpit = glider ? new GliderCockpit(this.sim) : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
     if (jet && this.graphics.renderScale > 0.72) (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e));
     this.aircraftGroup.add(this.model.root, this.cockpit.root);

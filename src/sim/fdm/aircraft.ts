@@ -74,6 +74,8 @@ export interface AircraftDef {
   swirl?: number;
   /** Glider: unpowered; the (inert) engine definition is a placeholder and the propulsion block is skipped. */
   glider?: boolean;
+  /** Transonic wave-drag onset Mach number (sets compressibility drag for gliders and other non-jets). */
+  wave?: { mach: number; k: number };
   /** Tow/winch hook position, body frame. */
   hook?: Vec3;
   /** Turbofans (jets): definition and thrust point in the body frame. */
@@ -509,10 +511,10 @@ export class Aircraft {
     this.vel.addScaled(Fw, dt / this.mass);
     this.pos.addScaled(this.vel, dt);
     // Compressibility (wave) drag: a swept-wing jet cannot be pushed far past its cruise Mach (drag climbs steeply above ~M0.78)
-    if (d.turbofans && this.mach > 0.72 && this.tas > 5) {
-      const dm = this.mach - 0.72, cdw = 0.01 + 13 * dm * dm * (1 + 10 * dm);
+    if ((d.turbofans || d.wave) && this.mach > (d.wave?.mach ?? 0.72) && this.tas > 5) {
+      const m0 = d.wave?.mach ?? 0.72, dm = this.mach - m0, cdw = d.wave ? d.wave.k * (0.2 + 6 * dm * dm * (1 + 8 * dm)) : 0.01 + 13 * dm * dm * (1 + 10 * dm);
       const dir = vb.scale(-1 / Math.max(vb.len(), 1));
-      F.addIn(dir.scale(this.qbar * 125 * cdw));
+      F.addIn(dir.scale(this.qbar * (d.wave ? d.wingArea : 125) * cdw));
     }
 
     // Stall buffet: separated flow shakes the airframe. Pre-stall onset a few degrees below the warning angle, full at the stall.
