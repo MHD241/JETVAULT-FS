@@ -188,7 +188,7 @@ export class Menu {
     }
     s.appendChild(act);
     const help = document.createElement('p');
-    help.innerHTML = 'Controls: mouse = fly, inverted (move from the centre of the screen; mouse up = nose down) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · U = pushback · gliders: L/R = winch launch / release cable, V = vario sound · C = cockpit/outside view · mouse wheel / pinch = zoom · right-drag or two-finger scroll = look · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
+    help.innerHTML = 'Controls: mouse = fly, inverted (move from the centre of the screen; mouse up = nose down) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · U = pushback · gliders: L/R = winch launch / release cable, N = BUNGEE launch (Mach 1), V = vario sound · C = cockpit/outside view · mouse wheel / pinch = zoom · right-drag or two-finger scroll = look · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
     s.appendChild(help);
   }
 

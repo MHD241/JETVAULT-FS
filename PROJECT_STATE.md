@@ -368,6 +368,10 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - The earlier glider cockpit was my plain placeholder (black box, white sides). Rebuilt (`src/render/cockpitGlider.ts`) after your reference (Aerofly-style): blue interior shell, black coaming, two large dials (airspeed, altimeter) with yellow rings, a centre glass display with a live artificial horizon, speed, altitude and vertical speed from the simulation, smaller vario and compass below, slip ball, cable-release and canopy handles, control stick, airbrake handle, pedals. Checked in headless screenshots. The new supplied glider exterior is now hidden in the cockpit view (it was filling the screen).
 - Not matching the reference: it has no printed labels, no moving map on the screen, the interior is simple blocks (not the curved moulded shell), no rear seat, no canopy glass, the lower panel area is a plain black box. Needle directions on the dials were not verified over time.
 
+## Update 59 — bungee launch (game invention)
+- New glider launch: at a launch point press **N**. A giant elastic anchored 2.5 km ahead pulls with up to 45 kN (about 70 g on the glider; not a real or survivable procedure, crashes are off) and fades as the glider nears 340 m/s; the game lets go after 5-14 s or at about Mach 1. Release early with R. Physics test (`tests/bungee.test.ts`): reaches 345 m/s (Mach 1.01) in 5 s, then zooms to about 750 m AGL with a 12 degree climb attitude held. There is no wave drag for the glider, so it keeps its speed too well, and no sonic-boom, shaking or visual effect yet; no button on touch screens (key only); the HUD text and audio were not added. Files: `src/sim/simulation.ts`, `src/sim/fdm/aircraft.ts`, `src/input/simpleControls.ts`, `src/main.ts`, `src/ui/menu.ts`.
+- Ideas for next: camera shake/blur and a sonic-boom effect, a countdown with the elastic visibly stretching, a "g-load" blackout vignette, scoring by altitude reached, a touch button.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

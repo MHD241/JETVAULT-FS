@@ -559,6 +559,12 @@ class App implements MenuHost {
         this.hud.toast('You are the tug driver: 1-9 speed (1 = stop), steer with mouse/arrows (the wheel stays turned; Up = straight), Space brakes');
       }
     }
+    if (ev === 'bungee') {
+      if (!ac.def.glider) this.hud.toast('The bungee launch is for gliders');
+      else if (!this.atLaunchPoint()) this.hud.toast('Take the glider to a launch point first (cones at the runway end)');
+      else if (this.sim.startBungee()) this.hud.toast('BUNGEE LAUNCH! Hold on: Mach 1 in seconds. Release with R');
+      else this.hud.toast('Stop on the ground to start a bungee launch');
+    }
     if (ev === 'launch') {
       if (!ac.def.glider) this.hud.toast('Launch is for gliders');
       else if (this.retrieving) this.buggyAction();
