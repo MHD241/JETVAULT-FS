@@ -6,7 +6,7 @@ it('the Darter flies straight and unstalled through a bungee launch (no sideslip
   const damper = false;
   const sim = newSim(flatWorld(0), undefined, DARTER); sim.spawn({ kind: 'runway', ident: '36' });
   const ac = sim.aircraft; run(sim, 2); sim.startBungee();
-  let maxB = 0, maxR = 0, maxYaw = 0, maxBank = 0, minV = 1e9, vpeak = 0, maxA = 0, hd0 = ac.euler[2]; const log: string[] = [];
+  let maxB = 0, maxYaw = 0, maxBank = 0, minV = 1e9, vpeak = 0, maxA = 0, hd0 = ac.euler[2]; const log: string[] = [];
   run(sim, 40, (t) => {
     if (damper) sim.controls.yaw = clamp(-4.6 * ac.q.invRotate(ac.omega).z - 3 * ac.beta, -1, 1);
     sim.controls.roll = clamp(-2 * ac.euler[0] - ac.omega.x, -0.5, 0.5);
