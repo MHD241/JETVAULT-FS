@@ -39,6 +39,7 @@ import { CrashFx } from './render/crashFx';
 import { Buggy, launchPoints, nearestLaunchPoint, LaunchPoint, BUGGY_MAX_SPEED } from './sim/buggy';
 import { TreeField, FieldScenery, BuggyModel } from './render/gliderField';
 import { GroundVehicles } from './render/groundVehicles';
+import { FOCUS_MODE, airportVisible, FOCUS_AIRCRAFT } from './config';
 import { generateCity } from './world/city';
 import { loadCustomDesign } from './render/cockpitCustom';
 import { STUDIO_ORIGIN } from './studio/parts';
@@ -108,7 +109,7 @@ class App implements MenuHost {
   private streamTimer = 0;
   model!: C172Model | B737Model | GliderModel | DarterModel;
   cockpit!: Cockpit | B737Cockpit | GliderCockpit;
-  aircraftDefs: AircraftDef[] = [C172, B738, GLIDER, DARTER];
+  aircraftDefs: AircraftDef[] = FOCUS_MODE ? [B738] : [C172, B738, GLIDER, DARTER];
   env!: EnvironmentRenderer;
   rig!: CameraRig;
   debug!: DebugView;
@@ -167,8 +168,9 @@ class App implements MenuHost {
     progress('Loading region data');
     this.world = await loadWorld(`./data/${currentRegion()}`, fetchBuf, decodeGray, progress);
     this.attribution = this.world.meta.attribution;
-    this.sim = new Simulation(this.world, C172, this.weather);
-    this.payload = C172.stations.map((s) => s.mass);
+    const startDef = this.aircraftDefs.find((d) => d.id === FOCUS_AIRCRAFT) ?? C172;
+    this.sim = new Simulation(this.world, startDef, this.weather);
+    this.payload = startDef.stations.map((s) => s.mass);
     progress('Building terrain');
     const base = `./data/${currentRegion()}`;
     const lcLoBuf = await fetchBuf(`${base}/${this.world.meta.landcoverLo.file}`);
@@ -367,6 +369,7 @@ class App implements MenuHost {
   private streamPatches() {
     const ac = this.sim.aircraft, e = ac.pos.y, n = ac.pos.x;
     for (const pm of this.world.meta.patches) {
+      if (!airportVisible(pm.icao)) continue;
       const d = this.world.patchDistance(pm, e, n);
       const loaded = this.world.loaded.has(pm.id);
       if (!loaded && d < 12000) { this.world.loadPatch(pm.id).catch((err) => console.warn('patch load failed', pm.id, err)); }
@@ -376,7 +379,7 @@ class App implements MenuHost {
 
   /** Makes sure every patch near a position is in memory (used before spawning there). */
   private async ensurePatchesNear(e: number, n: number) {
-    await Promise.all(this.world.meta.patches.filter((pm) => this.world.patchDistance(pm, e, n) < 12000).map((pm) => this.world.loadPatch(pm.id)));
+    await Promise.all(this.world.meta.patches.filter((pm) => airportVisible(pm.icao) && this.world.patchDistance(pm, e, n) < 12000).map((pm) => this.world.loadPatch(pm.id)));
   }
 
   /** The control tower is the tallest structure near the airport: use the tallest building within 2.5 km. */

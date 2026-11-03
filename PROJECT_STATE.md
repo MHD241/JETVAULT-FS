@@ -384,6 +384,10 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 ## Update 62 — Darter waddle fixed
 - Cause found by testing with a 12 kt crosswind and gusts (my earlier test had no wind): on the ground the Darter sat on one main wheel and a crosswind rocked it up to 24 degrees at launch start. Fixes: two outrigger wheels under the wings (`darter.ts`), and in the air a roll-rate damper plus automatic wings-level when the stick is released, applied always for the Darter (`simpleControls.ts`). Test (`tests/darter_gust.test.ts`): max bank 0.4 degrees (was 23.9), mean yaw rate 0.4 deg/s (was 1.1), through the whole launch in gusty crosswind. Not hand-flown; the mouse stick near the edge can still bank it, by design. The outrigger wheels are not drawn on the model.
 
+## Update 63 — focus mode: only the 737 at Edinburgh
+- `src/config.ts`: `FOCUS_MODE = true`. The game now offers only the Boeing 737-800 and only Edinburgh (EGPH): the Cessna, glider, Darter, Glasgow and Portmoak are hidden from the aircraft and airport menus and the world map, and Glasgow/Portmoak data is not loaded or streamed (checked in the running game: aircraft list `[b738]`, loaded patches `[egph]`, no errors). All their code, models and tests are still in the repository; set `FOCUS_MODE = false` to bring everything back. Working slowly from here on the 737 at EGPH only.
+- Smaller notes: the rest of the Scotland map terrain is still there when you fly away; the glider-only buttons never show for the 737.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

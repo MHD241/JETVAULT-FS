@@ -1,6 +1,7 @@
 // Main menu: Fly Now, World Map, Aircraft, Airports, Weather, Settings, Controls, About.
 // Items that are not implemented yet are shown disabled and labelled as such.
 
+import { airportVisible } from '../config';
 import { SpawnKind } from '../sim/simulation';
 import { WeatherSettings, CloudCover } from '../sim/weather';
 import { InputSettings, saveInputSettings } from '../input/input';
@@ -113,9 +114,9 @@ export class Menu {
     else if (this.tab === 'map') this.renderMap(s);
     else if (this.tab === 'aircraft') this.renderAircraft(s);
     else if (this.tab === 'airports') {
-      s.innerHTML = `<h2>Airport Selection</h2><p>Scotland is one continuous map: Copernicus terrain and land cover everywhere, with full detail (satellite imagery, roads, buildings, airfield) around Edinburgh, Glasgow and Portmoak. Pick where you start; you can fly between them.</p>`;
+      s.innerHTML = `<h2>Airport Selection</h2><p>Scotland is one continuous map: Copernicus terrain and land cover everywhere, with full detail (satellite imagery, roads, buildings, airfield) around Edinburgh Airport (the only airport enabled for now).</p>`;
       const grid = document.createElement('div'); grid.className = 'jv-grid';
-      for (const a of h.world.airports) {
+      for (const a of h.world.airports.filter((x) => airportVisible(x.icao))) {
         const c = document.createElement('div');
         c.className = 'jv-card' + (a.icao === h.world.airport.icao ? ' sel' : '');
         c.innerHTML = `<b>${a.icao} ${a.name}</b><span>${a.runways.map((r) => `Runway ${r.id} · ${Math.round(r.length)} m · ${r.surface}`).join('<br>')}<br>Elevation ${(a.arp.elev / 0.3048).toFixed(0)} ft</span>`;
@@ -194,7 +195,7 @@ export class Menu {
 
   private renderMap(s: HTMLElement) {
     const lo = this.host.world.terrain.lo!;
-    s.innerHTML = `<h2>World Map</h2><p>Scotland, ${lo.half * 2 / 1000} x ${lo.half * 2 / 1000} km (terrain at ${lo.step} m, the ground gets coarser the higher you fly). Click the map to start airborne at that position. Airports with full detail: ${this.host.world.airports.map((a) => a.icao).join(', ')}.</p>`;
+    s.innerHTML = `<h2>World Map</h2><p>Scotland, ${lo.half * 2 / 1000} x ${lo.half * 2 / 1000} km (terrain at ${lo.step} m, the ground gets coarser the higher you fly). Click the map to start airborne at that position. Airports with full detail: ${this.host.world.airports.filter((a) => airportVisible(a.icao)).map((a) => a.icao).join(', ')}.</p>`;
     const cv = document.createElement('canvas');
     cv.width = 800; cv.height = 800; cv.className = 'jv-map';
     s.appendChild(cv);
@@ -235,7 +236,7 @@ export class Menu {
     g.putImageData(this.hillshade, 0, 0);
     const P = (e: number, n: number): [number, number] => [((e + grid.half) / (2 * grid.half)) * W, ((grid.half - n) / (2 * grid.half)) * W];
     g.font = '12px sans-serif';
-    for (const a of this.host.world.airports) {
+    for (const a of this.host.world.airports.filter((x) => airportVisible(x.icao))) {
       const c = airportCentre(a);
       const [px, py] = P(c.x, c.y);
       g.fillStyle = a.icao === this.host.world.airport.icao ? '#f7c74f' : '#e9edf3';
