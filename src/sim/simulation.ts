@@ -170,7 +170,7 @@ export class Simulation {
     if (!ac.def.glider || !ac.onGround || Math.hypot(ac.vel.x, ac.vel.y) > 1.5) return false;
     const fwd = ac.q.rotate(new Vec3(1, 0, 0)), h = Math.hypot(fwd.x, fwd.y) || 1;
     const n = ac.pos.x + (fwd.x / h) * 2500, e = ac.pos.y + (fwd.y / h) * 2500;
-    ac.cable = { anchor: new Vec3(n, e, -(this.world.heightAt(e, n) + 60)), vTarget: 340, tMax: 45000, t: 0, bungee: true };
+    ac.cable = { anchor: new Vec3(n, e, -(this.world.heightAt(e, n) + 60)), vTarget: 420, tMax: 45000, t: 0, bungee: true };
     return true;
   }
 
@@ -194,7 +194,7 @@ export class Simulation {
     this.systems.stepSystems(PHYSICS_DT, c);
     ac.step(PHYSICS_DT, this.autopilot.effectiveControls(c), this.env, this.systems.fuelAvailable(c), this.systems.busPowered());
     this.systems.updateIndications(PHYSICS_DT, c);
-    if (ac.cable && ac.cable.bungee) { if (ac.cable.t > 14 || Math.hypot(ac.vel.x, ac.vel.y, ac.vel.z) > 345) ac.cable = null; } else if (ac.cable && !ac.cable.tow) {
+    if (ac.cable && ac.cable.bungee) { if (ac.cable.t > 14 || Math.hypot(ac.vel.x, ac.vel.y, ac.vel.z) > 400) ac.cable = null; } else if (ac.cable && !ac.cable.tow) {
       // winch driver cuts the cable when the glider is too steep, nearly overhead, or the launch is over
       const dv = ac.cable.anchor.sub(ac.worldPoint(ac.def.hook!));
       const horiz = Math.hypot(dv.x, dv.y);

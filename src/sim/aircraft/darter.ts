@@ -7,8 +7,8 @@ import { AircraftDef, AeroSurfaceDef } from '../fdm/aircraft';
 import { AirfoilParams, ControlParams } from '../fdm/aero';
 import { GLIDER } from './glider';
 
-const AF: AirfoilParams = { a0: 4.6, alpha0: -1.0 * DEG, clMax: 0.95, clMin: -0.95, cd0: 0.0048, cdK: 0.004, cm0: -0.02 };
-const TAIL: AirfoilParams = { a0: 4.4, alpha0: 0, clMax: 0.9, clMin: -0.9, cd0: 0.006, cdK: 0.005, cm0: 0 };
+const AF: AirfoilParams = { a0: 3.9, alpha0: -1.0 * DEG, clMax: 1.7, clMin: -1.7, cd0: 0.0046, cdK: 0.004, cm0: -0.02 }; // delta wing: low lift slope, very high stall angle (vortex lift)
+const TAIL: AirfoilParams = { a0: 4.4, alpha0: 0, clMax: 1.4, clMin: -1.4, cd0: 0.006, cdK: 0.005, cm0: 0 };
 const AIL: ControlParams = { effectiveness: 0.4, dClMaxPerRad: 0.2, cdPerRad2: 0.12, cmPerRad: -0.3 };
 const NOFLAP: ControlParams = { effectiveness: 0, dClMaxPerRad: 0, cdPerRad2: 0, cmPerRad: 0 };
 const ELEV: ControlParams = { effectiveness: 0.5, dClMaxPerRad: 0.4, cdPerRad2: 0.1, cmPerRad: -0.4 };
@@ -36,11 +36,11 @@ function wing(): AeroSurfaceDef[] {
 const surfaces: AeroSurfaceDef[] = [
   ...wing(),
   ...[-1, 1].map((side): AeroSurfaceDef => ({
-    name: side < 0 ? 'htailL' : 'htailR', pos: new Vec3(-3.6, side * 0.6, -0.5), area: 0.7, chord: 0.8,
+    name: side < 0 ? 'htailL' : 'htailR', pos: new Vec3(-3.6, side * 0.6, -0.5), area: 1.1, chord: 0.9,
     normal: new Vec3(0, 0, -1), incidence: -0.8 * DEG, aspectRatio: 2.0, oswald: 0.8, span: 1.6, airfoil: TAIL, control: ELEV, channel: 'elevator',
     slipstream: 0, downwash: true, role: 'htail',
   })),
-  { name: 'fin', pos: new Vec3(-3.7, 0, -0.55), area: 0.9, chord: 1.0, normal: new Vec3(0, 1, 0), incidence: 0, aspectRatio: 1.4, oswald: 0.7, span: 1.2, airfoil: TAIL, control: RUD, channel: 'rudder', slipstream: 0, downwash: false, role: 'vtail' },
+  { name: 'fin', pos: new Vec3(-3.4, 0, -0.55), area: 3.2, chord: 1.4, normal: new Vec3(0, 1, 0), incidence: 0, aspectRatio: 1.6, oswald: 0.7, span: 2.2, airfoil: TAIL, control: RUD, channel: 'rudder', slipstream: 0, downwash: false, role: 'vtail' },
 ];
 
 export const DARTER: AircraftDef = {
@@ -51,9 +51,9 @@ export const DARTER: AircraftDef = {
   refInertia: new Inertia(900, 1900, 2500, 0),
   wingArea: AREA, wingSpan: SPAN, mac: 1.4,
   surfaces,
-  wave: { mach: 0.9, k: 0.06 },
+  wave: { mach: 1.0, k: 0.02 },
   fuselage: { pos: new Vec3(0.2, 0, 0), dragArea: 0.02, sideArea: 2.4, planArea: 1.8, munkVolume: 0.7, munkVolumeYaw: 0.9 },
-  tailArm: 3.9,
-  stallWarnAlpha: 12,
+  tailArm: 3.4,
+  stallWarnAlpha: 24,
   contacts: GLIDER.contacts.map((c) => c.name.includes('wingtip') ? { ...c, pos: new Vec3(c.pos.x, Math.sign(c.pos.y) * 3.0, c.pos.z) } : c.name.includes('Tailplane') ? { ...c, pos: new Vec3(-3.7, Math.sign(c.pos.y) * 0.85, -0.5) } : c.name === 'Fin top' ? { ...c, pos: new Vec3(-3.7, 0, -1.1) } : c),
 };

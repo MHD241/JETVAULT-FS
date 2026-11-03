@@ -161,7 +161,7 @@ export class SimpleControls {
     if (!ac.onGround) {
       // jets: yaw damper (rudder against yaw rate); the old sideslip-driven rudder made the 737 wallow
       // (headless, hands off: rms yaw rate 0.5 deg/s with it vs 0.07 deg/s with the damper)
-      assist = ac.def.turbofans ? -4.6 * ac.q.invRotate(ac.omega).z : this.assists ? ac.beta * 4 : 0;
+      assist = ac.def.turbofans || ac.def.wave ? -4.6 * ac.q.invRotate(ac.omega).z - (ac.def.wave ? ac.beta * 3 : 0) : this.assists ? ac.beta * 4 : 0;
       this.holdHdg = null;
     }
     else if (this.assists && Math.hypot(ac.vel.x, ac.vel.y) > 1.5 && !k && Math.abs(steer) < 0.05) {

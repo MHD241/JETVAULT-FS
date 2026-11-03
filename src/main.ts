@@ -8,6 +8,7 @@ import { B738 } from './sim/aircraft/b738';
 import { GLIDER } from './sim/aircraft/glider';
 import { DARTER } from './sim/aircraft/darter';
 import { GliderModel } from './render/gliderModel';
+import { DarterModel } from './render/darterModel';
 import { GliderCockpit } from './render/cockpitGlider';
 import { Vario } from './ui/vario';
 import { currentRegion } from './world/region';
@@ -105,7 +106,7 @@ class App implements MenuHost {
   private marshalT = 0;
   private contactShadow!: THREE.Mesh;
   private streamTimer = 0;
-  model!: C172Model | B737Model | GliderModel;
+  model!: C172Model | B737Model | GliderModel | DarterModel;
   cockpit!: Cockpit | B737Cockpit | GliderCockpit;
   aircraftDefs: AircraftDef[] = [C172, B738, GLIDER, DARTER];
   env!: EnvironmentRenderer;
@@ -406,13 +407,12 @@ class App implements MenuHost {
     if (this.cockpit) this.aircraftGroup.remove(this.cockpit.root);
     const jet = this.sim.def.id === 'b738';
     const glider = !!this.sim.def.glider;
-    this.model = glider ? new GliderModel() : jet ? new B737Model() : new C172Model();
+    this.model = this.sim.def.id === 'darter' ? new DarterModel() : glider ? new GliderModel() : jet ? new B737Model() : new C172Model();
     if (this.model instanceof GliderModel && !new URLSearchParams(location.search).has('oldglider')) this.model.loadGlb('./models/glider_underpoly.bin').catch((e) => console.warn('glider model not loaded, using the procedural one', e));
     if (this.model instanceof B737Model) {
       const m = this.model;
       (new URLSearchParams(location.search).has('oldmodel') ? m.loadReal('./models/b738.fbx') : m.loadGlb('./models/b738_geo.bin')).catch((e) => console.warn('737 model not loaded, using the procedural one', e));
     }
-    if (this.sim.def.id === 'darter') this.model.root.scale.setScalar(0.48); // the glider mesh, shrunk to the Darter's 6 m span (placeholder look)
     this.cockpit = glider ? new GliderCockpit(this.sim) : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
     if (jet && this.graphics.renderScale > 0.72) (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e));
     this.aircraftGroup.add(this.model.root, this.cockpit.root);
