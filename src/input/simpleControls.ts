@@ -135,7 +135,8 @@ export class SimpleControls {
     else if (this.mouse.active) { pitch = expo(dz(this.mouse.y, 0.06) * 1.3); roll = expo(dz(this.mouse.x, 0.06) * 1.3); }
     // touch: with the stick released in the air, gently level the wings (aileron input only)
     const stickFree = IS_TOUCH ? Math.abs(this.joy.x) < 0.05 : Math.abs(roll) < 0.03;
-    if ((IS_TOUCH || this.arcade) && !ac.onGround && stickFree) {
+    if (ac.def.wave && !ac.onGround) roll = clamp(roll - 0.9 * ac.omega.x, -1, 1); // roll-rate damper (the Darter's small wings have little natural roll damping)
+    if ((IS_TOUCH || this.arcade || ac.def.wave) && !ac.onGround && stickFree) {
       const bank = ac.euler[0];
       if (Math.abs(bank) < (this.arcade ? 1.2 : 0.7)) roll = clamp(-1.6 * bank - 0.5 * ac.omega.x, -0.5, 0.5);
     }

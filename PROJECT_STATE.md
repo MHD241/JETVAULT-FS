@@ -381,6 +381,9 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - Handling retuned: delta wing with a high stall angle (clMax 1.7, stall warning at 24 deg), a large fin (3.2 m^2) and bigger tailplane, wave drag only above Mach 1.0 and weaker, and a yaw damper in the controls (like the 737). The bungee now pulls to 420 m/s and lets go at 400 m/s. Hands-off test (`tests/darter.test.ts`): sideslip 0.0 deg and yaw rate 0 through the whole launch (straight, no waving), peak angle of attack 6 deg, speed rising to 400 m/s (Mach 1.17) at release, then it coasts up to about 2,400 m while slowing from drag and climbing (that is physics after the rope lets go: nothing pulls it).
 - Not done: low-speed landing behaviour, sonic boom, a real cockpit model for it (it still uses the glider cockpit), tuning by hand-flying.
 
+## Update 62 — Darter waddle fixed
+- Cause found by testing with a 12 kt crosswind and gusts (my earlier test had no wind): on the ground the Darter sat on one main wheel and a crosswind rocked it up to 24 degrees at launch start. Fixes: two outrigger wheels under the wings (`darter.ts`), and in the air a roll-rate damper plus automatic wings-level when the stick is released, applied always for the Darter (`simpleControls.ts`). Test (`tests/darter_gust.test.ts`): max bank 0.4 degrees (was 23.9), mean yaw rate 0.4 deg/s (was 1.1), through the whole launch in gusty crosswind. Not hand-flown; the mouse stick near the edge can still bank it, by design. The outrigger wheels are not drawn on the model.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

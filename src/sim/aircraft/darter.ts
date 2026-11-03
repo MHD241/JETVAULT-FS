@@ -54,6 +54,12 @@ export const DARTER: AircraftDef = {
   wave: { mach: 1.0, k: 0.02 },
   fuselage: { pos: new Vec3(0.2, 0, 0), dragArea: 0.02, sideArea: 2.4, planArea: 1.8, munkVolume: 0.7, munkVolumeYaw: 0.9 },
   tailArm: 3.4,
+  // gear: nose skid, main wheel, tail wheel, plus two outrigger wheels under the wings so the single main wheel cannot rock sideways
+  gear: [
+    ...GLIDER.gear,
+    { name: 'Left outrigger', attach: new Vec3(0.0, -1.1, 0.26), length: 0.29, travel: 0.1, spring: 45000, damping: 3500, dampingRebound: 5000, wheelRadius: 0.1, steerMax: 0, brake: null, maxSinkRate: 12.7 },
+    { name: 'Right outrigger', attach: new Vec3(0.0, 1.1, 0.26), length: 0.29, travel: 0.1, spring: 45000, damping: 3500, dampingRebound: 5000, wheelRadius: 0.1, steerMax: 0, brake: null, maxSinkRate: 12.7 },
+  ],
   stallWarnAlpha: 24,
   contacts: GLIDER.contacts.map((c) => c.name.includes('wingtip') ? { ...c, pos: new Vec3(c.pos.x, Math.sign(c.pos.y) * 3.0, c.pos.z) } : c.name.includes('Tailplane') ? { ...c, pos: new Vec3(-3.7, Math.sign(c.pos.y) * 0.85, -0.5) } : c.name === 'Fin top' ? { ...c, pos: new Vec3(-3.7, 0, -1.1) } : c),
 };
