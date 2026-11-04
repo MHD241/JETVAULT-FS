@@ -59,7 +59,7 @@ export class EnvironmentRenderer {
     // deep-blue zenith fading to a pale hazy horizon (the stock atmosphere model alone is washed out after tone mapping)
     this.sky.material.onBeforeCompile = (sh) => {
       sh.fragmentShader = sh.fragmentShader.replace('gl_FragColor = vec4( texColor, 1.0 );',
-        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.55, 0.78, 1.35), smoothstep(0.02, 0.6, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n gl_FragColor = vec4( texColor, 1.0 );');
+        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.42, 0.70, 1.55), smoothstep(0.02, 0.6, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n gl_FragColor = vec4( texColor, 1.0 );');
     };
     this.sky.material.depthWrite = false;
     scene.add(this.sky);
@@ -72,8 +72,9 @@ export class EnvironmentRenderer {
     this.sun.shadow.mapSize.set(4096, 4096);
     const sc = this.sun.shadow.camera;
     sc.left = -260; sc.right = 260; sc.top = 260; sc.bottom = -260; sc.near = 1; sc.far = 2600;
-    this.sun.shadow.bias = -0.0005;
-    this.sun.shadow.normalBias = 0.09;
+    this.sun.shadow.bias = -0.00008;
+    this.sun.shadow.normalBias = 0.35;
+    this.sun.shadow.blurSamples = 16;
     scene.add(this.sun, this.sun.target);
     const disc = (stops: [number, string][]) => {
       const cv = document.createElement('canvas'); cv.width = cv.height = 256;

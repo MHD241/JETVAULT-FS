@@ -528,9 +528,9 @@ export class Aircraft {
         const t = this.time;
         const n1 = Math.sin(t * 37.1) * 0.6 + Math.sin(t * 53.7 + 1.3) * 0.4, n2 = Math.sin(t * 29.3 + 0.7) * 0.6 + Math.sin(t * 61.9) * 0.4, n3 = Math.sin(t * 17.7 + 2.1);
         const k = this.buffet * this.buffet;
-        M.x += this.inertia.ixx * 0.7 * k * n1;
-        M.y += this.inertia.iyy * 0.4 * k * n2;
-        M.z += this.inertia.izz * 0.2 * k * n3;
+        M.x += this.inertia.ixx * 0.18 * k * n1;
+        M.y += this.inertia.iyy * 0.1 * k * n2;
+        M.z += this.inertia.izz * 0.05 * k * n3;
       }
     }
     const Iw = this.inertia.mul(this.omega);

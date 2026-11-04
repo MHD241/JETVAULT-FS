@@ -417,6 +417,14 @@ Done (each checked in headless screenshots unless noted; speed is NOT a goal her
 - **Google Photorealistic 3D Tiles: NOT implemented.** It needs a Google Cloud API key with billing enabled, the key would be visible in the page source, and its terms restrict use. Tell me if you want it and will supply a key, and I will wire it up behind a settings field; otherwise the terrain stays Copernicus + Sentinel-2 + generated buildings.
 - Already done earlier and not repeated here: horizon-gradient sky, drifting clouds with lit tops, distance fog, worn runway texture with centreline/touchdown markings, approach lights and emissive runway edge lights at night.
 
+## Update 68 — shake removed, shadow/sky/ground tuning
+- **Stall shake removed entirely** (the camera no longer shudders; the red STALL banner stays) and the airframe buffet moments in the physics cut to about a quarter, so the aircraft itself only trembles slightly instead of shaking.
+- **Takeoff rumble** cut to about a quarter (camera movement 0.0065 -> 0.0016, roll 0.0035 -> 0.0008) and the field-of-view widening from 7 deg to 2 deg, so it no longer pumps.
+- **Shadows:** depth bias retuned for the larger shadow volume (bias -0.00008, normal bias 0.35, 16 blur samples) to cut acne and detached shadows. Checked in a headless screenshot: the 737's shadow is attached and soft.
+- **Sky:** stronger blue at the zenith (the horizon stays pale so terrain blends into it).
+- **Ground:** local-contrast sharpening on the 6 m satellite imagery (it is pushed away from its own blurred neighbourhood), so fields and hedges read more crisply instead of looking smeared.
+- Still open and NOT fixed because I do not know what is wrong: "reflections not perfect" — I cannot see the live aircraft reflection in my software renders. Tell me what looks wrong (too shiny / mirror-like / not updating / missing) and I will fix that specific thing.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

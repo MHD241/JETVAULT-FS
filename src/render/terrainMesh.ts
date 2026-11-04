@@ -376,6 +376,10 @@ float gWater; float gBuilt; float gPaved;
       vec2 ed = min(iuv, 1.0 - iuv) * uImgRect.z;
       gImg = smoothstep(0.0, 1500.0, min(ed.x, ed.y));
       vec3 im = srgb(texture2D(uImg, iuv).rgb) * (0.94 + 0.12 * n2);
+      // local contrast: the 6 m imagery is soft, so push it away from its own blurred neighbourhood
+      vec3 blur = srgb((texture2D(uImg, iuv + vec2(0.0012, 0.0)).rgb + texture2D(uImg, iuv - vec2(0.0012, 0.0)).rgb
+                      + texture2D(uImg, iuv + vec2(0.0, 0.0012)).rgb + texture2D(uImg, iuv - vec2(0.0, 0.0012)).rgb) * 0.25);
+      im = clamp(im + (im - blur) * 1.5, 0.0, 2.0);
       col = mix(col, im, gImg * (1.0 - gWater * 0.6));
     }
   }

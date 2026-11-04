@@ -874,11 +874,6 @@ class App implements MenuHost {
     {
       // stall: the camera shudders with the airframe buffet and a banner flashes while the aircraft is stalled / about to
       const b = sim.paused ? 0 : ac.buffet;
-      if (b > 0.03) {
-        const k = 0.05 * b * b + 0.004 * b, t = performance.now() / 1000;
-        cam.position.x += (Math.sin(t * 61) + Math.sin(t * 97)) * k; cam.position.y += (Math.sin(t * 73) + Math.sin(t * 113 + 1)) * k; cam.position.z += Math.sin(t * 83 + 2) * k;
-        cam.rotateZ(Math.sin(t * 47) * 0.012 * b);
-      }
       const warn = !sim.paused && !ac.onGround && !ac.crashed && b > 0.25; // only when really at the stall, not at the early warning
       this.stallEl.style.display = warn ? 'block' : 'none';
       if (warn) this.stallEl.style.opacity = b > 0.4 || Math.floor(performance.now() / 250) % 2 === 0 ? '1' : '0.35';
@@ -889,10 +884,10 @@ class App implements MenuHost {
       const want = !sim.paused && ac.onGround && !ac.def.glider && !this.pushing && sim.controls.throttle > 0.55 ? Math.min(1, gs / 70) : 0;
       this.rollFx += (want - this.rollFx) * (1 - Math.exp(-dt * (want > this.rollFx ? 1.5 : 3)));
       if (this.rollFx > 0.02) {
-        const t = performance.now() / 1000, k = 0.0065 * this.rollFx * (0.6 + 0.4 * Math.min(1, gs / 40));
+        const t = performance.now() / 1000, k = 0.0016 * this.rollFx * (0.6 + 0.4 * Math.min(1, gs / 40));
         cam.position.x += (Math.sin(t * 43) + Math.sin(t * 71 + 1)) * k * 0.6; cam.position.y += (Math.sin(t * 57) + Math.sin(t * 89 + 2)) * k; cam.position.z += Math.sin(t * 63 + 3) * k * 0.6;
-        cam.rotateZ(Math.sin(t * 37) * 0.0035 * this.rollFx);
-        if (this.rig.mode !== 'tower') { cam.fov = (this.rig.mode === 'cockpit' ? this.rig.fovCockpit : this.rig.fovExternal) + 7 * this.rollFx; cam.updateProjectionMatrix(); }
+        cam.rotateZ(Math.sin(t * 37) * 0.0008 * this.rollFx);
+        if (this.rig.mode !== 'tower') { cam.fov = (this.rig.mode === 'cockpit' ? this.rig.fovCockpit : this.rig.fovExternal) + 2 * this.rollFx; cam.updateProjectionMatrix(); }
       }
     }
     // winch launch: widen the view and shake the camera while the cable is dragging the glider up
