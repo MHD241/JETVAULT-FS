@@ -253,6 +253,7 @@ export class AirportRenderer {
     });
     for (const rw of ap.runways) this.buildRunway(rw);
     this.buildTaxiwayLines();
+    this.buildFence();
     this.buildLights();
   }
 
@@ -325,8 +326,9 @@ export class AirportRenderer {
 
   private buildTaxiwayLines() {
     const pos: number[] = [], idx: number[] = [];
-    const w = 0.32;
-    for (const line of this.ap.taxiways) {
+    // centreline (0.64 m wide) plus a double solid edge line on each side (0.22 m each), like real taxiway markings
+    const OFFS: [number, number][] = [[0, 0.32], [TAXIWAY_HALF_WIDTH - 0.55, 0.11], [TAXIWAY_HALF_WIDTH - 0.95, 0.11], [-(TAXIWAY_HALF_WIDTH - 0.55), 0.11], [-(TAXIWAY_HALF_WIDTH - 0.95), 0.11]];
+    for (const [off, w] of OFFS) for (const line of this.ap.taxiways) {
       // resample every 4 m so the line follows the terrain
       const pts: [number, number][] = [];
       for (let i = 0; i + 1 < line.length; i++) {
@@ -341,9 +343,10 @@ export class AirportRenderer {
         const [x, y] = pts[i];
         const [xa, ya] = pts[Math.max(0, i - 1)], [xb, yb] = pts[Math.min(pts.length - 1, i + 1)];
         const dx = xb - xa, dy = yb - ya, L = Math.hypot(dx, dy) || 1;
-        const nx = -dy / L * w, ny = dx / L * w;
-        pos.push(x + nx, this.h(x + nx, y + ny) + 0.05, -(y + ny));
-        pos.push(x - nx, this.h(x - nx, y - ny) + 0.05, -(y - ny));
+        const ux = -dy / L, uy = dx / L, cx = x + ux * off, cy = y + uy * off;
+        const nx = ux * w, ny = uy * w;
+        pos.push(cx + nx, this.h(cx + nx, cy + ny) + 0.05, -(cy + ny));
+        pos.push(cx - nx, this.h(cx - nx, cy - ny) + 0.05, -(cy - ny));
         if (i > 0) {
           const p = base + (i - 1) * 2;
           idx.push(p, p + 1, p + 2, p + 1, p + 3, p + 2);
@@ -361,6 +364,37 @@ export class AirportRenderer {
     const mesh = new THREE.Mesh(g, mat);
     mesh.name = 'taxiway centrelines';
     this.group.add(mesh);
+  }
+
+  /** Perimeter security fence along the airport boundary: chain-link mesh with posts, 2.4 m high. */
+  private buildFence() {
+    const bd = this.ap.boundary;
+    if (!bd || bd.length < 3) return;
+    const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+    const g = cv.getContext('2d')!; g.clearRect(0, 0, 64, 64); g.strokeStyle = 'rgba(150,155,160,0.95)'; g.lineWidth = 2.2;
+    g.beginPath(); for (let i = -1; i <= 1; i++) { g.moveTo(0, i * 64); g.lineTo(64, i * 64 + 64); g.moveTo(0, i * 64 + 64); g.lineTo(64, i * 64); } g.stroke();
+    const tex = new THREE.CanvasTexture(cv); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.anisotropy = 4; tex.colorSpace = THREE.SRGBColorSpace;
+    const H = 2.4, pos: number[] = [], uv: number[] = [], idx: number[] = [], posts: [number, number][] = [];
+    let run = 0;
+    for (let i = 0; i < bd.length; i++) {
+      const [x0, y0] = bd[i], [x1, y1] = bd[(i + 1) % bd.length], L = Math.hypot(x1 - x0, y1 - y0);
+      const n = Math.max(1, Math.ceil(L / 8));
+      for (let k = 0; k <= n; k++) {
+        const t = k / n, x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t, h0 = this.h(x, y), d = run + L * t;
+        pos.push(x, h0 - 0.1, -y, x, h0 + H, -y); uv.push(d / 1.1, 0, d / 1.1, H / 1.1);
+        if (k > 0) { const p = pos.length / 3 - 4; idx.push(p, p + 1, p + 2, p + 1, p + 3, p + 2); }
+        if (k < n && (k % 1 === 0)) posts.push([x, y]);
+      }
+      run += L;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx);
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide, fog: true }));
+    mesh.name = 'perimeter fence'; mesh.frustumCulled = false; this.group.add(mesh);
+    const pm = new THREE.InstancedMesh(new THREE.BoxGeometry(0.1, H + 0.2, 0.1).translate(0, H / 2, 0), new THREE.MeshStandardMaterial({ color: 0x6b7077, roughness: 0.6, metalness: 0.5 }), posts.length);
+    const m4 = new THREE.Matrix4();
+    posts.forEach(([x, y], i) => { m4.makeTranslation(x, this.h(x, y) - 0.1, -y); pm.setMatrixAt(i, m4); });
+    pm.frustumCulled = false; this.group.add(pm);
   }
 
   private buildLights() {

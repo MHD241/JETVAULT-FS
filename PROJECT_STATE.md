@@ -388,6 +388,12 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - `src/config.ts`: `FOCUS_MODE = true`. The game now offers only the Boeing 737-800 and only Edinburgh (EGPH): the Cessna, glider, Darter, Glasgow and Portmoak are hidden from the aircraft and airport menus and the world map, and Glasgow/Portmoak data is not loaded or streamed (checked in the running game: aircraft list `[b738]`, loaded patches `[egph]`, no errors). All their code, models and tests are still in the repository; set `FOCUS_MODE = false` to bring everything back. Working slowly from here on the 737 at EGPH only.
 - Smaller notes: the rest of the Scotland map terrain is still there when you fly away; the glider-only buttons never show for the 737.
 
+## Update 64 — visual realism, step 1: airport ground details (Edinburgh only)
+- **Perimeter fence** along the whole airport boundary (about 12.8 km): 2.4 m chain-link mesh (diamond pattern, see-through) with a post every 8 m (`buildFence` in `src/render/airportMesh.ts`). Seen in a headless screenshot at the boundary.
+- **Taxiway markings:** each taxiway now has a double solid yellow edge line on both sides plus the centreline (before: only a centreline). Seen in a headless screenshot.
+- Not done yet in the ground/airport group: gates/stand numbers and signs, hold-short bars where taxiways meet the runway, runway-edge detail, blurry satellite texture close up, apron variation (stains, tyre marks), grass mowing pattern, service roads. Frame cost of the fence (about 1,600 posts and one mesh) not measured on a real GPU.
+- Next candidates (your choice): hold-short bars and taxiway signs, stand numbers and apron paint, sharper ground close to the camera.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|
