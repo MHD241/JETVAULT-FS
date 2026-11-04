@@ -40,6 +40,7 @@ import { Buggy, launchPoints, nearestLaunchPoint, LaunchPoint, BUGGY_MAX_SPEED }
 import { TreeField, FieldScenery, BuggyModel } from './render/gliderField';
 import { GroundVehicles } from './render/groundVehicles';
 import { Grade } from './render/grade';
+import { Forest } from './render/forest';
 import { FOCUS_MODE, airportVisible, FOCUS_AIRCRAFT } from './config';
 import { generateCity } from './world/city';
 import { loadCustomDesign } from './render/cockpitCustom';
@@ -98,6 +99,11 @@ class App implements MenuHost {
   private retrieving = false;
   private winchFx = 0;
   private rollFx = 0;
+  private forest: Forest | null = null;
+  /** Live reflection probe at the aircraft: a cube map of the real surroundings (terrain, buildings, sky), refreshed every few frames. */
+  private reflectRT: THREE.WebGLCubeRenderTarget | null = null;
+  private reflectCam: THREE.CubeCamera | null = null;
+  private reflectFrame = 0;
   private grade: Grade | null = null;
   private tyreSmoke = new TyreSmoke();
   private stallEl!: HTMLDivElement;
@@ -672,7 +678,7 @@ class App implements MenuHost {
   private aircraftEnvTex: THREE.Texture | null = null;
   private envSyncT = 0;
   private syncAircraftEnv() {
-    const tex = this.scene.environment;
+    const tex = this.reflectRT ? this.reflectRT.texture : this.scene.environment;
     if (!tex) return;
     const changed = tex !== this.aircraftEnvTex;
     this.envSyncT -= 1;
@@ -836,6 +842,20 @@ class App implements MenuHost {
     this.aircraftGroup.matrix.copy(R);
     this.aircraftGroup.matrixWorldNeedsUpdate = true;
 
+    if (!this.reflectRT && !new URLSearchParams(location.search).has('noreflect')) {
+      this.reflectRT = new THREE.WebGLCubeRenderTarget(256, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+      this.reflectCam = new THREE.CubeCamera(0.5, 120000, this.reflectRT);
+      this.scene.add(this.reflectCam);
+    }
+    if (this.reflectRT && this.reflectCam && !sim.paused && ++this.reflectFrame % 5 === 0) {
+      const p = nedToThree(ac.worldPoint(new Vec3(0, 0, -2)));
+      this.reflectCam.position.copy(p);
+      const vis = this.aircraftGroup.visible; this.aircraftGroup.visible = false; this.contactShadow.visible = false;
+      this.reflectCam.update(this.renderer, this.scene);
+      this.aircraftGroup.visible = vis;
+    }
+    if (!this.forest && !new URLSearchParams(location.search).has('noforest')) { this.forest = new Forest(this.world, new URLSearchParams(location.search).has('forestlite') ? 1300 : 3200); this.scene.add(this.forest.group); }
+    if (this.forest && !this.menu.open) this.forest.update(this.rig.camera.position);
     this.syncAircraftEnv();
     {
       // contact shadow: follows the aircraft over the ground, fades with height; size by aircraft type

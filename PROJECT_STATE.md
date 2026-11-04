@@ -399,6 +399,18 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - **Result: only a modest improvement.** Ground colours are richer and more contrasty; the sky is still pale near the horizon and the clouds are flat and soft, not like your photos. My first, stronger grading made the clouds dull grey, so I backed it off. Frame cost of the extra render pass on a real GPU/phone is not measured (a 4x multisampled float buffer is not cheap); `?nograde` lets you compare.
 - What would make it much closer to the photos (not done): a proper sky model with a deeper-blue zenith and a bright sun glow, sunlit cloud tops with darker blue undersides and thickness (volumetric look), blue aerial perspective that scales with altitude, water with reflection and sun glitter, and real terrain/city detail that I cannot generate in a browser.
 
+## Update 66 — "heavy realism" pass (sky, clouds, forests, runway, reflections, water, buildings)
+Done (each checked in headless screenshots unless noted; speed is NOT a goal here and is NOT measured on a real GPU):
+- **Sky:** deep-blue zenith fading to a hazy horizon (sky shader tweak in `render/environment.ts`).
+- **Clouds:** sunlit tops (warm-white, brighter than before), cool blue-grey undersides and flanks, silver lining at the sunlit edge (`render/cloudField.ts`). Close-up undersides looked too blue and blotchy in the screenshot, softened afterwards (not re-checked).
+- **Forests:** about 80,000 instanced conifers and broadleaf trees within 3.2 km of the camera on the land-cover tree class, scattered trees in shrub/built-up edges, stands of one species, re-centred every 450 m (`render/forest.ts`). Screenshot shows woodland blocks and hedgerows. `?noforest` turns it off, `?forestlite` cuts the radius to 1.3 km. It made my software-rendered test runs very slow; a real GPU's cost is unknown.
+- **Runway texture:** 1024 x 8192 canvas with worn paint chips, repair patches, slab joints (25 m x 7.5 m), cracks, tyre-rubber streaks in both touchdown zones and oil stains (`render/airportMesh.ts`). Seen on runway 24.
+- **Live reflections on the aircraft:** a 256 px cube map of the real surroundings (terrain, buildings, sky) captured at the aircraft every 5 frames, used as the aircraft's environment reflection. **I could not verify it visually** (the test renders were too slow with it on); `?noreflect` turns it off.
+- **Water:** deeper blue, plus Fresnel sky reflection. Not seen in a screenshot yet (my test views had little water) and there is no sun glitter yet.
+- **Buildings:** wider colour palette (14 wall colours, 7 roofs). Still plain boxes with procedural windows; no pitched roofs, no real facades.
+- **Not done:** real photographed city, volumetric clouds, sun glitter on the sea, aerial haze that grows with altitude, aircraft paint/livery, terrain detail close up (the satellite image is still soft).
+- **Known cost:** with grading + forest + reflection probe + 14 km of city the game is very heavy; if it is unplayable on your device use `?noreflect&noforest&nograde` or the LOW preset.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

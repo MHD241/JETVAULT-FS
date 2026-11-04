@@ -418,7 +418,7 @@ float gWater; float gBuilt; float gPaved;
     }
   }
   col = mix(col, col * 0.55, uWet * (1.0 - gWater) * gPaved);
-  diffuseColor.rgb = mix(col, srgb(vec3(0.05, 0.09, 0.11)), gWater * (1.0 - gPaved));
+  diffuseColor.rgb = mix(col, srgb(vec3(0.015, 0.085, 0.17)), gWater * (1.0 - gPaved));
 }
 `)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
@@ -435,6 +435,12 @@ if (gWater > 0.01) {
 }
 `)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+if (gWater > 0.01) {
+  // water: Fresnel sky reflection (sky blue at grazing angles, deep blue looking down) plus sun glitter from the animated ripples
+  vec3 Vn = normalize(vViewPosition);
+  float fr = pow(1.0 - clamp(dot(normalize(normal), Vn), 0.0, 1.0), 3.0);
+  totalEmissiveRadiance += vec3(0.30, 0.52, 0.85) * (0.12 + 0.9 * fr) * gWater * (1.0 - gPaved) * (1.0 - uNight);
+}
 if (uNight > 0.01) {
   vec2 en3 = vec2(vWorldPos.x, -vWorldPos.z);
   float sp = hash12(floor(en3 / 9.0));

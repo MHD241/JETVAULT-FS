@@ -78,9 +78,12 @@ export class CloudField {
           vec3 nrm = normalize(vec3(uv * 0.9, sqrt(max(0.05, 1.0 - r * r))));
           float diff = clamp(dot(nrm, vSun) * 0.5 + 0.5, 0.0, 1.0);
           float shade = mix(0.35, 1.0, smoothstep(0.0, 0.65, vH));
-          vec3 lit = uSunCol * 1.5 + uAmb * 0.9;
-          vec3 dark = uAmb * 1.7 + uSunCol * 0.12;
-          vec3 col = mix(dark, lit, diff * shade);
+          // sunlit tops are brilliant white-gold, undersides and shadowed flanks are cool blue-grey, with a silver lining at the sunlit edge
+          vec3 lit = uSunCol * 2.2 + uAmb * 0.8;
+          vec3 dark = uAmb * 0.62 * vec3(0.82, 0.88, 1.0) + uSunCol * 0.05;
+          float sunSide = clamp(dot(nrm, vSun), 0.0, 1.0);
+          vec3 col = mix(dark, lit, pow(diff, 1.6) * shade);
+          col += uSunCol * 0.9 * pow(1.0 - nrm.z, 2.0) * sunSide * 0.6;
           float dist = length(vW - uCam);
           float fog = 1.0 - exp(-pow(uFogD * dist, 2.0));
           col = mix(col, uFogCol, fog);

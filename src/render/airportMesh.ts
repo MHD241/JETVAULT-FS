@@ -129,7 +129,7 @@ function grassRunwayTexture(rw: Runway) {
 }
 
 function runwayTexture(rw: Runway) {
-  const W = 512, H = 4096;
+  const W = 1024, H = 8192;
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
   const g = cv.getContext('2d')!;
@@ -205,6 +205,30 @@ function runwayTexture(rw: Runway) {
   // edge lines
   g.fillRect(0.4 * mx, 0, 0.9 * mx, H);
   g.fillRect((rw.width - 1.3) * mx, 0, 0.9 * mx, H);
+  // ---- surface wear over everything (paint included): weathered, patched, cracked, stained asphalt
+  let seed = 12345; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  // paint wear: knock small chips out of the white paint
+  g.globalCompositeOperation = 'source-atop';
+  for (let i = 0; i < 26000; i++) { const v = 45 + rnd() * 25; g.fillStyle = `rgba(${v},${v},${v + 2},${0.18 + rnd() * 0.35})`; g.fillRect(rnd() * W, rnd() * H, 1 + rnd() * 3, 1 + rnd() * 5); }
+  g.globalCompositeOperation = 'source-over';
+  // repair patches: rectangles of slightly different asphalt
+  for (let i = 0; i < 70; i++) { const w = (2 + rnd() * 6) * mx, h = (4 + rnd() * 18) * my, x = rnd() * (W - w), y = rnd() * (H - h), v = 38 + rnd() * 22; g.fillStyle = `rgba(${v},${v},${v},0.5)`; g.fillRect(x, y, w, h); g.strokeStyle = 'rgba(15,15,15,0.5)'; g.lineWidth = 1.5; g.strokeRect(x, y, w, h); }
+  // slab joints: transverse every 25 m, longitudinal every 7.5 m, thin dark lines with a light edge
+  g.lineWidth = 1.6;
+  for (let m = 12; m < rw.length; m += 25) { g.strokeStyle = 'rgba(12,12,12,0.55)'; g.beginPath(); g.moveTo(0, m * my); g.lineTo(W, m * my); g.stroke(); g.strokeStyle = 'rgba(120,120,120,0.18)'; g.beginPath(); g.moveTo(0, m * my + 2); g.lineTo(W, m * my + 2); g.stroke(); }
+  for (let u = 7.5; u < rw.width; u += 7.5) { g.strokeStyle = 'rgba(12,12,12,0.4)'; g.beginPath(); g.moveTo(u * mx, 0); g.lineTo(u * mx, H); g.stroke(); }
+  // cracks
+  g.lineWidth = 1.1; g.strokeStyle = 'rgba(8,8,8,0.55)';
+  for (let i = 0; i < 260; i++) { let x = rnd() * W, y = rnd() * H; g.beginPath(); g.moveTo(x, y); for (let k = 0; k < 8; k++) { x += (rnd() - 0.5) * 26; y += (rnd() - 0.3) * 22; g.lineTo(x, y); } g.stroke(); }
+  // tyre rubber: dark streaks in both wheel tracks through each touchdown zone, and heavy build-up right at the thresholds
+  for (const flip of [false, true]) {
+    for (let zone = 300; zone < 900; zone += 14) for (const off of [-3.2, 3.2, -8.5, 8.5]) {
+      const a = (zone + rnd() * 10) * my, y0 = flip ? H - a : a, x = (rw.width / 2 + off + (rnd() - 0.5) * 2.2) * mx, len = (6 + rnd() * 40) * my * (flip ? -1 : 1);
+      g.fillStyle = `rgba(10,10,10,${0.1 + rnd() * 0.18})`; g.fillRect(x, y0, (0.4 + rnd() * 0.9) * mx, len);
+    }
+  }
+  // oil stains
+  for (let i = 0; i < 120; i++) { const x = rnd() * W, y = rnd() * H, r = (0.3 + rnd() * 1.2) * mx; const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(8,8,10,0.45)'); gr.addColorStop(1, 'rgba(8,8,10,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, 2 * r, 2 * r); }
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 16;

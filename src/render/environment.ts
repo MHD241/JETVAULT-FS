@@ -56,6 +56,11 @@ export class EnvironmentRenderer {
   constructor(private scene: THREE.Scene, renderer: THREE.WebGLRenderer, noiseTex: THREE.DataTexture) {
     this.sky = new Sky();
     this.sky.scale.setScalar(400000);
+    // deep-blue zenith fading to a pale hazy horizon (the stock atmosphere model alone is washed out after tone mapping)
+    this.sky.material.onBeforeCompile = (sh) => {
+      sh.fragmentShader = sh.fragmentShader.replace('gl_FragColor = vec4( texColor, 1.0 );',
+        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.55, 0.78, 1.35), smoothstep(0.02, 0.6, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n gl_FragColor = vec4( texColor, 1.0 );');
+    };
     this.sky.material.depthWrite = false;
     scene.add(this.sky);
     this.envSky = new Sky();
@@ -233,7 +238,7 @@ export class EnvironmentRenderer {
 
     // clouds: scattered 3D puff cumulus below overcast, flat noise layers for overcast
     this.field.update(cam, w.cloudBaseFt, this.coverage, simTime, this.sunDir,
-      this.sun.color.clone().multiplyScalar(1.7 * dayLight + 0.03), new THREE.Color(0.55, 0.65, 0.85).multiplyScalar(0.4 + 1.5 * dayLight), this.fog.color, this.fog.density);
+      this.sun.color.clone().multiplyScalar(1.5 * dayLight + 0.03), new THREE.Color(0.55, 0.65, 0.85).multiplyScalar(0.3 + 1.0 * dayLight), this.fog.color, this.fog.density);
     for (let l = 0; l < this.clouds.length; l++) {
       const m = this.clouds[l];
       m.visible = this.coverage >= 0.9;
@@ -241,8 +246,8 @@ export class EnvironmentRenderer {
       const u = (m.material as THREE.ShaderMaterial).uniforms;
       u.uCover.value = this.coverage;
       u.uSun.value.copy(this.sunDir);
-      u.uSunCol.value.copy(this.sun.color).multiplyScalar(1.7 * dayLight + 0.03);
-      u.uAmb.value.setRGB(0.55, 0.65, 0.85).multiplyScalar(0.4 + 1.5 * dayLight);
+      u.uSunCol.value.copy(this.sun.color).multiplyScalar(1.5 * dayLight + 0.03);
+      u.uAmb.value.setRGB(0.55, 0.65, 0.85).multiplyScalar(0.3 + 1.0 * dayLight);
       u.uTime.value = simTime;
       u.uCam.value.copy(cam);
       u.uFogCol.value.copy(this.fog.color);
