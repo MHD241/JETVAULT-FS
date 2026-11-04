@@ -6,6 +6,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 
 const GradeShader = {
   uniforms: { tDiffuse: { value: null as THREE.Texture | null }, uContrast: { value: 1.18 }, uSat: { value: 1.22 }, uWarm: { value: 0.07 }, uVig: { value: 0.22 }, uNight: { value: 0 } },
@@ -33,6 +34,7 @@ const GradeShader = {
 export class Grade {
   readonly composer: EffectComposer;
   private pass: ShaderPass;
+  private ao: GTAOPass | null = null;
   enabled = true;
 
   constructor(private renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
@@ -40,11 +42,20 @@ export class Grade {
     const rt = new THREE.WebGLRenderTarget(size.x * pr, size.y * pr, { type: THREE.HalfFloatType, samples: 4 });
     this.composer = new EffectComposer(renderer, rt);
     this.composer.addPass(new RenderPass(scene, camera));
+    // ambient occlusion: contact darkening where surfaces meet (under the aircraft, between buildings, in tree canopies)
+    if (!new URLSearchParams(location.search).has('noao')) {
+      const ao = new GTAOPass(scene, camera, size.x * pr, size.y * pr);
+      ao.output = GTAOPass.OUTPUT.Default;
+      ao.updateGtaoMaterial({ radius: 1.2, distanceExponent: 1.0, thickness: 2.0, scale: 1.0, samples: 16 });
+      ao.blendIntensity = 0.7;
+      this.ao = ao;
+      this.composer.addPass(ao);
+    }
     this.pass = new ShaderPass(GradeShader);
     this.composer.addPass(this.pass);
     this.composer.addPass(new OutputPass());
   }
-  setCamera(camera: THREE.Camera) { (this.composer.passes[0] as RenderPass).camera = camera; }
+  setCamera(camera: THREE.Camera) { (this.composer.passes[0] as RenderPass).camera = camera; if (this.ao) this.ao.camera = camera as THREE.PerspectiveCamera; }
   setSize(w: number, h: number) { this.composer.setPixelRatio(this.renderer.getPixelRatio()); this.composer.setSize(w, h); }
   set(night: number, strength = 1) {
     const u = this.pass.uniforms;

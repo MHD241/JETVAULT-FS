@@ -70,6 +70,7 @@ export class Forest {
       const im = new THREE.InstancedMesh(geo, this.mat, ms.length);
       ms.forEach((mm, k) => { im.setMatrixAt(k, mm); im.setColorAt(k, cols[k]); });
       im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); im.frustumCulled = true;
+      im.castShadow = true; im.receiveShadow = true;
       this.meshes.push(im); this.group.add(im);
     }
   }

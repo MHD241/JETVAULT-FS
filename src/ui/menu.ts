@@ -24,7 +24,7 @@ export type GraphicsPreset = 'low' | 'high' | 'ultra';
 /** Graphics presets. LOW favours frame rate (phones); HIGH is the default; ULTRA spends more GPU on shadows, terrain and draw distance. */
 export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
   low: { renderScale: 0.7, shadows: false, terrainDetail: 0.7, buildingDistanceKm: 6, clouds: true, shadowSize: 1024, softShadows: false },
-  high: { renderScale: 1, shadows: true, terrainDetail: 1, buildingDistanceKm: 12, clouds: true, shadowSize: 2048, softShadows: true },
+  high: { renderScale: 1, shadows: true, terrainDetail: 1, buildingDistanceKm: 12, clouds: true, shadowSize: 4096, softShadows: true },
   ultra: { renderScale: 1, shadows: true, terrainDetail: 1.5, buildingDistanceKm: 20, clouds: true, shadowSize: 4096, softShadows: true },
 };
 

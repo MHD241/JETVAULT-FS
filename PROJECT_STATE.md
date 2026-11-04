@@ -411,6 +411,12 @@ Done (each checked in headless screenshots unless noted; speed is NOT a goal her
 - **Not done:** real photographed city, volumetric clouds, sun glitter on the sea, aerial haze that grows with altitude, aircraft paint/livery, terrain detail close up (the satellite image is still soft).
 - **Known cost:** with grading + forest + reflection probe + 14 km of city the game is very heavy; if it is unplayable on your device use `?noreflect&noforest&nograde` or the LOW preset.
 
+## Update 67 — shadows and ambient occlusion
+- **Sun shadows** much larger and sharper: shadow area 520 m (was 280 m), 4096 map by default on HIGH, soft (PCF soft) edges, sun placed further out so the shadow volume reaches further. **Trees now cast and receive shadows** (they did not before). Checked in a headless screenshot with a late-afternoon sun: the 737 casts a long, soft shadow across the runway.
+- **Ambient occlusion** (GTAO) added to the post-processing chain: contact darkening where surfaces meet (under the aircraft, between buildings, inside tree canopies). `?noao` turns it off.
+- **Google Photorealistic 3D Tiles: NOT implemented.** It needs a Google Cloud API key with billing enabled, the key would be visible in the page source, and its terms restrict use. Tell me if you want it and will supply a key, and I will wire it up behind a settings field; otherwise the terrain stays Copernicus + Sentinel-2 + generated buildings.
+- Already done earlier and not repeated here: horizon-gradient sky, drifting clouds with lit tops, distance fog, worn runway texture with centreline/touchdown markings, approach lights and emissive runway edge lights at night.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

@@ -69,9 +69,9 @@ export class EnvironmentRenderer {
 
     this.sun = new THREE.DirectionalLight(0xffffff, 3);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.set(4096, 4096);
     const sc = this.sun.shadow.camera;
-    sc.left = -140; sc.right = 140; sc.top = 140; sc.bottom = -140; sc.near = 1; sc.far = 1500;
+    sc.left = -260; sc.right = 260; sc.top = 260; sc.bottom = -260; sc.near = 1; sc.far = 2600;
     this.sun.shadow.bias = -0.0005;
     this.sun.shadow.normalBias = 0.09;
     scene.add(this.sun, this.sun.target);
@@ -211,7 +211,7 @@ export class EnvironmentRenderer {
     const warm = THREE.MathUtils.smoothstep(sp.elevation, 0, 25);
     this.sun.color.setRGB(1, 0.72 + 0.28 * warm, 0.5 + 0.5 * warm);
     this.sun.intensity = this.tune.sun * sunVis;
-    this.sun.position.copy(focus).addScaledVector(this.sunDir, 600);
+    this.sun.position.copy(focus).addScaledVector(this.sunDir, 1200);
     this.sun.target.position.copy(focus);
     this.hemi.intensity = (0.4 + 0.6 * dayLight) * this.tune.hemi; // moonlit / skyglow floor so the ground is not pitch black
     this.hemi.color.setRGB(0.62 + 0.2 * overcast, 0.72 + 0.12 * overcast, 0.9);
