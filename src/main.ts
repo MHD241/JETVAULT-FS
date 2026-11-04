@@ -39,6 +39,7 @@ import { CrashFx } from './render/crashFx';
 import { Buggy, launchPoints, nearestLaunchPoint, LaunchPoint, BUGGY_MAX_SPEED } from './sim/buggy';
 import { TreeField, FieldScenery, BuggyModel } from './render/gliderField';
 import { GroundVehicles } from './render/groundVehicles';
+import { Grade } from './render/grade';
 import { FOCUS_MODE, airportVisible, FOCUS_AIRCRAFT } from './config';
 import { generateCity } from './world/city';
 import { loadCustomDesign } from './render/cockpitCustom';
@@ -97,6 +98,7 @@ class App implements MenuHost {
   private retrieving = false;
   private winchFx = 0;
   private rollFx = 0;
+  private grade: Grade | null = null;
   private tyreSmoke = new TyreSmoke();
   private stallEl!: HTMLDivElement;
   // stand marshal
@@ -259,6 +261,7 @@ class App implements MenuHost {
     this.crashFx = new CrashFx(this.scene);
     this.env = new EnvironmentRenderer(this.scene, this.renderer, this.terrain.uniforms.uDetail.value as THREE.DataTexture);
     this.rig = new CameraRig(window.innerWidth / window.innerHeight);
+    if (!new URLSearchParams(location.search).has('nograde')) this.grade = new Grade(this.renderer, this.scene, this.rig.camera);
     this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
     this.placeTower();
     this.debug = new DebugView(this.sim.aircraft, this.world);
@@ -513,6 +516,7 @@ class App implements MenuHost {
   applyGraphics(g: GraphicsSettings) {
     this.graphics = g;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * g.renderScale);
+    if (this.grade) this.grade.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = g.shadows;
     this.env.sun.castShadow = g.shadows;
     const type = g.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
@@ -528,6 +532,7 @@ class App implements MenuHost {
 
   private resize() {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.grade?.setSize(window.innerWidth, window.innerHeight);
     this.rig.camera.aspect = window.innerWidth / window.innerHeight;
     this.rig.camera.updateProjectionMatrix();
   }
@@ -903,7 +908,7 @@ class App implements MenuHost {
     if (this.menu.open) this.menu.drawMap();
 
     this.renderer.toneMappingExposure = this.env.tune.exposure * (1 + 1.6 * this.env.night); // eye adaptation to the dark
-    this.renderer.render(this.scene, cam);
+    if (this.grade) { this.grade.setCamera(cam); this.grade.set(this.env.night); this.grade.render(); } else this.renderer.render(this.scene, cam);
     const frameMs = performance.now() - t0;
     this.frameTimes.push(dt);
     if (this.frameTimes.length > 120) this.frameTimes.shift();

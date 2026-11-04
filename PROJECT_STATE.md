@@ -394,6 +394,11 @@ Files: `src/sim/marshal.ts`, `tests/marshal.test.ts`, `src/render/marshalFigure.
 - Not done yet in the ground/airport group: gates/stand numbers and signs, hold-short bars where taxiways meet the runway, runway-edge detail, blurry satellite texture close up, apron variation (stains, tyre marks), grass mowing pattern, service roads. Frame cost of the fence (about 1,600 posts and one mesh) not measured on a real GPU.
 - Next candidates (your choice): hold-short bars and taxiway signs, stand numbers and apron paint, sharper ground close to the camera.
 
+## Update 65 — overall look, step 1 (grading, sky, haze): modest result
+- New full-frame colour grading (`src/render/grade.ts`): the scene renders to a 4x multisampled half-float buffer, then a grade (contrast +7 %, saturation +28 %, warm highlights, cool shadows, light vignette), then ACES tone mapping. `?nograde` in the address turns it off. Sky made clearer (lower turbidity, higher Rayleigh), distance haze made bluer, sun stronger (3.6) and sky fill weaker, clouds lit brighter (the post-process blends in linear light and made them grey at first).
+- **Result: only a modest improvement.** Ground colours are richer and more contrasty; the sky is still pale near the horizon and the clouds are flat and soft, not like your photos. My first, stronger grading made the clouds dull grey, so I backed it off. Frame cost of the extra render pass on a real GPU/phone is not measured (a 4x multisampled float buffer is not cheap); `?nograde` lets you compare.
+- What would make it much closer to the photos (not done): a proper sky model with a deeper-blue zenith and a bright sun glow, sunlit cloud tops with darker blue undersides and thickness (volumetric look), blue aerial perspective that scales with altitude, water with reflection and sun glitter, and real terrain/city detail that I cannot generate in a browser.
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

@@ -49,7 +49,7 @@ export class EnvironmentRenderer {
   /** Visible sun: a hot core and a wide glow, billboarded far away; clouds (drawn later) cover it. */
   private sunCore!: THREE.Sprite;
   private sunGlow!: THREE.Sprite;
-  tune = { sun: 3.0, hemi: 0.36, env: 0.3, exposure: 0.42 };
+  tune = { sun: 3.6, hemi: 0.3, env: 0.3, exposure: 0.45 };
   private noise: Uint8Array;
   private noiseSize: number;
 
@@ -179,9 +179,9 @@ export class EnvironmentRenderer {
     for (const s of [this.sky, this.envSky]) {
       const u = s.material.uniforms;
       u.sunPosition.value.copy(this.sunDir);
-      u.turbidity.value = 4 + overcast * 10 + w.rain * 6;
-      u.rayleigh.value = 1.2 + overcast * 1.5;
-      u.mieCoefficient.value = 0.004 + overcast * 0.02;
+      u.turbidity.value = 2.4 + overcast * 10 + w.rain * 6;   // clearer air: deeper blue zenith
+      u.rayleigh.value = 2.1 + overcast * 1.0;
+      u.mieCoefficient.value = 0.0025 + overcast * 0.02;
       u.mieDirectionalG.value = 0.85;
     }
     this.sky.position.copy(cam);
@@ -228,12 +228,12 @@ export class EnvironmentRenderer {
     const vis = Math.max(50, Math.min(w.visibility, 80000) * (1 - 0.97 * inCloud));
     this.fog.density = Math.sqrt(3) / vis * 0.9;
     const fogBright = 0.25 + 0.75 * dayLight;
-    this.fog.color.setRGB(0.70 * fogBright, 0.76 * fogBright, 0.84 * fogBright).lerp(new THREE.Color(0.8, 0.8, 0.82).multiplyScalar(fogBright), overcast * 0.6 + inCloud);
+    this.fog.color.setRGB(0.56 * fogBright, 0.70 * fogBright, 0.90 * fogBright).lerp(new THREE.Color(0.8, 0.8, 0.82).multiplyScalar(fogBright), overcast * 0.6 + inCloud);
     this.lightLevel = Math.max(this.night, w.visibility < 5000 ? 1 : 0, overcast * 0.4);
 
     // clouds: scattered 3D puff cumulus below overcast, flat noise layers for overcast
     this.field.update(cam, w.cloudBaseFt, this.coverage, simTime, this.sunDir,
-      this.sun.color.clone().multiplyScalar(0.55 * dayLight + 0.03), new THREE.Color(0.45, 0.5, 0.58).multiplyScalar(0.12 + 0.6 * dayLight), this.fog.color, this.fog.density);
+      this.sun.color.clone().multiplyScalar(1.7 * dayLight + 0.03), new THREE.Color(0.55, 0.65, 0.85).multiplyScalar(0.4 + 1.5 * dayLight), this.fog.color, this.fog.density);
     for (let l = 0; l < this.clouds.length; l++) {
       const m = this.clouds[l];
       m.visible = this.coverage >= 0.9;
@@ -241,8 +241,8 @@ export class EnvironmentRenderer {
       const u = (m.material as THREE.ShaderMaterial).uniforms;
       u.uCover.value = this.coverage;
       u.uSun.value.copy(this.sunDir);
-      u.uSunCol.value.copy(this.sun.color).multiplyScalar(0.55 * dayLight + 0.03);
-      u.uAmb.value.setRGB(0.45, 0.5, 0.58).multiplyScalar(0.12 + 0.6 * dayLight);
+      u.uSunCol.value.copy(this.sun.color).multiplyScalar(1.7 * dayLight + 0.03);
+      u.uAmb.value.setRGB(0.55, 0.65, 0.85).multiplyScalar(0.4 + 1.5 * dayLight);
       u.uTime.value = simTime;
       u.uCam.value.copy(cam);
       u.uFogCol.value.copy(this.fog.color);
