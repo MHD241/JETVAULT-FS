@@ -425,6 +425,13 @@ Done (each checked in headless screenshots unless noted; speed is NOT a goal her
 - **Ground:** local-contrast sharpening on the 6 m satellite imagery (it is pushed away from its own blurred neighbourhood), so fields and hedges read more crisply instead of looking smeared.
 - Still open and NOT fixed because I do not know what is wrong: "reflections not perfect" — I cannot see the live aircraft reflection in my software renders. Tell me what looks wrong (too shiny / mirror-like / not updating / missing) and I will fix that specific thing.
 
+## Update 69 — sun, glare, bloom
+- **Sun**: tighter, brighter core (1.1 deg) with a wide warm halo (19 deg). It is the same light that casts the shadows, so the shadow direction always matches where you see it.
+- **Glare**: looking towards the sun now adds a warm veil and a faint horizontal lens streak over the frame, fading as you look away (`uSunUv` in `render/grade.ts`, fed from the sun's screen position in `main.ts`).
+- **Bloom**: bright highlights bleed light (UnrealBloomPass, strength 0.16, threshold 1.05). `?nobloom` turns it off, `?noao` turns off ambient occlusion.
+- **Overall brightness** raised about 12 % (exposure 1.12, less at night).
+- **Honest note:** my first settings whited out the whole screen when looking at the sun; I cut the glow, bloom and glare by roughly 3-4x. In my last check the sun reads as a soft bright halo, not a whiteout, but I could not get a test frame with ground and sun together, so **please look at it in flight and tell me if it is still too strong or now too weak.**
+
 ## Required tests — results (`npm test`, 70 tests, all passing)
 | # | Test | Result |
 |---|------|--------|

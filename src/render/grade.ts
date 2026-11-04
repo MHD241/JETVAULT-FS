@@ -7,14 +7,23 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null as THREE.Texture | null }, uContrast: { value: 1.18 }, uSat: { value: 1.22 }, uWarm: { value: 0.07 }, uVig: { value: 0.22 }, uNight: { value: 0 } },
+  uniforms: { tDiffuse: { value: null as THREE.Texture | null }, uContrast: { value: 1.18 }, uSat: { value: 1.22 }, uWarm: { value: 0.07 }, uVig: { value: 0.22 }, uNight: { value: 0 }, uExp: { value: 1.12 }, uSunUv: { value: new THREE.Vector3(0.5, 0.5, 0) } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform float uContrast, uSat, uWarm, uVig, uNight; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform float uContrast, uSat, uWarm, uVig, uNight, uExp; uniform vec3 uSunUv; varying vec2 vUv;
     void main(){
-      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      vec3 c = texture2D(tDiffuse, vUv).rgb * uExp;
+      // sun glare: a warm veil that grows as you look towards the sun, plus a faint lens streak
+      if (uSunUv.z > 0.5) {
+        vec2 d = (vUv - uSunUv.xy) * vec2(1.7, 1.0);
+        float r = length(d);
+        float veil = exp(-r * 13.0) * 0.07 + exp(-r * 34.0) * 0.20;
+        float streak = exp(-abs(d.y) * 220.0) * exp(-abs(d.x) * 7.0) * 0.12;
+        c += vec3(1.0, 0.86, 0.62) * (veil + streak) * (1.0 - uNight);
+      }
       float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
       // contrast about a mid-grey in linear light (pivot 0.18), keeps highlights from clipping because tone mapping follows
       c = max(vec3(0.0), (c - 0.35) * uContrast + 0.35);
@@ -35,6 +44,7 @@ export class Grade {
   readonly composer: EffectComposer;
   private pass: ShaderPass;
   private ao: GTAOPass | null = null;
+  private bloom: UnrealBloomPass | null = null;
   enabled = true;
 
   constructor(private renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
@@ -51,14 +61,21 @@ export class Grade {
       this.ao = ao;
       this.composer.addPass(ao);
     }
+    // bloom: the sun and bright highlights bleed light, as a camera does
+    if (!new URLSearchParams(location.search).has('nobloom')) {
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.16, 0.45, 1.05);
+      this.composer.addPass(this.bloom);
+    }
     this.pass = new ShaderPass(GradeShader);
     this.composer.addPass(this.pass);
     this.composer.addPass(new OutputPass());
   }
   setCamera(camera: THREE.Camera) { (this.composer.passes[0] as RenderPass).camera = camera; if (this.ao) this.ao.camera = camera as THREE.PerspectiveCamera; }
   setSize(w: number, h: number) { this.composer.setPixelRatio(this.renderer.getPixelRatio()); this.composer.setSize(w, h); }
-  set(night: number, strength = 1) {
+  set(night: number, strength = 1, sunUv?: THREE.Vector3) {
     const u = this.pass.uniforms;
+    if (sunUv) (u.uSunUv.value as THREE.Vector3).copy(sunUv);
+    u.uExp.value = 1.12 - 0.25 * night;
     u.uNight.value = night;
     u.uContrast.value = 1 + 0.07 * strength; u.uSat.value = 1 + 0.28 * strength; u.uWarm.value = 0.07 * strength; u.uVig.value = 0.22 * strength;
   }

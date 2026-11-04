@@ -87,7 +87,7 @@ export class EnvironmentRenderer {
       const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, fog: false }));
       m.renderOrder = order; m.frustumCulled = false; scene.add(m); return m;
     };
-    this.sunGlow = mk(disc([[0, 'rgba(255,240,205,0.55)'], [0.12, 'rgba(255,225,170,0.30)'], [0.4, 'rgba(255,200,130,0.08)'], [1, 'rgba(255,190,120,0)']]), 1);
+    this.sunGlow = mk(disc([[0, 'rgba(255,245,215,0.42)'], [0.06, 'rgba(255,232,180,0.17)'], [0.2, 'rgba(255,214,150,0.05)'], [0.5, 'rgba(255,198,135,0.012)'], [1, 'rgba(255,190,120,0)']]), 1);
     this.sunCore = mk(disc([[0, 'rgba(255,255,255,1)'], [0.55, 'rgba(255,252,235,1)'], [0.8, 'rgba(255,240,200,0.55)'], [1, 'rgba(255,230,180,0)']]), 1);
     this.hemi = new THREE.HemisphereLight(0xbfd6ff, 0x4a4a3a, 0.6);
     scene.add(this.hemi);
@@ -195,12 +195,12 @@ export class EnvironmentRenderer {
       // sun disc: 1.6 deg core, ~22 deg glow; hidden below the horizon, dimmer and warmer when low or overcast
       const D = 200000, vis = THREE.MathUtils.smoothstep(sp.elevation, -2, 1.5);
       const low = 1 - THREE.MathUtils.smoothstep(sp.elevation, 2, 25);
-      for (const [s, ang, k] of [[this.sunCore, 1.6, 1], [this.sunGlow, 22, 1]] as [THREE.Sprite, number, number][]) {
+      for (const [s, ang, k] of [[this.sunCore, 1.1, 1.6], [this.sunGlow, 19, 1]] as [THREE.Sprite, number, number][]) {
         s.position.copy(cam).addScaledVector(this.sunDir, D);
         s.scale.setScalar(2 * D * Math.tan((ang * Math.PI) / 360));
         const m = s.material as THREE.SpriteMaterial;
         m.color.setRGB(1, 0.92 - 0.3 * low, 0.8 - 0.5 * low);
-        m.opacity = vis * k * (1 - 0.65 * overcast);
+        m.opacity = Math.min(1, vis * k * (1 - 0.65 * overcast));
         s.visible = vis > 0.01;
       }
     }
