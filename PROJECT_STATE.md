@@ -517,3 +517,7 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 - Plan agreed with user: lighten the current three.js build first, then later move the ground to CesiumJS (worldwide streamed tiles; needs a free Cesium ion token).
 - Done (cockpit lazy load confirmed in a headless run): the 86 MB / 1.75 M-triangle detailed cockpit is fetched only the first time the cockpit view is entered (was at startup); live reflection probe refresh 5 -> 12 frames.
 - Pending: 737 triangle reduction (<50k), shadow/AO cost review, then measure frame times.
+
+## Update 77 — 737 mesh reduced
+- `b738_full.bin`: 117k -> 70k triangles, 7.0 -> 3.4 MB (meshoptimizer simplify on the large panels only, small detail parts such as lettering untouched; positions welded, so creases between panels are slightly softer). Headless screenshot checked: shape, livery, lettering, gear OK; the window row is thinner than before. Original kept out of the repo (can be regenerated from the supplied OBJ with the conversion script, not committed).
+- Not yet done in phase 1: shadow/AO cost review, frame-time measurement (needs a real GPU; headless software rendering is not meaningful for fps).
