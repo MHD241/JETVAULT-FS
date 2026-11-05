@@ -344,7 +344,17 @@ export class B737Model {
     // gear: retract inboard (mains) and forward (nose)
     const ret = 1 - ac.gearExt;
     if (this.rig) this.rig.update(ac);
-    if (this.fullLoaded) for (const g of this.fullGear) g.visible = ac.gearExt > 0.5; // gear parts vanish when retracted
+    if (this.fullLoaded) {
+      const ret = 1 - ac.gearExt;
+      for (const { obj, pivot, kind } of this.fullGear) {
+        obj.visible = ret < 0.97;
+        // mains fold inboard about the fore-aft axis, the nose gear folds forward about the lateral axis (model axes: x span, y up, z nose)
+        const ang = ret * (Math.PI / 2), R = new THREE.Matrix4();
+        if (kind === 'N') R.makeRotationX(-ang); else R.makeRotationZ(kind === 'L' ? -ang : ang);
+        obj.matrix.makeTranslation(pivot.x, pivot.y, pivot.z).multiply(R).multiply(new THREE.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
+        obj.matrixWorldNeedsUpdate = true;
+      }
+    }
     if (this.real) {
       // keep the wheels on the ground: the flight model's tyre contact is gear bottom (z = 4.05 m below the datum)
       // minus strut compression; tilt the mesh so nose and main wheels meet the same plane
@@ -359,10 +369,10 @@ export class B737Model {
       g.rotation.x = (i === 0 ? -1 : 1) * ret * (Math.PI / 2); // mains fold inboard
       const comp = ac.gearStates[i + 1]?.compression ?? 0;
       g.children.slice(1).forEach((w) => { w.position.z = 1.99 - comp; });
-      g.visible = ac.gearExt > 0.02;
+      g.visible = !this.fullLoaded && ac.gearExt > 0.02;
     });
     this.noseGear.rotation.y = ret * (Math.PI / 2); // nose gear folds forward
-    this.noseGear.visible = ac.gearExt > 0.02;
+    this.noseGear.visible = !this.fullLoaded && ac.gearExt > 0.02;
     this.noseSteer.position.z = 1.7 - (ac.gearStates[0]?.compression ?? 0);
     this.noseSteer.rotation.z = ac.gearStates[0]?.steer ?? 0;
     const pow = c.masterBattery;
@@ -390,7 +400,7 @@ export class B737Model {
    * the procedural landing gear stays active.
    */
   /** Gear parts of the full glTF (hidden when the gear is up). */
-  private fullGear: THREE.Object3D[] = [];
+  private fullGear: { obj: THREE.Object3D; pivot: THREE.Vector3; kind: 'N' | 'L' | 'R' }[] = [];
   private fullLoaded = false;
 
   /**
@@ -415,12 +425,17 @@ export class B737Model {
     root.traverse((o) => {
       const m = o as THREE.Mesh; if (!m.isMesh) return;
       m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
-      if (m.name === 'gear') this.fullGear.push(m); // wheels, struts and bay doors are a separate mesh
-      for (const mat of ([] as THREE.Material[]).concat(m.material)) {
+            for (const mat of ([] as THREE.Material[]).concat(m.material)) {
         const st = mat as THREE.MeshStandardMaterial;
         if (st.isMeshStandardMaterial) { st.side = THREE.DoubleSide; st.envMapIntensity = 1.2; }
       }
     });
+    for (const kind of ['N', 'L', 'R'] as const) {
+      const g = root.getObjectByName('gear' + kind); if (!g) continue;
+      const gb = new THREE.Box3().setFromObject(g), c = gb.getCenter(new THREE.Vector3());
+      g.matrixAutoUpdate = false; // hinge: top of the leg, folded about it in update()
+      this.fullGear.push({ obj: g, pivot: new THREE.Vector3(c.x, gb.max.y - 0.1, c.z), kind });
+    }
     console.info('737 full glb: length', size.z.toFixed(2), 'noseDir', noseDir, 'scale', k.toFixed(3), 'gear parts', this.fullGear.length);
     this.restMatrix.copy(M); // update() adds the (-1.5, 0, 4.05 m) placement and the tyre compression on top
     const wrap = new THREE.Group(); wrap.matrixAutoUpdate = false; wrap.matrix.copy(new THREE.Matrix4().makeTranslation(-1.5, 0, 4.05).multiply(M)); wrap.add(root);

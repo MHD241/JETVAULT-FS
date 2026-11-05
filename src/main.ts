@@ -857,7 +857,7 @@ class App implements MenuHost {
       this.reflectCam.update(this.renderer, this.scene);
       this.aircraftGroup.visible = vis;
     }
-    if (!this.forest && !new URLSearchParams(location.search).has('noforest')) { this.forest = new Forest(this.world, new URLSearchParams(location.search).has('forestlite') ? 1300 : 3200); this.scene.add(this.forest.group); }
+    if (!this.forest && !new URLSearchParams(location.search).has('noforest')) { this.forest = new Forest(this.world, new URLSearchParams(location.search).has('forestlite') ? 1300 : 2300, 15); this.scene.add(this.forest.group); }
     if (this.forest && !this.menu.open) this.forest.update(this.rig.camera.position);
     this.syncAircraftEnv();
     {

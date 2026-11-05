@@ -499,3 +499,8 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 ## Update 72 — boy737 American 737-800 (CGTrader) replaces the hakai315 model
 - Old hakai315 glb deleted. New OBJ+MTL converted to `public/models/b738_full.bin` (7 MB glTF, 117k tris, flat MTL colours; textures were not supplied). Gear is a separate mesh ("gear", picked by position) and retracts with the gear lever. Credit changed to boy737 on CGTrader.
 - Root cause of "missing wings/engines" (also affected the old file): `update()` already adds the (-1.5, 0, 4.05) placement, and `loadFull` added it again, sinking the model ~3 m under the runway. Fixed (offset moved out of restMatrix). Confirmed in a headless screenshot: wings, engines, winglets, livery and gear all render and sit on the runway. Control surfaces are not animated. No real-GPU check.
+
+## Update 73 — gear retraction, fewer trees/buildings
+- 737 gear split into nose/left/right meshes; each folds about the top of its leg with the gear lever (mains inboard, nose forward) and hides when fully up. The old procedural gear is no longer re-shown by update(). Retract view being checked by headless screenshot (see result in chat); not real-GPU tested.
+- Forest radius 3200 -> 2300 m, tree step 9 -> 15 (about 3x fewer trees). Buildings: all large footprints kept, 1 in 3 of the small ones.
+- Controls "feel bad": not started yet, waiting for specifics (which axis/phase).
