@@ -70,6 +70,8 @@ export class Grade {
     this.composer.addPass(this.pass);
     this.composer.addPass(new OutputPass());
   }
+  /** Effects budget: 'min' = grading only, 'mid' = + bloom, 'full' = + ambient occlusion. */
+  setQuality(fx: 'min' | 'mid' | 'full') { if (this.ao) this.ao.enabled = fx === 'full'; if (this.bloom) this.bloom.enabled = fx !== 'min'; }
   setCamera(camera: THREE.Camera) { (this.composer.passes[0] as RenderPass).camera = camera; if (this.ao) this.ao.camera = camera as THREE.PerspectiveCamera; }
   setSize(w: number, h: number) { this.composer.setPixelRatio(this.renderer.getPixelRatio()); this.composer.setSize(w, h); }
   set(night: number, strength = 1, sunUv?: THREE.Vector3) {

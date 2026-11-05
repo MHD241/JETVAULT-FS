@@ -527,7 +527,7 @@ class App implements MenuHost {
   applyGraphics(g: GraphicsSettings) {
     this.graphics = g;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * g.renderScale);
-    if (this.grade) this.grade.setSize(window.innerWidth, window.innerHeight);
+    if (this.grade) { this.grade.setSize(window.innerWidth, window.innerHeight); this.grade.setQuality(g.fx ?? (g.terrainDetail > 1.2 ? 'full' : g.renderScale < 0.8 ? 'min' : 'mid')); }
     this.renderer.shadowMap.enabled = g.shadows;
     this.env.sun.castShadow = g.shadows;
     const type = g.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;

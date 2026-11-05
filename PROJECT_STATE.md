@@ -521,3 +521,7 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 ## Update 77 — 737 mesh reduced
 - `b738_full.bin`: 117k -> 70k triangles, 7.0 -> 3.4 MB (meshoptimizer simplify on the large panels only, small detail parts such as lettering untouched; positions welded, so creases between panels are slightly softer). Headless screenshot checked: shape, livery, lettering, gear OK; the window row is thinner than before. Original kept out of the repo (can be regenerated from the supplied OBJ with the conversion script, not committed).
 - Not yet done in phase 1: shadow/AO cost review, frame-time measurement (needs a real GPU; headless software rendering is not meaningful for fps).
+
+## Update 78 — effects budget per preset
+- Graphics presets now carry `fx`: Low = grading only; High = + bloom; Ultra = + ambient occlusion (AO was the most expensive pass). High shadow map 4096 -> 2048 (Ultra keeps 4096). Saved settings without `fx` derive it from terrain detail / render scale.
+- Visible effect: AO contact darkening is now Ultra-only. Not measured on a real GPU; set via `Grade.setQuality`.
