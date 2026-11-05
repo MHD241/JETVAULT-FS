@@ -512,3 +512,8 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 - Default (mouse) controls: stick now low-passed (tau 0.16 s on jets, 0.09 s others), dead zone 6% -> 8%, jet stick authority x0.8, softer gain; on the ground the 737 nosewheel steering fades with speed (1/(1+v/18)).
 - Keyboard (input.ts path): rate x0.75, auto-centre 2.5 -> 1.8 /s, output curve 0.35 linear + 0.65 quadratic.
 - Physics unchanged. 108 unit tests pass. Feel is NOT verified by hand (no real input in this environment): numbers are a first guess; tell me which axis still feels wrong and I will tune it.
+
+## Update 76 — phase 1 of "close to GeoFS": lighten first
+- Plan agreed with user: lighten the current three.js build first, then later move the ground to CesiumJS (worldwide streamed tiles; needs a free Cesium ion token).
+- Done: the 86 MB / 1.75 M-triangle detailed cockpit is fetched only the first time the cockpit view is entered (was at startup); live reflection probe refresh 5 -> 12 frames.
+- Pending: cockpit-still-loads check (headless run was in progress at commit time, NOT yet confirmed), 737 triangle reduction (<50k), shadow/AO cost review, then measure frame times.

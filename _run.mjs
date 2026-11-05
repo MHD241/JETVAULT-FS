@@ -1,0 +1,11 @@
+import { chromium } from 'playwright-core';
+const out = process.argv[2];
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'] });
+const page = await b.newPage({ viewport: { width: 1000, height: 560 } });
+page.on('console', m => { if (/cockpit|737/i.test(m.text())) console.log('LOG', m.text().slice(0,200)); });
+await page.goto('http://localhost:4173/?noforest&noreflect&nograde');
+await page.waitForFunction(() => !document.getElementById('loading'), null, { timeout: 180000 });
+await page.evaluate(async () => { const j = window.jetvault; await j.fly({kind:'runway',ident:'24'}); document.querySelector('.jv-hud').style.display='none'; j.sim.paused = true; j.rig.setMode('cockpit','x'); });
+await page.waitForTimeout(12000);
+await page.screenshot({ path: `${out}/ck1.png` });
+await b.close();

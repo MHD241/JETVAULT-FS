@@ -104,6 +104,7 @@ class App implements MenuHost {
   private reflectRT: THREE.WebGLCubeRenderTarget | null = null;
   private reflectCam: THREE.CubeCamera | null = null;
   private reflectFrame = 0;
+  private pendingDetail: (() => void) | null = null;
   private grade: Grade | null = null;
   private tyreSmoke = new TyreSmoke();
   private stallEl!: HTMLDivElement;
@@ -429,7 +430,8 @@ class App implements MenuHost {
         .catch((e) => console.warn('737 model not loaded, using the procedural one', e));
     }
     this.cockpit = glider ? new GliderCockpit(this.sim) : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
-    if (jet && this.graphics.renderScale > 0.5) (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e));
+    // the detailed flight deck (86 MB, 1.75 M triangles) is only fetched the first time the cockpit view is used
+    this.pendingDetail = jet && this.graphics.renderScale > 0.5 ? () => (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e)) : null;
     this.aircraftGroup.add(this.model.root, this.cockpit.root);
     if (this.rig) {
       this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
@@ -850,7 +852,7 @@ class App implements MenuHost {
       this.reflectCam = new THREE.CubeCamera(0.5, 120000, this.reflectRT);
       this.scene.add(this.reflectCam);
     }
-    if (this.reflectRT && this.reflectCam && !sim.paused && ++this.reflectFrame % 5 === 0) {
+    if (this.reflectRT && this.reflectCam && !sim.paused && ++this.reflectFrame % 12 === 0) {
       const p = nedToThree(ac.worldPoint(new Vec3(0, 0, -2)));
       this.reflectCam.position.copy(p);
       const vis = this.aircraftGroup.visible; this.aircraftGroup.visible = false; this.contactShadow.visible = false;
@@ -907,6 +909,7 @@ class App implements MenuHost {
     }
     for (const r of this.patchRender.values()) r.scenery?.update(sim.weather.windDirection, sim.weather.windSpeed, sim.simTime);
     const inCockpit = this.rig.mode === 'cockpit' && !this.rig.tug.on;
+    if (inCockpit && this.pendingDetail) { const f = this.pendingDetail; this.pendingDetail = null; f(); }
     this.model.setCockpitView(inCockpit);
     this.cockpit.root.visible = inCockpit;
     const focus = nedToThree(ac.pos);
