@@ -504,3 +504,6 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 - 737 gear split into nose/left/right meshes; each folds about the top of its leg with the gear lever (mains inboard, nose forward) and hides when fully up. The old procedural gear is no longer re-shown by update(). Retract view being checked by headless screenshot (see result in chat); not real-GPU tested.
 - Forest radius 3200 -> 2300 m, tree step 9 -> 15 (about 3x fewer trees). Buildings: all large footprints kept, 1 in 3 of the small ones.
 - Controls "feel bad": not started yet, waiting for specifics (which axis/phase).
+
+## Update 74 — cockpit fallback on the live page
+- User's GitHub Pages build showed the blue built-in cockpit instead of the full flight deck. Locally (headless, default URL) the full cockpit loads. Likely causes: the Low graphics preset (render scale 0.7 was below the 0.72 gate; gate lowered to 0.5) or the 86 MB `cockpit_full.bin` failing to download. Not confirmed; the console warning on the live page ("full cockpit model unavailable") would say.

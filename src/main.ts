@@ -429,7 +429,7 @@ class App implements MenuHost {
         .catch((e) => console.warn('737 model not loaded, using the procedural one', e));
     }
     this.cockpit = glider ? new GliderCockpit(this.sim) : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
-    if (jet && this.graphics.renderScale > 0.72) (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e));
+    if (jet && this.graphics.renderScale > 0.5) (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e));
     this.aircraftGroup.add(this.model.root, this.cockpit.root);
     if (this.rig) {
       this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
