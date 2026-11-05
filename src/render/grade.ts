@@ -10,7 +10,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null as THREE.Texture | null }, uContrast: { value: 1.18 }, uSat: { value: 1.22 }, uWarm: { value: 0.07 }, uVig: { value: 0.22 }, uNight: { value: 0 }, uExp: { value: 1.12 }, uSunUv: { value: new THREE.Vector3(0.5, 0.5, 0) } },
+  uniforms: { tDiffuse: { value: null as THREE.Texture | null }, uContrast: { value: 1.18 }, uSat: { value: 1.22 }, uWarm: { value: 0.07 }, uVig: { value: 0.22 }, uNight: { value: 0 }, uExp: { value: 1.0 }, uSunUv: { value: new THREE.Vector3(0.5, 0.5, 0) } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `
     uniform sampler2D tDiffuse; uniform float uContrast, uSat, uWarm, uVig, uNight, uExp; uniform vec3 uSunUv; varying vec2 vUv;
@@ -20,7 +20,7 @@ const GradeShader = {
       if (uSunUv.z > 0.5) {
         vec2 d = (vUv - uSunUv.xy) * vec2(1.7, 1.0);
         float r = length(d);
-        float veil = exp(-r * 13.0) * 0.07 + exp(-r * 34.0) * 0.20;
+        float veil = exp(-r * 18.0) * 0.025 + exp(-r * 40.0) * 0.08;
         float streak = exp(-abs(d.y) * 220.0) * exp(-abs(d.x) * 7.0) * 0.12;
         c += vec3(1.0, 0.86, 0.62) * (veil + streak) * (1.0 - uNight);
       }
@@ -63,7 +63,7 @@ export class Grade {
     }
     // bloom: the sun and bright highlights bleed light, as a camera does
     if (!new URLSearchParams(location.search).has('nobloom')) {
-      this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.16, 0.45, 1.05);
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.05, 0.3, 1.6);
       this.composer.addPass(this.bloom);
     }
     this.pass = new ShaderPass(GradeShader);
@@ -75,7 +75,7 @@ export class Grade {
   set(night: number, strength = 1, sunUv?: THREE.Vector3) {
     const u = this.pass.uniforms;
     if (sunUv) (u.uSunUv.value as THREE.Vector3).copy(sunUv);
-    u.uExp.value = 1.12 - 0.25 * night;
+    u.uExp.value = 1.0 - 0.2 * night;
     u.uNight.value = night;
     u.uContrast.value = 1 + 0.07 * strength; u.uSat.value = 1 + 0.28 * strength; u.uWarm.value = 0.07 * strength; u.uVig.value = 0.22 * strength;
   }
