@@ -495,3 +495,7 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 - Headless check: fuselage, tail, winglets and gear render and sit on the ground, but the wing roots/centre section and the engines do NOT appear in the file (the 1762-triangle wing mesh only yields winglet-like tips; engines not found; frustum culling ruled out). The model is incomplete as supplied, so it is OPT-IN (`?fullmodel`), default stays the previous 737 (`b738_geo.bin`).
 - Control surfaces unnamed and not animated. No real-GPU check.
 - Next: ask for a different/complete 737 (or one with separate gear + engines), or merge this gear onto the existing model.
+
+## Update 72 — boy737 American 737-800 (CGTrader) replaces the hakai315 model
+- Old hakai315 glb deleted. New OBJ+MTL converted to `public/models/b738_full.bin` (7 MB glTF, 117k tris, flat MTL colours; textures were not supplied). Gear is a separate mesh ("gear", picked by position) and retracts with the gear lever. Credit changed to boy737 on CGTrader.
+- Root cause of "missing wings/engines" (also affected the old file): `update()` already adds the (-1.5, 0, 4.05) placement, and `loadFull` added it again, sinking the model ~3 m under the runway. Fixed (offset moved out of restMatrix). The fix is built but NOT yet confirmed by a screenshot. Control surfaces are not animated. No real-GPU check.

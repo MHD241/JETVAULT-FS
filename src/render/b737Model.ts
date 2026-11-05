@@ -394,7 +394,7 @@ export class B737Model {
   private fullLoaded = false;
 
   /**
-   * "B737-800 Model" by hakai315 (CC BY 4.0): a complete 737-800 with winglets, engines and landing gear (239k triangles, untextured).
+   * American Airlines 737-800 by boy737 (CGTrader): fuselage, wings, engines, winglets and landing gear (117k triangles, flat colours: the textures were not supplied).
    * Nose direction is found from the fin (highest part sits aft); size from the real 39.5 m length; wheels placed on the flight model's tyre plane.
    */
   async loadFull(url: string) {
@@ -402,31 +402,28 @@ export class B737Model {
     const gltf = await new GLTFLoader().loadAsync(url);
     const root = gltf.scene; root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3());
-    // axes: x = span, y = up, z = length. The fin is the highest part: it is aft.
-    let finZ = 0, topY = -1e9;
-    root.traverse((o) => { const m = o as THREE.Mesh; if (!m.isMesh) return; const b = new THREE.Box3().setFromObject(m); if (b.max.y > topY) { topY = b.max.y; finZ = (b.min.z + b.max.z) / 2; } });
-    const noseDir = finZ > (box.min.z + box.max.z) / 2 ? -1 : 1; // +1: nose at +z
+    // axes: x = span, y = up, z = length with the nose at +z (checked against the fin, which stands at -z).
+    const noseDir = 1;
     const k = 39.5 / size.z, zNose = noseDir > 0 ? box.max.z : box.min.z, cx = (box.min.x + box.max.x) / 2;
     // model -> body (FRD): x_b = k*noseDir*(z - zNose) + 19.4 ; y_b = k*(-noseDir)*(x - cx)  [right-handed with y up]; z_b = -k*(y - minY) + 4.05
     const M = new THREE.Matrix4().set(
-      0, 0, k * noseDir, 19.4 - k * noseDir * zNose,
+      0, 0, k * noseDir, 19.4 + 1.5 - k * noseDir * zNose,
       -k * noseDir, 0, 0, k * noseDir * cx,
-      0, -k, 0, 4.05 + k * box.min.y,
+      0, -k, 0, k * box.min.y,
       0, 0, 0, 1,
     );
     root.traverse((o) => {
       const m = o as THREE.Mesh; if (!m.isMesh) return;
       m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
-      const b = new THREE.Box3().setFromObject(m);
-      if (b.max.y < box.min.y + 1.5 && b.getSize(new THREE.Vector3()).length() < 3.5) this.fullGear.push(m); // wheels, struts and gear doors hang below the belly line
+      if (m.name === 'gear') this.fullGear.push(m); // wheels, struts and bay doors are a separate mesh
       for (const mat of ([] as THREE.Material[]).concat(m.material)) {
         const st = mat as THREE.MeshStandardMaterial;
         if (st.isMeshStandardMaterial) { st.side = THREE.DoubleSide; st.envMapIntensity = 1.2; }
       }
     });
     console.info('737 full glb: length', size.z.toFixed(2), 'noseDir', noseDir, 'scale', k.toFixed(3), 'gear parts', this.fullGear.length);
-    this.restMatrix.copy(M);
-    const wrap = new THREE.Group(); wrap.matrixAutoUpdate = false; wrap.matrix.copy(M); wrap.add(root);
+    this.restMatrix.copy(M); // update() adds the (-1.5, 0, 4.05 m) placement and the tyre compression on top
+    const wrap = new THREE.Group(); wrap.matrixAutoUpdate = false; wrap.matrix.copy(new THREE.Matrix4().makeTranslation(-1.5, 0, 4.05).multiply(M)); wrap.add(root);
     this.glbLoaded = true; this.fullLoaded = true; this.fuselageMesh.visible = false;
     for (const c of this.exterior.children) c.visible = false; // the procedural gear is not needed: the model has its own
     if (this.real) this.root.remove(this.real);
