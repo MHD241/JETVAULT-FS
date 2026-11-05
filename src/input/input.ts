@@ -133,8 +133,8 @@ export class InputManager {
 
   update(dt: number, c: FlightControls, beta: number, onGround: boolean, heading = 0, yawRate = 0, groundSpeed = 0) {
     const s = this.settings;
-    const rate = s.keyRate * dt;
-    const centre = 2.5 * dt;
+    const rate = s.keyRate * 0.75 * dt;
+    const centre = 1.8 * dt;
     const toward = (v: number, t: number, r: number) => (Math.abs(t - v) <= r ? t : v + Math.sign(t - v) * r);
     // keyboard stick / pedals with auto-centring
     const kp = (this.held('pitchUp') ? 1 : 0) - (this.held('pitchDown') ? 1 : 0);
@@ -143,7 +143,9 @@ export class InputManager {
     this.stickPitch = kp ? toward(this.stickPitch, kp, rate) : toward(this.stickPitch, 0, centre);
     this.stickRoll = kr ? toward(this.stickRoll, kr, rate) : toward(this.stickRoll, 0, centre);
     this.pedal = ky ? toward(this.pedal, ky, rate) : toward(this.pedal, 0, centre);
-    let pitch = this.stickPitch, roll = this.stickRoll, yaw = this.pedal;
+    // keyboard deflection ramps, then a soft curve: taps give fine corrections, a held key still reaches full travel
+    const kx = (v: number) => Math.sign(v) * (0.35 * Math.abs(v) + 0.65 * v * v);
+    let pitch = kx(this.stickPitch), roll = kx(this.stickRoll), yaw = kx(this.pedal);
     let throttleAxis: number | null = null;
     let gpBrakeL = 0, gpBrakeR = 0;
 

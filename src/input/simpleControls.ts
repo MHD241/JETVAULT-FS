@@ -20,6 +20,7 @@ export class SimpleControls {
   private mouse = { x: 0, y: 0, active: false };
   private joy = { x: 0, y: 0 };
   private joySmooth = { x: 0, y: 0 };
+  private mouseSmooth = { x: 0, y: 0 };
   private knobEl: HTMLDivElement | null = null;
   private touchBrake = false;
   private pedal = 0;
@@ -132,7 +133,16 @@ export class SimpleControls {
         this.knobEl.style.transform = `translate(${this.joySmooth.x * R * 0.62}px, ${this.joySmooth.y * R * 0.62}px)`;
       }
     }
-    else if (this.mouse.active) { pitch = expo(dz(this.mouse.y, 0.06) * 1.3); roll = expo(dz(this.mouse.x, 0.06) * 1.3); }
+    else {
+      // mouse: low-pass the stick (a flick no longer snaps the controls), gentler gain and a wider dead zone;
+      // an airliner has heavier controls, so its stick travel is scaled down (more so at speed on the ground)
+      const jet = !!ac.def.turbofans;
+      const tx = this.mouse.active ? dz(this.mouse.x, 0.08) : 0, ty = this.mouse.active ? dz(this.mouse.y, 0.08) : 0;
+      const a = 1 - Math.exp(-dt / (jet ? 0.16 : 0.09));
+      this.mouseSmooth.x += (tx - this.mouseSmooth.x) * a; this.mouseSmooth.y += (ty - this.mouseSmooth.y) * a;
+      const g = jet ? 1.0 : 1.15, auth = jet ? 0.8 : 1;
+      pitch = expo(this.mouseSmooth.y * g) * auth; roll = expo(this.mouseSmooth.x * g) * auth;
+    }
     // touch: with the stick released in the air, gently level the wings (aileron input only)
     const stickFree = IS_TOUCH ? Math.abs(this.joy.x) < 0.05 : Math.abs(roll) < 0.03;
     if (ac.def.wave && !ac.onGround) roll = clamp(roll - 0.9 * ac.omega.x, -1, 1); // roll-rate damper (the Darter's small wings have little natural roll damping)
@@ -157,7 +167,8 @@ export class SimpleControls {
     }
     let assist = 0;
     // on the ground the stick's roll axis steers (nosewheel/rudder), as with a mouse or joystick tiller
-    const steer = ac.onGround ? c.roll : 0;
+    const gs = Math.hypot(ac.vel.x, ac.vel.y);
+    const steer = ac.onGround ? c.roll * (ac.def.turbofans ? 1 / (1 + gs / 18) : 1) : 0; // nosewheel authority fades with speed on a jet
     const heading = ac.euler[2];
     if (!ac.onGround) {
       // jets: yaw damper (rudder against yaw rate); the old sideslip-driven rudder made the 737 wallow

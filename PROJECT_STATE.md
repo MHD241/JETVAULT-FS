@@ -507,3 +507,8 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 
 ## Update 74 — cockpit fallback on the live page
 - User's GitHub Pages build showed the blue built-in cockpit instead of the full flight deck. Locally (headless, default URL) the full cockpit loads. Likely causes: the Low graphics preset (render scale 0.7 was below the 0.72 gate; gate lowered to 0.5) or the 86 MB `cockpit_full.bin` failing to download. Not confirmed; the console warning on the live page ("full cockpit model unavailable") would say.
+
+## Update 75 — control feel
+- Default (mouse) controls: stick now low-passed (tau 0.16 s on jets, 0.09 s others), dead zone 6% -> 8%, jet stick authority x0.8, softer gain; on the ground the 737 nosewheel steering fades with speed (1/(1+v/18)).
+- Keyboard (input.ts path): rate x0.75, auto-centre 2.5 -> 1.8 /s, output curve 0.35 linear + 0.65 quadratic.
+- Physics unchanged. 108 unit tests pass. Feel is NOT verified by hand (no real input in this environment): numbers are a first guess; tell me which axis still feels wrong and I will tune it.
