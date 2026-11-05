@@ -515,5 +515,5 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 
 ## Update 76 — phase 1 of "close to GeoFS": lighten first
 - Plan agreed with user: lighten the current three.js build first, then later move the ground to CesiumJS (worldwide streamed tiles; needs a free Cesium ion token).
-- Done: the 86 MB / 1.75 M-triangle detailed cockpit is fetched only the first time the cockpit view is entered (was at startup); live reflection probe refresh 5 -> 12 frames.
-- Pending: cockpit-still-loads check (headless run was in progress at commit time, NOT yet confirmed), 737 triangle reduction (<50k), shadow/AO cost review, then measure frame times.
+- Done (cockpit lazy load confirmed in a headless run): the 86 MB / 1.75 M-triangle detailed cockpit is fetched only the first time the cockpit view is entered (was at startup); live reflection probe refresh 5 -> 12 frames.
+- Pending: 737 triangle reduction (<50k), shadow/AO cost review, then measure frame times.
