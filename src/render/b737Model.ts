@@ -344,6 +344,7 @@ export class B737Model {
     // gear: retract inboard (mains) and forward (nose)
     const ret = 1 - ac.gearExt;
     if (this.rig) this.rig.update(ac);
+    if (this.fullLoaded) for (const g of this.fullGear) g.visible = ac.gearExt > 0.5; // gear parts vanish when retracted
     if (this.real) {
       // keep the wheels on the ground: the flight model's tyre contact is gear bottom (z = 4.05 m below the datum)
       // minus strut compression; tilt the mesh so nose and main wheels meet the same plane
@@ -388,6 +389,50 @@ export class B737Model {
    * Some trailing-edge panels are identifiable by glTF primitive bounds and are rigged;
    * the procedural landing gear stays active.
    */
+  /** Gear parts of the full glTF (hidden when the gear is up). */
+  private fullGear: THREE.Object3D[] = [];
+  private fullLoaded = false;
+
+  /**
+   * "B737-800 Model" by hakai315 (CC BY 4.0): a complete 737-800 with winglets, engines and landing gear (239k triangles, untextured).
+   * Nose direction is found from the fin (highest part sits aft); size from the real 39.5 m length; wheels placed on the flight model's tyre plane.
+   */
+  async loadFull(url: string) {
+    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+    const gltf = await new GLTFLoader().loadAsync(url);
+    const root = gltf.scene; root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3());
+    // axes: x = span, y = up, z = length. The fin is the highest part: it is aft.
+    let finZ = 0, topY = -1e9;
+    root.traverse((o) => { const m = o as THREE.Mesh; if (!m.isMesh) return; const b = new THREE.Box3().setFromObject(m); if (b.max.y > topY) { topY = b.max.y; finZ = (b.min.z + b.max.z) / 2; } });
+    const noseDir = finZ > (box.min.z + box.max.z) / 2 ? -1 : 1; // +1: nose at +z
+    const k = 39.5 / size.z, zNose = noseDir > 0 ? box.max.z : box.min.z, cx = (box.min.x + box.max.x) / 2;
+    // model -> body (FRD): x_b = k*noseDir*(z - zNose) + 19.4 ; y_b = k*(-noseDir)*(x - cx)  [right-handed with y up]; z_b = -k*(y - minY) + 4.05
+    const M = new THREE.Matrix4().set(
+      0, 0, k * noseDir, 19.4 - k * noseDir * zNose,
+      -k * noseDir, 0, 0, k * noseDir * cx,
+      0, -k, 0, 4.05 + k * box.min.y,
+      0, 0, 0, 1,
+    );
+    root.traverse((o) => {
+      const m = o as THREE.Mesh; if (!m.isMesh) return;
+      m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
+      const b = new THREE.Box3().setFromObject(m);
+      if (b.max.y < box.min.y + 1.5 && b.getSize(new THREE.Vector3()).length() < 3.5) this.fullGear.push(m); // wheels, struts and gear doors hang below the belly line
+      for (const mat of ([] as THREE.Material[]).concat(m.material)) {
+        const st = mat as THREE.MeshStandardMaterial;
+        if (st.isMeshStandardMaterial) { st.side = THREE.DoubleSide; st.envMapIntensity = 1.2; }
+      }
+    });
+    console.info('737 full glb: length', size.z.toFixed(2), 'noseDir', noseDir, 'scale', k.toFixed(3), 'gear parts', this.fullGear.length);
+    this.restMatrix.copy(M);
+    const wrap = new THREE.Group(); wrap.matrixAutoUpdate = false; wrap.matrix.copy(M); wrap.add(root);
+    this.glbLoaded = true; this.fullLoaded = true; this.fuselageMesh.visible = false;
+    for (const c of this.exterior.children) c.visible = false; // the procedural gear is not needed: the model has its own
+    if (this.real) this.root.remove(this.real);
+    this.root.add(wrap); this.real = wrap; wrap.visible = true;
+  }
+
   async loadGlb(url: string) {
     const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
     const gltf = await new GLTFLoader().loadAsync(url);
@@ -409,7 +454,7 @@ export class B737Model {
     root.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
-      m.castShadow = true; m.receiveShadow = true;
+      m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
       for (const mat of ([] as THREE.Material[]).concat(m.material)) {
         const st = mat as THREE.MeshStandardMaterial;
         if (st.isMeshStandardMaterial) { st.metalness = Math.min(st.metalness, 0.2); st.roughness = Math.max(0.35, Math.min(st.roughness, 0.6)); st.side = THREE.DoubleSide; }
@@ -453,7 +498,7 @@ export class B737Model {
         if (mm.name === 'Color_000') whiteRef.m = mm;
         if ('shininess' in mm) mm.shininess = Math.min(mm.shininess, 40);
       }
-      m.castShadow = true; m.receiveShadow = true;
+      m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
       // The supplied model is painted in a real airline's livery (geometry patches, not textures). Neutralise it:
       // the tail becomes plain navy and the colour patches (lettering, tail art, swooshes, engine lips) become white.
       if (m.name === 'Group_082') m.material = new THREE.MeshPhongMaterial({ color: 0x14254a, shininess: 40, side: THREE.DoubleSide });

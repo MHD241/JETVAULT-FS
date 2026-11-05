@@ -423,7 +423,10 @@ class App implements MenuHost {
     if (this.model instanceof GliderModel && !new URLSearchParams(location.search).has('oldglider')) this.model.loadGlb('./models/glider_underpoly.bin').catch((e) => console.warn('glider model not loaded, using the procedural one', e));
     if (this.model instanceof B737Model) {
       const m = this.model;
-      (new URLSearchParams(location.search).has('oldmodel') ? m.loadReal('./models/b738.fbx') : m.loadGlb('./models/b738_geo.bin')).catch((e) => console.warn('737 model not loaded, using the procedural one', e));
+      const q = new URLSearchParams(location.search);
+      (q.has('oldmodel') ? m.loadReal('./models/b738.fbx') : q.has('fullmodel') ? m.loadFull('./models/b738_full.bin') : m.loadGlb('./models/b738_geo.bin'))
+        .catch((e) => { console.warn('full 737 model not loaded, trying the previous one', e); return m.loadGlb('./models/b738_geo.bin'); })
+        .catch((e) => console.warn('737 model not loaded, using the procedural one', e));
     }
     this.cockpit = glider ? new GliderCockpit(this.sim) : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
     if (jet && this.graphics.renderScale > 0.72) (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e));

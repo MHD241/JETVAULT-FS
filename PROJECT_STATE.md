@@ -486,3 +486,12 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 - No simulation source, assets, controls, or physics changed in this update.
 - Validation: workflow inspected, full ZIP repack integrity checked. Local build attempt on the earlier extracted workspace failed with missing local Node/Vite TypeScript declaration dependencies; GitHub Actions run and actual browser deployment are NOT verified. Update 40 control-surface visuals remain unverified.
 - Next: upload/commit complete project files to `main`, set Settings > Pages > GitHub Actions, trigger workflow, inspect its log, then perform a visual flight test of 737 moving surfaces.
+
+## Update 70 — bloom/glare reduction (commit 1b1003b)
+- Bloom 0.05/0.3/1.6, exposure 1.0, sun veil 0.025/0.08 after "too much bloom". Published; NOT visually checked.
+
+## Update 71 — user-supplied "B737-800 Model" (hakai315, CC BY 4.0) trialled
+- `public/models/b738_full.bin` (10.6 MB, 231 meshes, untextured) + `B737Model.loadFull`: scaled to 39.5 m, nose/fin orientation auto-detected, gear parts hidden when gear is up. Credit added to About.
+- Headless check: fuselage, tail, winglets and gear render and sit on the ground, but the wing roots/centre section and the engines do NOT appear in the file (the 1762-triangle wing mesh only yields winglet-like tips; engines not found; frustum culling ruled out). The model is incomplete as supplied, so it is OPT-IN (`?fullmodel`), default stays the previous 737 (`b738_geo.bin`).
+- Control surfaces unnamed and not animated. No real-GPU check.
+- Next: ask for a different/complete 737 (or one with separate gear + engines), or merge this gear onto the existing model.
