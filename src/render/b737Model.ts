@@ -352,8 +352,8 @@ export class B737Model {
       // control surfaces follow the flight model's actual (lagged) surface angles; the simulator's elevator is negative with the trailing edge UP
       for (const f of this.fullSurf) {
         if (f.kind === 'flap') {
-          // Fowler flap: trailing edge DOWN by the flap angle and slid aft (about 0.012 m per degree, 0.48 m at 40 deg)
-          const slide = 0.012 * (ac.flap / DEG_RAD);
+          // Fowler flap: trailing edge DOWN by the flap angle and slid aft (0.006 m per degree, 0.24 m at 40 deg: small, so the gap stays closed)
+          const slide = 0.006 * (ac.flap / DEG_RAD);
           f.obj.matrix.makeTranslation(0, 0, -slide).multiply(new THREE.Matrix4().makeTranslation(f.p0.x, f.p0.y, f.p0.z)).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, -ac.flap)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
           f.obj.matrixWorldNeedsUpdate = true; continue;
         }
