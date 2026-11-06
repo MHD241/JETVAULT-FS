@@ -427,7 +427,13 @@ export class B737Model {
       m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false;
             for (const mat of ([] as THREE.Material[]).concat(m.material)) {
         const st = mat as THREE.MeshStandardMaterial;
-        if (st.isMeshStandardMaterial) { st.side = THREE.DoubleSide; st.envMapIntensity = 1.2; }
+        if (st.isMeshStandardMaterial) {
+          st.side = THREE.DoubleSide; st.envMapIntensity = 1.2;
+          // window glass and dark trim (door outlines, window frames, tyres) are near-mirror smooth and would reflect the white sky back: keep them dark
+          const lum = 0.2126 * st.color.r + 0.7152 * st.color.g + 0.0722 * st.color.b;
+          if (st.transparent) { st.userData.envI = 0.2; st.roughness = Math.max(st.roughness, 0.15); }
+          else if (lum < 0.08) { st.userData.envI = 0.45; st.roughness = Math.max(st.roughness, 0.4); }
+        }
       }
     });
     for (const kind of ['N', 'L', 'R'] as const) {

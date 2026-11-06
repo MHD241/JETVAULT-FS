@@ -1,0 +1,17 @@
+import { chromium } from 'playwright-core';
+const out = process.argv[2];
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'] });
+const page = await b.newPage({ viewport: { width: 1100, height: 620 } });
+page.on('console', m => { if (/737 (full|rows)/.test(m.text())) console.log('LOG', m.text()); });
+await page.goto('http://localhost:4173/?owncockpit&noforest&noreflect&nograde');
+await page.waitForFunction(() => !document.getElementById('loading'), null, { timeout: 180000 });
+await page.evaluate(async () => { const j = window.jetvault; await j.fly({kind:'runway',ident:'24'}); document.querySelector('.jv-hud').style.display='none'; j.sim.paused = true; j.rig.setMode('chase','x'); j.rig.chaseDist=30; j.rig.orbitEl=0.03; j.rig.orbitAz=1.0; });
+await page.waitForTimeout(12000);
+await page.screenshot({ path: `${out}/fl1.png` });
+await page.evaluate(() => { const r = window.jetvault.rig; r.orbitAz = 0.6; r.orbitEl=0.55; r.chaseDist=50; });
+await page.waitForTimeout(3500);
+await page.screenshot({ path: `${out}/fl2.png` });
+await page.evaluate(() => { const j = window.jetvault;  const r=j.rig; r.orbitAz=1.3; r.orbitEl=0.08; r.chaseDist=30; });
+await page.waitForTimeout(3500);
+await page.screenshot({ path: `${out}/fl3.png` });
+await b.close();
