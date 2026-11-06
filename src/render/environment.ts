@@ -48,7 +48,7 @@ export class EnvironmentRenderer {
   /** Lighting calibration (exposed for tuning). */
   /** Visible sun: a hot core and a wide glow, billboarded far away; clouds (drawn later) cover it. */
   private sunCore!: THREE.Sprite;
-  private sunGlow!: THREE.Sprite;
+  private sunGlow!: THREE.Sprite; // wide halo: no longer shown (glow/bloom look removed)
   tune = { sun: 3.6, hemi: 0.3, env: 0.3, exposure: 0.45 };
   private noise: Uint8Array;
   private noiseSize: number;
@@ -88,6 +88,7 @@ export class EnvironmentRenderer {
       m.renderOrder = order; m.frustumCulled = false; scene.add(m); return m;
     };
     this.sunGlow = mk(disc([[0, 'rgba(255,245,215,0.42)'], [0.06, 'rgba(255,232,180,0.17)'], [0.2, 'rgba(255,214,150,0.05)'], [0.5, 'rgba(255,198,135,0.012)'], [1, 'rgba(255,190,120,0)']]), 1);
+    this.sunGlow.visible = false; // the wide halo is not used any more (no glow / bloom look)
     this.sunCore = mk(disc([[0, 'rgba(255,255,255,1)'], [0.55, 'rgba(255,252,235,1)'], [0.8, 'rgba(255,240,200,0.55)'], [1, 'rgba(255,230,180,0)']]), 1);
     this.hemi = new THREE.HemisphereLight(0xbfd6ff, 0x4a4a3a, 0.6);
     scene.add(this.hemi);
@@ -195,7 +196,7 @@ export class EnvironmentRenderer {
       // sun disc: 1.6 deg core, ~22 deg glow; hidden below the horizon, dimmer and warmer when low or overcast
       const D = 200000, vis = THREE.MathUtils.smoothstep(sp.elevation, -2, 1.5);
       const low = 1 - THREE.MathUtils.smoothstep(sp.elevation, 2, 25);
-      for (const [s, ang, k] of [[this.sunCore, 1.1, 1.6], [this.sunGlow, 19, 1]] as [THREE.Sprite, number, number][]) {
+      for (const [s, ang, k] of [[this.sunCore, 1.1, 1.6]] as [THREE.Sprite, number, number][]) {
         s.position.copy(cam).addScaledVector(this.sunDir, D);
         s.scale.setScalar(2 * D * Math.tan((ang * Math.PI) / 360));
         const m = s.material as THREE.SpriteMaterial;

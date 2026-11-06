@@ -544,3 +544,7 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 
 ## Update 83 — bloom removed
 - The bloom pass is no longer created (identical to the old `?nobloom` look); `?bloom` re-enables it for comparison. Sun glare/veil in the grade shader, grading, AO (Ultra) unchanged. Presets: `mid` now equals `min` visually until bloom returns.
+
+## Update 84 — all glow removed
+- User still saw a halo around the plane/runway in build d31b96a, which pre-dates the bloom removal (01b47ab). Now also removed: the sun-glare veil and lens streak in the grade shader, and the wide 19 deg sun halo sprite (the small sun disc remains). Bloom pass stays off (`?bloom` re-enables it).
+- Check the build stamp (bottom right of the page) after a hard refresh: it must be newer than d31b96a.

@@ -20,8 +20,8 @@ const GradeShader = {
       if (uSunUv.z > 0.5) {
         vec2 d = (vUv - uSunUv.xy) * vec2(1.7, 1.0);
         float r = length(d);
-        float veil = exp(-r * 18.0) * 0.025 + exp(-r * 40.0) * 0.08;
-        float streak = exp(-abs(d.y) * 220.0) * exp(-abs(d.x) * 7.0) * 0.12;
+        float veil = 0.0; // sun glare veil removed (no bloom / glow look)
+        float streak = 0.0;
         c += vec3(1.0, 0.86, 0.62) * (veil + streak) * (1.0 - uNight);
       }
       float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
