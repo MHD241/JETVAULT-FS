@@ -78,6 +78,9 @@ function fuselage() {
   return orient(g);
 }
 
+/** TEMPORARY: paint the control surfaces that have been cut out and animated so far (elevators, ailerons) bright orange for checking. Set to false to remove. */
+const TEMP_TINT_SURFACES = true;
+
 export class B737Model {
   readonly root = new THREE.Group();
   readonly exterior = new THREE.Group();
@@ -347,7 +350,7 @@ export class B737Model {
     if (this.fullLoaded) {
       // control surfaces follow the flight model's actual (lagged) surface angles; the simulator's elevator is negative with the trailing edge UP
       for (const f of this.fullSurf) {
-        const ang = f.kind === 'elevator' ? -ac.elevator : 0;
+        const ang = f.kind === 'elevator' ? -ac.elevator : f.kind === 'aileronL' ? -ac.aileronL : -ac.aileronR; // the simulator's angles are negative with the trailing edge UP
         f.obj.matrix.makeTranslation(f.p0.x, f.p0.y, f.p0.z).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, ang)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
         f.obj.matrixWorldNeedsUpdate = true;
       }
@@ -408,7 +411,7 @@ export class B737Model {
   /** Gear parts of the full glTF (hidden when the gear is up). */
   private fullGear: { obj: THREE.Object3D; pivot: THREE.Vector3; kind: 'N' | 'L' | 'R' }[] = [];
   /** Control surfaces cut out of the model, each swinging about a hinge line (two points in model space, root to tip, x increasing). */
-  private fullSurf: { obj: THREE.Object3D; p0: THREE.Vector3; axis: THREE.Vector3; kind: 'elevator' }[] = [];
+  private fullSurf: { obj: THREE.Object3D; p0: THREE.Vector3; axis: THREE.Vector3; kind: 'elevator' | 'aileronL' | 'aileronR' }[] = [];
   private fullLoaded = false;
 
   /**
@@ -456,6 +459,18 @@ export class B737Model {
       g.matrixAutoUpdate = false;
       this.fullSurf.push({ obj: g, p0: a, axis: b.clone().sub(a).normalize(), kind: 'elevator' });
     }
+    // ailerons: the model's +x wing is the aircraft's LEFT wing (body y = -(x - centre))
+    for (const [name, kind] of [['ailR', 'aileronL'], ['ailL', 'aileronR']] as const) {
+      const g = root.getObjectByName(name); const h = g?.userData?.hinge as number[][] | undefined; if (!g || !h) continue;
+      let a = new THREE.Vector3(...h[0]), b = new THREE.Vector3(...h[1]); if (b.x < a.x) [a, b] = [b, a];
+      g.matrixAutoUpdate = false;
+      this.fullSurf.push({ obj: g, p0: a, axis: b.clone().sub(a).normalize(), kind });
+    }
+    if (TEMP_TINT_SURFACES) for (const f of this.fullSurf) f.obj.traverse((o) => {
+      const m = o as THREE.Mesh; if (!m.isMesh) return;
+      m.material = ([] as THREE.Material[]).concat(m.material).map((mat) => { const c = (mat as THREE.MeshStandardMaterial).clone(); c.color.set(0xff7a00); c.userData.envI = 1.0; return c; });
+      if (!Array.isArray(m.material) || m.material.length === 1) m.material = (m.material as THREE.Material[])[0];
+    });
     console.info('737 full glb: length', size.z.toFixed(2), 'noseDir', noseDir, 'scale', k.toFixed(3), 'gear parts', this.fullGear.length);
     this.restMatrix.copy(M); // update() adds the (-1.5, 0, 4.05 m) placement and the tyre compression on top
     const wrap = new THREE.Group(); wrap.matrixAutoUpdate = false; wrap.matrix.copy(new THREE.Matrix4().makeTranslation(-1.5, 0, 4.05).multiply(M)); wrap.add(root);
