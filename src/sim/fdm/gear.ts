@@ -97,6 +97,7 @@ export interface BodyKinematics {
 
 const BRISTLE_K = 60000;
 const BRISTLE_C = 4000;
+const BRISTLE_REF_LOAD = 3600; // N: a light aircraft's wheel load (the values above were tuned for it)
 const MAX_BRAKE_MU = 0.5; // light-aircraft disc brakes are torque-limited below tyre friction
 
 export function newGearState(): GearState {
@@ -182,23 +183,25 @@ export function gearForces(
     const fLatDyn = -mu * fn * clamp(slip / (8 * DEG), -1, 1);
     const fLongDyn = -(surf.rolling * fn + brakeCap) * Math.tanh(vLong / 0.3);
 
-    // Low speed bristle model (holds the aircraft still)
+    // Low speed bristle model (holds the aircraft still). Spring and damper scale with the wheel load, so the hold has the same
+    // natural frequency and damping for a 74 t jet as for a light aircraft (fixed values were badly underdamped on heavy aircraft).
+    const bs = Math.max(1, fn / BRISTLE_REF_LOAD), BK = BRISTLE_K * bs, BC = BRISTLE_C * bs;
     s.bristle.addScaled(vT, dt);
     s.bristle = s.bristle.sub(nW.scale(s.bristle.dot(nW)));
     let bLong = s.bristle.dot(fwd);
     let bLat = s.bristle.dot(right);
     if (brake <= 0.02) bLong = 0; // free rolling: no longitudinal stiction
-    let fbLong = -(BRISTLE_K * bLong + BRISTLE_C * (brake > 0.02 ? vLong : 0));
-    let fbLat = -(BRISTLE_K * bLat + BRISTLE_C * vLat);
+    let fbLong = -(BK * bLong + BC * (brake > 0.02 ? vLong : 0));
+    let fbLat = -(BK * bLat + BC * vLat);
     const capLong = brake > 0.02 ? brakeCap + surf.rolling * fn : surf.rolling * fn;
     if (Math.abs(fbLong) > capLong) {
       fbLong = Math.sign(fbLong) * capLong;
-      bLong = -(fbLong + BRISTLE_C * (brake > 0.02 ? vLong : 0)) / BRISTLE_K;
+      bLong = -(fbLong + BC * (brake > 0.02 ? vLong : 0)) / BK;
     }
     const capLat = mu * fn;
     if (Math.abs(fbLat) > capLat) {
       fbLat = Math.sign(fbLat) * capLat;
-      bLat = -(fbLat + BRISTLE_C * vLat) / BRISTLE_K;
+      bLat = -(fbLat + BC * vLat) / BK;
     }
     s.bristle = fwd.scale(bLong).add(right.scale(bLat));
     if (brake <= 0.02) fbLong = -surf.rolling * fn * Math.tanh(vLong / 0.05);
