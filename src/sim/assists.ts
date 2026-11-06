@@ -1,7 +1,7 @@
 // Optional pilot assists. They only move cockpit controls (stick/trim), never the
 // aircraft state, so the flight model is unchanged.
 
-import { clamp, DEG, moveToward } from '../core/math';
+import { clamp, DEG, KT, moveToward } from '../core/math';
 import { Aircraft } from './fdm/aircraft';
 import { FlightControls } from './controls';
 
@@ -40,10 +40,14 @@ export class AutoTrim {
       const thetaCmd = clamp(this.thetaRef + this.vsInt + err * 1.0 * DEG, -25 * DEG, 20 * DEG);
       cmd = clamp(3.0 * (thetaCmd - theta) - 1.0 * ac.omega.y, -0.5, 0.5);
     } else {
-      if (this.holdVs === null) { this.holdVs = Math.abs(vs) < 1.5 ? 0 : vs; this.thetaRef = theta; this.vsInt = 0; }
+      // Released stick = a safe, gentle flight path: the climb or descent you had at release is kept, but limited to a sane
+      // range (never a steep zoom or dive), and the nose is lowered whenever airspeed gets near the stall.
+      if (this.holdVs === null) { this.holdVs = Math.abs(vs) < 1.5 ? 0 : clamp(vs, -7.6, 7.6); this.thetaRef = clamp(theta, -10 * DEG, 12 * DEG); this.vsInt = 0; }
       const errVs = this.holdVs - vs;
       this.vsInt = clamp(this.vsInt + errVs * 0.25 * DEG * dt, -12 * DEG, 15 * DEG);
-      const thetaCmd = clamp(this.thetaRef + this.vsInt + errVs * 1.2 * DEG, -10 * DEG, 15 * DEG);
+      const floor = ac.def.limits.vs0 * 1.25 * KT; // m/s: protection starts 8 kt above this
+      const slow = clamp((floor + 8 * KT - ac.cas) / (8 * KT), 0, 3); // 0 = fine, 1 = at the margin, up to 3 = well below
+      const thetaCmd = clamp(this.thetaRef + this.vsInt + errVs * 1.2 * DEG - slow * 8 * DEG, -12 * DEG, 12 * DEG);
       cmd = clamp(3.0 * (thetaCmd - theta) - 0.9 * ac.omega.y, -0.45, 0.45);
     }
     // The hold works like a servo that drives the elevator through the TRIM channel only: part of it is the transient servo

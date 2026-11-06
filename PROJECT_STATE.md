@@ -548,3 +548,8 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 ## Update 84 — all glow removed
 - User still saw a halo around the plane/runway in build d31b96a, which pre-dates the bloom removal (01b47ab). Now also removed: the sun-glare veil and lens streak in the grade shader, and the wide 19 deg sun halo sprite (the small sun disc remains). Bloom pass stays off (`?bloom` re-enables it).
 - Check the build stamp (bottom right of the page) after a hard refresh: it must be newer than d31b96a.
+
+## Update 85 — centred stick after takeoff stalled the 737
+- Reproduced in the simulator (737, runway 24, 100 % thrust, flaps 5, stick centred after rotation): with no assist the nose rises to >50 deg by +12 s and the aircraft stalls (matches the user's screenshot: 2000 fpm, 109 kt, STALL). With the old assist the hold target was "whatever climb rate you had at release" with no airspeed protection.
+- Fix (AutoTrim, 737 branch): held climb/descent limited to +/-1500 fpm, reference pitch limited to -10..+12 deg, and the nose is lowered when CAS falls within 8 kt of 1.25 x Vs0 (stall margin). Re-run: after release at 13 or 22 deg pitch the 737 settles to ~2-3 deg pitch, 2000 fpm and accelerating, no stall, all through trim only (stick channel untouched).
+- Mouse neutral band widened 8 % -> 10 % of the screen around the centre. 108 unit tests pass. The user's page may have "Realistic mode" (assists off) set: with assists off the aircraft will still pitch up on its own (takeoff trim + full thrust), which is the physics.

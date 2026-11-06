@@ -139,7 +139,7 @@ export class SimpleControls {
       // mouse: low-pass the stick (a flick no longer snaps the controls), gentler gain and a wider dead zone;
       // an airliner has heavier controls, so its stick travel is scaled down (more so at speed on the ground)
       const jet = !!ac.def.turbofans;
-      const tx = this.mouse.active ? dz(this.mouse.x, 0.08) : 0, ty = this.mouse.active ? dz(this.mouse.y, 0.08) : 0;
+      const tx = this.mouse.active ? dz(this.mouse.x, 0.1) : 0, ty = this.mouse.active ? dz(this.mouse.y, 0.1) : 0;
       const a = 1 - Math.exp(-dt / (jet ? 0.16 : 0.09));
       this.mouseSmooth.x += (tx - this.mouseSmooth.x) * a; this.mouseSmooth.y += (ty - this.mouseSmooth.y) * a;
       const g = jet ? 1.0 : 1.15, auth = jet ? 0.8 : 1;
