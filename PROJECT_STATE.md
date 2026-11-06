@@ -528,3 +528,7 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 
 ## Update 79 — full-detail 737 restored
 - User feedback on the live build: windows, doors and engine casings missing. Cause: the Update 77 simplification (Prune/simplify) removed thin shells and cut-outs. `b738_full.bin` is back to the unsimplified 117k-triangle / 7 MB version. The plane is a small part of the frame cost; the cockpit lazy load and the effects budget stay.
+
+## Update 80 — missing windows / doors / engine casings fixed
+- Causes: (1) the gear-split rule (|x|<4.8 m) swept the lower engine nacelle skins into the folding gear meshes; tightened to |x|<3.5 m. (2) Window glass and dark trim were near-mirror smooth and reflected the white sky; their env-map reflection is now low (glass 0.2, dark trim 0.45) without changing the paint lighting.
+- Verified in a headless screenshot: continuous window row, solid nacelles, door outline visible. Remaining plain-colour areas come from textures that were not in the download.
