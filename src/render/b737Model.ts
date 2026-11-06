@@ -466,9 +466,10 @@ export class B737Model {
       g.matrixAutoUpdate = false;
       this.fullSurf.push({ obj: g, p0: a, axis: b.clone().sub(a).normalize(), kind });
     }
+    // matte + slight glow so the temporary tint reads as orange in any light
     if (TEMP_TINT_SURFACES) for (const f of this.fullSurf) f.obj.traverse((o) => {
       const m = o as THREE.Mesh; if (!m.isMesh) return;
-      m.material = ([] as THREE.Material[]).concat(m.material).map((mat) => { const c = (mat as THREE.MeshStandardMaterial).clone(); c.color.set(0xff7a00); c.userData.envI = 1.0; return c; });
+      m.material = ([] as THREE.Material[]).concat(m.material).map((mat) => { const c = (mat as THREE.MeshStandardMaterial).clone(); c.color.set(0xff7a00); c.roughness = 0.7; c.metalness = 0; c.emissive.set(0x5a2200); c.userData.envI = 0.15; c.envMapIntensity = 0.15; return c; });
       if (!Array.isArray(m.material) || m.material.length === 1) m.material = (m.material as THREE.Material[])[0];
     });
     console.info('737 full glb: length', size.z.toFixed(2), 'noseDir', noseDir, 'scale', k.toFixed(3), 'gear parts', this.fullGear.length, 'control surfaces', this.fullSurf.map((f) => f.obj.name).join(','));
