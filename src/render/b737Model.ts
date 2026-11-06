@@ -80,6 +80,7 @@ function fuselage() {
 
 /** TEMPORARY: paint the control surfaces that have been cut out and animated so far (elevators, ailerons) bright orange for checking. Set to false to remove. */
 const TEMP_TINT_SURFACES = true;
+const DEG_RAD = Math.PI / 180;
 
 export class B737Model {
   readonly root = new THREE.Group();
@@ -350,6 +351,12 @@ export class B737Model {
     if (this.fullLoaded) {
       // control surfaces follow the flight model's actual (lagged) surface angles; the simulator's elevator is negative with the trailing edge UP
       for (const f of this.fullSurf) {
+        if (f.kind === 'flap') {
+          // Fowler flap: trailing edge DOWN by the flap angle and slid aft (about 0.012 m per degree, 0.48 m at 40 deg)
+          const slide = 0.012 * (ac.flap / DEG_RAD);
+          f.obj.matrix.makeTranslation(0, 0, -slide).multiply(new THREE.Matrix4().makeTranslation(f.p0.x, f.p0.y, f.p0.z)).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, -ac.flap)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
+          f.obj.matrixWorldNeedsUpdate = true; continue;
+        }
         const ang = f.kind === 'elevator' ? -ac.elevator : f.kind === 'aileronL' ? -ac.aileronL : f.kind === 'aileronR' ? -ac.aileronR : -ac.rudder; // the simulator's angles are negative with the trailing edge UP
         f.obj.matrix.makeTranslation(f.p0.x, f.p0.y, f.p0.z).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, ang)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
         f.obj.matrixWorldNeedsUpdate = true;
@@ -411,7 +418,7 @@ export class B737Model {
   /** Gear parts of the full glTF (hidden when the gear is up). */
   private fullGear: { obj: THREE.Object3D; pivot: THREE.Vector3; kind: 'N' | 'L' | 'R' }[] = [];
   /** Control surfaces cut out of the model, each swinging about a hinge line (two points in model space, root to tip, x increasing). */
-  private fullSurf: { obj: THREE.Object3D; p0: THREE.Vector3; axis: THREE.Vector3; kind: 'elevator' | 'aileronL' | 'aileronR' | 'rudder' }[] = [];
+  private fullSurf: { obj: THREE.Object3D; p0: THREE.Vector3; axis: THREE.Vector3; kind: 'elevator' | 'aileronL' | 'aileronR' | 'rudder' | 'flap' }[] = [];
   private fullLoaded = false;
 
   /**
@@ -469,6 +476,12 @@ export class B737Model {
     // rudder: hinge runs up the fin (p0 low, p1 high); +angle about this axis swings the trailing edge toward model -x = the aircraft's right
     { const g = root.getObjectByName('rud'); const h = g?.userData?.hinge as number[][] | undefined;
       if (g && h) { let a = new THREE.Vector3(...h[0]), b = new THREE.Vector3(...h[1]); if (b.y < a.y) [a, b] = [b, a]; g.matrixAutoUpdate = false; this.fullSurf.push({ obj: g, p0: a, axis: b.clone().sub(a).normalize(), kind: 'rudder' }); } }
+    // flaps: three sections per wing, all driven by the same flap angle (tilt down about the front edge and slide aft); the track pods stay fixed
+    for (const name of ['flapR1', 'flapR2', 'flapR3', 'flapL1', 'flapL2', 'flapL3']) {
+      const g = root.getObjectByName(name); const h = g?.userData?.hinge as number[][] | undefined; if (!g || !h) continue;
+      let a = new THREE.Vector3(...h[0]), b = new THREE.Vector3(...h[1]); if (b.x < a.x) [a, b] = [b, a]; // axis toward +x: +angle = trailing edge up
+      g.matrixAutoUpdate = false; this.fullSurf.push({ obj: g, p0: a, axis: b.clone().sub(a).normalize(), kind: 'flap' });
+    }
     // matte + slight glow so the temporary tint reads as orange in any light
     if (TEMP_TINT_SURFACES) for (const f of this.fullSurf) f.obj.traverse((o) => {
       const m = o as THREE.Mesh; if (!m.isMesh) return;
