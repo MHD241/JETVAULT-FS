@@ -345,6 +345,12 @@ export class B737Model {
     const ret = 1 - ac.gearExt;
     if (this.rig) this.rig.update(ac);
     if (this.fullLoaded) {
+      // control surfaces follow the flight model's actual (lagged) surface angles; the simulator's elevator is negative with the trailing edge UP
+      for (const f of this.fullSurf) {
+        const ang = f.kind === 'elevator' ? -ac.elevator : 0;
+        f.obj.matrix.makeTranslation(f.p0.x, f.p0.y, f.p0.z).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, ang)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
+        f.obj.matrixWorldNeedsUpdate = true;
+      }
       const ret = 1 - ac.gearExt;
       for (const { obj, pivot, kind } of this.fullGear) {
         obj.visible = ret < 0.97;
@@ -401,6 +407,8 @@ export class B737Model {
    */
   /** Gear parts of the full glTF (hidden when the gear is up). */
   private fullGear: { obj: THREE.Object3D; pivot: THREE.Vector3; kind: 'N' | 'L' | 'R' }[] = [];
+  /** Control surfaces cut out of the model, each swinging about a hinge line (two points in model space, root to tip, x increasing). */
+  private fullSurf: { obj: THREE.Object3D; p0: THREE.Vector3; axis: THREE.Vector3; kind: 'elevator' }[] = [];
   private fullLoaded = false;
 
   /**
@@ -441,6 +449,12 @@ export class B737Model {
       const gb = new THREE.Box3().setFromObject(g), c = gb.getCenter(new THREE.Vector3());
       g.matrixAutoUpdate = false; // hinge: top of the leg, folded about it in update()
       this.fullGear.push({ obj: g, pivot: new THREE.Vector3(c.x, gb.max.y - 0.1, c.z), kind });
+    }
+    for (const name of ['elevL', 'elevR']) {
+      const g = root.getObjectByName(name); const h = g?.userData?.hinge as number[][] | undefined; if (!g || !h) continue;
+      let a = new THREE.Vector3(...h[0]), b = new THREE.Vector3(...h[1]); if (b.x < a.x) [a, b] = [b, a]; // axis always points to +x so +angle = trailing edge up on both sides
+      g.matrixAutoUpdate = false;
+      this.fullSurf.push({ obj: g, p0: a, axis: b.clone().sub(a).normalize(), kind: 'elevator' });
     }
     console.info('737 full glb: length', size.z.toFixed(2), 'noseDir', noseDir, 'scale', k.toFixed(3), 'gear parts', this.fullGear.length);
     this.restMatrix.copy(M); // update() adds the (-1.5, 0, 4.05 m) placement and the tyre compression on top
