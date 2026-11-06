@@ -11,7 +11,7 @@ import { FlightControls } from './controls';
  * rate-limited elevator servo holds the vertical speed the aircraft had at release
  * (level flight if it was within +/-300 fpm), and the trim wheel continuously takes
  * over the servo's load. Same control structure as the autopilot pitch channel.
- * Returns the stick offset to add to the pilot's pitch input.
+ * (Now trim-only: nothing is added to the pilot's stick.)
  */
 export class AutoTrim {
   private holdVs: number | null = null;
@@ -19,49 +19,44 @@ export class AutoTrim {
   private thetaRef = 0;
   private vsInt = 0;
   private servo = 0;
+  private applied = 0;
 
+  /**
+   * Holds the flight path hands-off by moving the pitch TRIM only. It never adds anything to the stick channel,
+   * so the control (and the yoke) always equals what the pilot does and nothing steps when the stick passes the centre.
+   * The correction fades out smoothly as the stick leaves the centre. Returns 0 (signature kept for the caller).
+   */
   update(dt: number, ac: Aircraft, c: FlightControls, stickPitch: number): number {
     const ctl = ac.def.controls;
-    if (ac.onGround || Math.abs(stickPitch) > 0.05 || ac.cable) {
-      this.holdVs = null;
-      this.holdCas = null;
-      this.servo = moveToward(this.servo, 0, 2 * dt);
-      return this.servo;
-    }
-    const vs = -ac.vel.z;
-    const theta = ac.euler[1];
+    const w = clamp(1 - (Math.abs(stickPitch) - 0.02) / 0.1, 0, 1); // 1 at the centre, 0 beyond 12 % stick
+    if (ac.onGround || w <= 0 || ac.cable) { this.holdVs = null; this.holdCas = null; this.servo = 0; this.applied = 0; return 0; } // what was applied stays in the trim
+    const vs = -ac.vel.z, theta = ac.euler[1];
+    let cmd: number;
     if (ac.def.glider) {
-      // glider: hold the airspeed at stick release (the stick sets speed, as with a trimmed glider).
-      if (this.holdCas === null) { this.holdCas = Math.max(ac.cas, 20); this.thetaRef = theta; this.vsInt = 0; this.holdVs = 0; }
-      const err = ac.cas - this.holdCas; // m/s, + = too fast -> raise the nose
+      // glider: hold the airspeed at release (the stick sets speed, as with a trimmed glider)
+      if (this.holdCas === null) { this.holdCas = Math.max(ac.cas, 20); this.thetaRef = theta; this.vsInt = 0; }
+      const err = ac.cas - this.holdCas;
       this.vsInt = clamp(this.vsInt + err * 0.4 * DEG * dt, -15 * DEG, 15 * DEG);
       const thetaCmd = clamp(this.thetaRef + this.vsInt + err * 1.0 * DEG, -25 * DEG, 20 * DEG);
-      const cmdG = clamp(3.0 * (thetaCmd - theta) - 1.0 * ac.omega.y, -0.5, 0.5);
-      this.servo = moveToward(this.servo, cmdG, 0.6 * dt);
-      const epsG = this.servo >= 0 ? ctl.elevatorUp : ctl.elevatorDown;
-      const ntG = clamp(c.trim + clamp(this.servo * 0.15, -0.04, 0.04) * dt, -1, 1);
-      this.servo -= ((ntG - c.trim) * ctl.trimRange) / epsG;
-      c.trim = ntG;
-      return this.servo;
+      cmd = clamp(3.0 * (thetaCmd - theta) - 1.0 * ac.omega.y, -0.5, 0.5);
+    } else {
+      if (this.holdVs === null) { this.holdVs = Math.abs(vs) < 1.5 ? 0 : vs; this.thetaRef = theta; this.vsInt = 0; }
+      const errVs = this.holdVs - vs;
+      this.vsInt = clamp(this.vsInt + errVs * 0.25 * DEG * dt, -12 * DEG, 15 * DEG);
+      const thetaCmd = clamp(this.thetaRef + this.vsInt + errVs * 1.2 * DEG, -10 * DEG, 15 * DEG);
+      cmd = clamp(3.0 * (thetaCmd - theta) - 0.9 * ac.omega.y, -0.45, 0.45);
     }
-    if (this.holdVs === null) {
-      this.holdVs = Math.abs(vs) < 1.5 ? 0 : vs;
-      this.thetaRef = theta;
-      this.vsInt = 0;
-    }
-    let target = this.holdVs;
-    const maxTheta = 15 * DEG;
-    const errVs = target - vs;
-    this.vsInt = clamp(this.vsInt + errVs * 0.25 * DEG * dt, -12 * DEG, 15 * DEG);
-    const thetaCmd = clamp(this.thetaRef + this.vsInt + errVs * 1.2 * DEG, -10 * DEG, maxTheta);
-    const cmd = clamp(3.0 * (thetaCmd - theta) - 0.9 * ac.omega.y, -0.45, 0.45);
+    // The hold works like a servo that drives the elevator through the TRIM channel only: part of it is the transient servo
+    // (reached at a limited rate, weighted by w so it fades out continuously as the stick leaves the centre), and the trim
+    // slowly takes over its load for good (same structure as before, nothing is added to the pilot's stick).
     this.servo = moveToward(this.servo, cmd, 0.6 * dt);
-    // trim takes over the servo load (same elevator angle, seamless)
-    const elevPerStick = this.servo >= 0 ? ctl.elevatorUp : ctl.elevatorDown;
-    const step = clamp(this.servo * 0.15, -0.04, 0.04) * dt;
-    const nt = clamp(c.trim + step, -1, 1);
-    this.servo -= ((nt - c.trim) * ctl.trimRange) / elevPerStick;
-    c.trim = nt;
-    return this.servo;
+    const perStick = this.servo >= 0 ? ctl.elevatorUp : ctl.elevatorDown;
+    const absorb = clamp(this.servo * 0.15, -0.04, 0.04) * dt; // trim travel taken over from the servo this step
+    this.servo -= (absorb * ctl.trimRange) / perStick;
+    const applied = (this.servo * w * perStick) / ctl.trimRange;
+    const base = c.trim - this.applied + absorb;
+    c.trim = clamp(base + applied, -1, 1);
+    this.applied = c.trim - base;
+    return 0;
   }
 }

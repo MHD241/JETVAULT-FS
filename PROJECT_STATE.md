@@ -532,3 +532,8 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 ## Update 80 — missing windows / doors / engine casings fixed
 - Causes: (1) the gear-split rule (|x|<4.8 m) swept the lower engine nacelle skins into the folding gear meshes; tightened to |x|<3.5 m. (2) Window glass and dark trim were near-mirror smooth and reflected the white sky; their env-map reflection is now low (glass 0.2, dark trim 0.45) without changing the paint lighting.
 - Verified in a headless screenshot: continuous window row, solid nacelles, door outline visible. Remaining plain-colour areas come from textures that were not in the download.
+
+## Update 81 — yoke jump near neutral: fixed at the source (replaces the display-only patch)
+- Cause: the beginner auto-trim servo was ADDED to `controls.pitch`. Its on/off threshold (|stick| 0.05) made the stick channel step, so crossing neutral with the mouse produced a pull-up and a reset, and the yoke followed it.
+- Fix: `AutoTrim` no longer touches the stick channel at all. It drives the elevator through TRIM only (same rate-limited servo + slow absorption into trim as before), with its transient part weighted continuously over |stick| 0.02..0.12 so nothing steps. `controls.pitch` is now exactly the pilot's stick; the yoke needs no special-casing (the earlier display-only change was reverted).
+- Existing auto-trim tests still pass (737 level-flight deviation 130 ft over 2 min vs 150 ft limit, C172 4 ft, glider airspeed hold); 108 unit tests pass. Feel on a real mouse NOT verified here.
