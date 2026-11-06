@@ -425,7 +425,7 @@ class App implements MenuHost {
     if (this.model instanceof B737Model) {
       const m = this.model;
       const q = new URLSearchParams(location.search);
-      (q.has('oldmodel') ? m.loadReal('./models/b738.fbx') : q.has('geomodel') ? m.loadGlb('./models/b738_geo.bin') : m.loadFull('./models/b738_full.bin'))
+      (q.has('oldmodel') ? m.loadReal('./models/b738.fbx') : q.has('geomodel') ? m.loadGlb('./models/b738_geo.bin') : m.loadFull('./models/b738_full.bin?v=' + encodeURIComponent(__BUILD_ID__.split(' ')[0])))
         .catch((e) => { console.warn('full 737 model not loaded, trying the previous one', e); return m.loadGlb('./models/b738_geo.bin'); })
         .catch((e) => console.warn('737 model not loaded, using the procedural one', e));
     }

@@ -574,3 +574,6 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 - Measured (browser): roll left = left TE up 0.41 m (30 deg), right TE down 0.30 m (22 deg); the roll-right case was shown in screenshots (right TE up, left down). Both sides move opposite, as on the real aircraft.
 - TEMPORARY: `TEMP_TINT_SURFACES = true` in `b737Model.ts` paints the built surfaces (elevators, ailerons) bright orange for checking; set it to false to remove.
 - Next, one at a time with a drawing and sign-off before each cut: rudder, flaps, spoilers (slats/trim optional).
+
+## Update 90 — "the ailerons didn't appear"
+- The deploy of 1b63a3a had succeeded (checked with the Actions run list), and the ailerons render in the headless build, so the likely cause is the browser cache: `b738_full.bin` keeps the same URL across builds and GitHub Pages lets browsers cache it. The model URL now carries the build's commit hash (`?v=<sha>`), so every new build fetches the new model. The console line `737 full glb: ... control surfaces ...` now lists which surfaces were found (expect elevL,elevR,ailR,ailL).

@@ -471,7 +471,7 @@ export class B737Model {
       m.material = ([] as THREE.Material[]).concat(m.material).map((mat) => { const c = (mat as THREE.MeshStandardMaterial).clone(); c.color.set(0xff7a00); c.userData.envI = 1.0; return c; });
       if (!Array.isArray(m.material) || m.material.length === 1) m.material = (m.material as THREE.Material[])[0];
     });
-    console.info('737 full glb: length', size.z.toFixed(2), 'noseDir', noseDir, 'scale', k.toFixed(3), 'gear parts', this.fullGear.length);
+    console.info('737 full glb: length', size.z.toFixed(2), 'noseDir', noseDir, 'scale', k.toFixed(3), 'gear parts', this.fullGear.length, 'control surfaces', this.fullSurf.map((f) => f.obj.name).join(','));
     this.restMatrix.copy(M); // update() adds the (-1.5, 0, 4.05 m) placement and the tyre compression on top
     const wrap = new THREE.Group(); wrap.matrixAutoUpdate = false; wrap.matrix.copy(new THREE.Matrix4().makeTranslation(-1.5, 0, 4.05).multiply(M)); wrap.add(root);
     this.glbLoaded = true; this.fullLoaded = true; this.fuselageMesh.visible = false;
