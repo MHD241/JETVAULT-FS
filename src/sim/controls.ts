@@ -6,8 +6,6 @@ export type FuelSelector = 'OFF' | 'LEFT' | 'RIGHT' | 'BOTH';
 export interface FlightControls {
   /** -1 (full push) .. +1 (full pull). */
   pitch: number;
-  /** The pilot's own stick pitch, before the beginner auto-trim servo is added (what the yoke should show). */
-  stickPitch?: number;
   /** -1 (left) .. +1 (right). */
   roll: number;
   /** -1 (left pedal) .. +1 (right pedal). */

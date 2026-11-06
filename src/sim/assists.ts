@@ -22,13 +22,11 @@ export class AutoTrim {
 
   update(dt: number, ac: Aircraft, c: FlightControls, stickPitch: number): number {
     const ctl = ac.def.controls;
-    // the servo fades out smoothly as the stick leaves the centre (no on/off step that shows up as a jump)
-    const w = clamp(1 - (Math.abs(stickPitch) - 0.02) / 0.1, 0, 1);
-    if (ac.onGround || Math.abs(stickPitch) > 0.12 || ac.cable) {
+    if (ac.onGround || Math.abs(stickPitch) > 0.05 || ac.cable) {
       this.holdVs = null;
       this.holdCas = null;
       this.servo = moveToward(this.servo, 0, 2 * dt);
-      return this.servo * w;
+      return this.servo;
     }
     const vs = -ac.vel.z;
     const theta = ac.euler[1];
@@ -44,7 +42,7 @@ export class AutoTrim {
       const ntG = clamp(c.trim + clamp(this.servo * 0.15, -0.04, 0.04) * dt, -1, 1);
       this.servo -= ((ntG - c.trim) * ctl.trimRange) / epsG;
       c.trim = ntG;
-      return this.servo * w;
+      return this.servo;
     }
     if (this.holdVs === null) {
       this.holdVs = Math.abs(vs) < 1.5 ? 0 : vs;
@@ -64,6 +62,6 @@ export class AutoTrim {
     const nt = clamp(c.trim + step, -1, 1);
     this.servo -= ((nt - c.trim) * ctl.trimRange) / elevPerStick;
     c.trim = nt;
-    return this.servo * w;
+    return this.servo;
   }
 }
