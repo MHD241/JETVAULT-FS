@@ -525,3 +525,6 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 ## Update 78 — effects budget per preset
 - Graphics presets now carry `fx`: Low = grading only; High = + bloom; Ultra = + ambient occlusion (AO was the most expensive pass). High shadow map 4096 -> 2048 (Ultra keeps 4096). Saved settings without `fx` derive it from terrain detail / render scale.
 - Visible effect: AO contact darkening is now Ultra-only. Not measured on a real GPU; set via `Grade.setQuality`.
+
+## Update 79 — full-detail 737 restored
+- User feedback on the live build: windows, doors and engine casings missing. Cause: the Update 77 simplification (Prune/simplify) removed thin shells and cut-outs. `b738_full.bin` is back to the unsimplified 117k-triangle / 7 MB version. The plane is a small part of the frame cost; the cockpit lazy load and the effects budget stay.
