@@ -350,7 +350,7 @@ export class B737Model {
     if (this.fullLoaded) {
       // control surfaces follow the flight model's actual (lagged) surface angles; the simulator's elevator is negative with the trailing edge UP
       for (const f of this.fullSurf) {
-        const ang = f.kind === 'elevator' ? -ac.elevator : f.kind === 'aileronL' ? -ac.aileronL : -ac.aileronR; // the simulator's angles are negative with the trailing edge UP
+        const ang = f.kind === 'elevator' ? -ac.elevator : f.kind === 'aileronL' ? -ac.aileronL : f.kind === 'aileronR' ? -ac.aileronR : -ac.rudder; // the simulator's angles are negative with the trailing edge UP
         f.obj.matrix.makeTranslation(f.p0.x, f.p0.y, f.p0.z).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, ang)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
         f.obj.matrixWorldNeedsUpdate = true;
       }
@@ -411,7 +411,7 @@ export class B737Model {
   /** Gear parts of the full glTF (hidden when the gear is up). */
   private fullGear: { obj: THREE.Object3D; pivot: THREE.Vector3; kind: 'N' | 'L' | 'R' }[] = [];
   /** Control surfaces cut out of the model, each swinging about a hinge line (two points in model space, root to tip, x increasing). */
-  private fullSurf: { obj: THREE.Object3D; p0: THREE.Vector3; axis: THREE.Vector3; kind: 'elevator' | 'aileronL' | 'aileronR' }[] = [];
+  private fullSurf: { obj: THREE.Object3D; p0: THREE.Vector3; axis: THREE.Vector3; kind: 'elevator' | 'aileronL' | 'aileronR' | 'rudder' }[] = [];
   private fullLoaded = false;
 
   /**
@@ -466,6 +466,9 @@ export class B737Model {
       g.matrixAutoUpdate = false;
       this.fullSurf.push({ obj: g, p0: a, axis: b.clone().sub(a).normalize(), kind });
     }
+    // rudder: hinge runs up the fin (p0 low, p1 high); +angle about this axis swings the trailing edge toward model -x = the aircraft's right
+    { const g = root.getObjectByName('rud'); const h = g?.userData?.hinge as number[][] | undefined;
+      if (g && h) { let a = new THREE.Vector3(...h[0]), b = new THREE.Vector3(...h[1]); if (b.y < a.y) [a, b] = [b, a]; g.matrixAutoUpdate = false; this.fullSurf.push({ obj: g, p0: a, axis: b.clone().sub(a).normalize(), kind: 'rudder' }); } }
     // matte + slight glow so the temporary tint reads as orange in any light
     if (TEMP_TINT_SURFACES) for (const f of this.fullSurf) f.obj.traverse((o) => {
       const m = o as THREE.Mesh; if (!m.isMesh) return;
