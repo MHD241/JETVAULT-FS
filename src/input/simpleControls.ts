@@ -64,13 +64,15 @@ export class SimpleControls {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
-    canvas.addEventListener('mousemove', (e) => {
+    // the stick follows the pointer over the WHOLE window: panels, readouts and buttons drawn on top of the canvas
+    // must not make the stick snap back to neutral (it only recentres when the pointer leaves the page)
+    window.addEventListener('mousemove', (e) => {
       const r = canvas.getBoundingClientRect();
-      this.mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1;
-      this.mouse.y = ((e.clientY - r.top) / r.height) * 2 - 1;
+      this.mouse.x = clamp(((e.clientX - r.left) / r.width) * 2 - 1, -1, 1);
+      this.mouse.y = clamp(((e.clientY - r.top) / r.height) * 2 - 1, -1, 1);
       this.mouse.active = true;
     });
-    canvas.addEventListener('mouseleave', () => { this.mouse.active = false; });
+    document.documentElement.addEventListener('mouseleave', () => { this.mouse.active = false; });
 
     this.ui = document.createElement('div');
     this.ui.className = 'jv-touch';
