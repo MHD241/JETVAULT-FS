@@ -581,3 +581,8 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 ## Update 91 — ailerons a bit smaller; tint made matte
 - User: the ailerons appeared (after the cache fix) and should be a bit smaller. Now x 10.5..15.3 m on the right wing (4.8 m span, was 5.4), hinge 0.10 m forward of the model's engraved line (was 0.25), depth about 0.65-0.70 m (was 0.75). Left wing mirrors it. Checked in a headless render.
 - The temporary orange tint was washing out on the glossy paint (roughness 0.05 reflecting the sky): it is now matte with a slight emissive glow (`TEMP_TINT_SURFACES`, still to be removed at the end).
+
+## Update 92 — control surface 3 of N: rudder (737)
+- Cut approved from a side-view drawing: hinge 28 % of the local fin chord forward of the trailing edge, y = 5.6..12.2 m (fixed tip cap above, tail cone below); depth about 1.6 m at the bottom, 0.5 m at the top. The hinge is two straight segments meeting at y = 6.3 m (where the fin base widens), so the cut is clipped against both; the rotation axis is the upper segment. Node `rud` in `b738_full.bin` (generator `conv2.py`).
+- Runtime: swings about the hinge by `-aircraft.rudder` (sim rudder is negative for the right pedal = trailing edge toward the aircraft's right = model -x). Measured: 26 deg = 0.68 m each way, symmetric; confirmed in a rear-view render (orange rudder swings out with the right pedal).
+- Surfaces built so far (tinted orange for checking): elevators, ailerons, rudder. Next: flaps, then spoilers (slats/trim optional); remove `TEMP_TINT_SURFACES` at the end.
