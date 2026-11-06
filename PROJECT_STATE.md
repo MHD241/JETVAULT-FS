@@ -532,3 +532,8 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 ## Update 80 — missing windows / doors / engine casings fixed
 - Causes: (1) the gear-split rule (|x|<4.8 m) swept the lower engine nacelle skins into the folding gear meshes; tightened to |x|<3.5 m. (2) Window glass and dark trim were near-mirror smooth and reflected the white sky; their env-map reflection is now low (glass 0.2, dark trim 0.45) without changing the paint lighting.
 - Verified in a headless screenshot: continuous window row, solid nacelles, door outline visible. Remaining plain-colour areas come from textures that were not in the download.
+
+## Update 81 — yoke jump near neutral
+- Cause: the beginner auto-trim servo is added to `controls.pitch`; it switched off when |stick| > 0.05 and on again below it, so crossing that threshold with the mouse made the yoke (which showed the total) jump to a pull-up and then reset.
+- Fix: servo output now fades smoothly over |stick| 0.02..0.12 (hold reference resets above 0.12), and the cockpit yoke/column show the pilot's own stick (`controls.stickPitch`) instead of stick + servo (autopilot-engaged still shows the autopilot output).
+- 108 unit tests pass. Feel NOT verified by hand (no real input in this environment). If the yoke still jumps, say at what point of the mouse travel.

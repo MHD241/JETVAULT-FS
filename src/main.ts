@@ -792,6 +792,7 @@ class App implements MenuHost {
     for (const ev of this.simple.consume()) this.handleSimple(ev);
     if (!this.menu.open) {
       this.simple.update(dt, sim.controls, ac);
+      sim.controls.stickPitch = sim.controls.pitch;
       if (!sim.paused && this.simple.assists) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
     this.updateBuggy(dt);

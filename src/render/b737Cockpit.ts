@@ -184,7 +184,9 @@ export class B737Cockpit {
 
   update(dt: number, _night: number) {
     const c = this.sim.controls;
-    const eff = this.sim.autopilot.effectiveControls(c);
+    const ap = this.sim.autopilot.effectiveControls(c);
+    // show the pilot's own stick, not the assist servo that is added on top of it
+    const eff = ap === c ? { pitch: c.stickPitch ?? c.pitch, roll: c.roll } : ap;
     if (this.detail) this.detail.update(dt, c, eff);
     this.yoke.position.x = 14.55 - eff.pitch * 0.08;
     this.yoke.rotation.x = eff.roll * 1.1;
