@@ -541,3 +541,6 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 ## Update 82 — stick snapped to neutral when the pointer crossed an on-screen panel
 - Measured with a scripted mouse sweep: the stick/yoke track the mouse smoothly, but `SimpleControls` listened for mouse movement only on the canvas, so when the pointer went over the HUD strip / any panel drawn on top, it stopped updating (and `mouseleave` set the stick to neutral). That gave a stick that "jumps and resets" part-way through the movement.
 - Fix: the pointer is now tracked on the whole window (clamped to the canvas rectangle); the stick recentres only when the pointer leaves the page. Re-run of the sweep: the top rows (previously dead) now register and the response is continuous. Real-mouse feel is still unverified by hand.
+
+## Update 83 — bloom removed
+- The bloom pass is no longer created (identical to the old `?nobloom` look); `?bloom` re-enables it for comparison. Sun glare/veil in the grade shader, grading, AO (Ultra) unchanged. Presets: `mid` now equals `min` visually until bloom returns.

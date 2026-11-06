@@ -61,8 +61,8 @@ export class Grade {
       this.ao = ao;
       this.composer.addPass(ao);
     }
-    // bloom: the sun and bright highlights bleed light, as a camera does
-    if (!new URLSearchParams(location.search).has('nobloom')) {
+    // bloom is OFF by default (same as the old ?nobloom look); add ?bloom to the URL to bring it back for comparison
+    if (new URLSearchParams(location.search).has('bloom')) {
       this.bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.05, 0.3, 1.6);
       this.composer.addPass(this.bloom);
     }
@@ -70,7 +70,7 @@ export class Grade {
     this.composer.addPass(this.pass);
     this.composer.addPass(new OutputPass());
   }
-  /** Effects budget: 'min' = grading only, 'mid' = + bloom, 'full' = + ambient occlusion. */
+  /** Effects budget: 'min' = grading only, 'mid' = same as min while bloom is off, 'full' = + ambient occlusion. */
   setQuality(fx: 'min' | 'mid' | 'full') { if (this.ao) this.ao.enabled = fx === 'full'; if (this.bloom) this.bloom.enabled = fx !== 'min'; }
   setCamera(camera: THREE.Camera) { (this.composer.passes[0] as RenderPass).camera = camera; if (this.ao) this.ao.camera = camera as THREE.PerspectiveCamera; }
   setSize(w: number, h: number) { this.composer.setPixelRatio(this.renderer.getPixelRatio()); this.composer.setSize(w, h); }
