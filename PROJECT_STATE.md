@@ -577,3 +577,7 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 
 ## Update 90 — "the ailerons didn't appear"
 - The deploy of 1b63a3a had succeeded (checked with the Actions run list), and the ailerons render in the headless build, so the likely cause is the browser cache: `b738_full.bin` keeps the same URL across builds and GitHub Pages lets browsers cache it. The model URL now carries the build's commit hash (`?v=<sha>`), so every new build fetches the new model. The console line `737 full glb: ... control surfaces ...` now lists which surfaces were found (expect elevL,elevR,ailR,ailL).
+
+## Update 91 — ailerons a bit smaller; tint made matte
+- User: the ailerons appeared (after the cache fix) and should be a bit smaller. Now x 10.5..15.3 m on the right wing (4.8 m span, was 5.4), hinge 0.10 m forward of the model's engraved line (was 0.25), depth about 0.65-0.70 m (was 0.75). Left wing mirrors it. Checked in a headless render.
+- The temporary orange tint was washing out on the glossy paint (roughness 0.05 reflecting the sky): it is now matte with a slight emissive glow (`TEMP_TINT_SURFACES`, still to be removed at the end).
