@@ -593,3 +593,8 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 - Runtime: all six sections follow the simulator's actual flap angle `aircraft.flap` (detents 0,1,2,5,10,15,25,30,40 deg): trailing edge down by the flap angle about the front edge, slid aft 0.012 m per degree. Measured: 15 deg = 0.15-0.26 m down and ~0.2 m aft; 40 deg = 0.39-0.63 m down and 0.44-0.60 m aft; left/right match. Rendered at 0/15/40 deg.
 - Generator `conv2.py` now processes every triangle through one pipeline (flap pieces left over go on to the aileron and gear tests); ailerons unchanged (386/582 triangles).
 - Still to do: spoilers (the notched panels in front of the flaps), then optionally leading-edge slats and the trim; remove `TEMP_TINT_SURFACES` at the end.
+
+## Update 94 — flap gaps closed
+- User saw gaps between the flap sections and the wing when the flaps moved ("there must be parts under that cover it"). Cause: the model's wing trailing edge is a hollow shell (upper + lower skin only), so every cut edge of a flap section is OPEN and shows the inside; the real aircraft has closed flap/wing ends and a fixed cover.
+- Fix: end caps are built along every cut line (front edge, section ends, pod slot walls) as thin strips between the two skins, one copy on the flap piece and one on the fixed wing (214 triangles). The flap slide was also reduced to 0.006 m per degree (0.24 m at 40 deg) so the slit between wing and flap stays small. The grey strip moves with the flap again (keeping it fixed was tried and did not help).
+- Checked in renders at 25 and 40 deg from above and behind: the sections read as continuous strips with only small notches at the pods. Not seen on a real GPU yet.
