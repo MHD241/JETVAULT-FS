@@ -604,3 +604,9 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 - Slit at the front: no sliding aft any more (tilt only), and the hinge sits on the UPPER skin (mid-thickness + 0.12 m) so the top surface stays closed when the flap tilts; the open edges still have end caps (146 triangles).
 - Measured: 25 deg = trailing edge 0.24-0.32 m down; 40 deg = 0.36-0.46 m down, left/right match. From above and behind there are no gaps; the flaps now look like a drooping trailing edge and are less conspicuous from above because they no longer extend aft. If that is too subtle, a short slide with a fixed cover lip is the alternative.
 - User did not pick mark 1 (white interruptions at the pods): the pods still have clearance slots.
+
+## Update 96 — chunkier flaps; pods slide out (telescoping)
+- Flaps are deeper: the front edge moved 0.25 m forward (inboard 708/513 and outboard 249/204 triangles on right/left, was 607/216 and 447/175).
+- User asked for the flap-track pods to "go backwards" and then "slide, not just move": each pod is now its own node (`podR1..3`, `podL1..3`, the part behind the flap front edge, below mid-thickness, in the 0.56 m slot column) and translates aft by `0.55 m x flap / 40 deg`. To make it a slide rather than a seam, the moving part carries a narrower inner "tube" (84 % scale, 0.75 m long) copied from the fixed pod just ahead of the cut: hidden inside the fixed pod at rest, it slides out of it as the flap extends (673 tube triangles) plus end caps on the cut (210). Measured in the browser: 0.55 m aft at 40 deg for all six pods; renders from above and below.
+- Known roughness: the inboard flap's root end looks slightly jagged in the render; the left-wing pods have fewer triangles than the right (mesh differences), not checked on a real GPU.
+- Still to do: spoilers; then optional slats/trim; remove `TEMP_TINT_SURFACES` at the end.
