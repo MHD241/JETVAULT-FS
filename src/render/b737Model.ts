@@ -80,6 +80,7 @@ function fuselage() {
 
 /** TEMPORARY: paint the control surfaces that have been cut out and animated so far (elevators, ailerons) bright orange for checking. Set to false to remove. */
 const TEMP_TINT_SURFACES = true;
+const POD_SLIDE_PER_RAD = 0.55 / (40 * Math.PI / 180);
 
 export class B737Model {
   readonly root = new THREE.Group();
@@ -350,6 +351,9 @@ export class B737Model {
     if (this.fullLoaded) {
       // control surfaces follow the flight model's actual (lagged) surface angles; the simulator's elevator is negative with the trailing edge UP
       for (const f of this.fullSurf) {
+        if (f.kind === 'pod') {
+          f.obj.matrix.makeTranslation(0, 0, -POD_SLIDE_PER_RAD * ac.flap); f.obj.matrixWorldNeedsUpdate = true; continue; // 0.55 m aft at 40 deg
+        }
         if (f.kind === 'flap') {
           // flap: trailing edge DOWN by the flap angle
           // tilt only (no slide aft, so no slit opens between the wing and the flap); the hinge is on the upper skin so the top stays closed
@@ -417,7 +421,7 @@ export class B737Model {
   /** Gear parts of the full glTF (hidden when the gear is up). */
   private fullGear: { obj: THREE.Object3D; pivot: THREE.Vector3; kind: 'N' | 'L' | 'R' }[] = [];
   /** Control surfaces cut out of the model, each swinging about a hinge line (two points in model space, root to tip, x increasing). */
-  private fullSurf: { obj: THREE.Object3D; p0: THREE.Vector3; axis: THREE.Vector3; kind: 'elevator' | 'aileronL' | 'aileronR' | 'rudder' | 'flap' }[] = [];
+  private fullSurf: { obj: THREE.Object3D; p0: THREE.Vector3; axis: THREE.Vector3; kind: 'elevator' | 'aileronL' | 'aileronR' | 'rudder' | 'flap' | 'pod' }[] = [];
   private fullLoaded = false;
 
   /**
@@ -480,6 +484,11 @@ export class B737Model {
       const g = root.getObjectByName(name); const h = g?.userData?.hinge as number[][] | undefined; if (!g || !h) continue;
       let a = new THREE.Vector3(...h[0]), b = new THREE.Vector3(...h[1]); if (b.x < a.x) [a, b] = [b, a]; // axis toward +x: +angle = trailing edge up
       g.matrixAutoUpdate = false; this.fullSurf.push({ obj: g, p0: a, axis: b.clone().sub(a).normalize(), kind: 'flap' });
+    }
+    // flap-track fairings (pods): the part behind the flap front edge slides aft with the flaps (user request)
+    for (const name of ['podR1', 'podR2', 'podR3', 'podL1', 'podL2', 'podL3']) {
+      const g = root.getObjectByName(name); if (!g) continue;
+      g.matrixAutoUpdate = false; this.fullSurf.push({ obj: g, p0: new THREE.Vector3(), axis: new THREE.Vector3(1, 0, 0), kind: 'pod' });
     }
     // matte + slight glow so the temporary tint reads as orange in any light
     if (TEMP_TINT_SURFACES) for (const f of this.fullSurf) f.obj.traverse((o) => {
