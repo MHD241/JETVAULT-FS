@@ -26,7 +26,9 @@ export class CockpitFull {
     const r = await fetch(url);
     if (!r.ok) throw new Error('cockpit model not found: ' + url);
     const buf = await r.arrayBuffer();
-    const gltf = await new Promise<{ scene: THREE.Group }>((res, rej) => new GLTFLoader().parse(buf, '', res, rej));
+    // the file is mesh-compressed (EXT_meshopt_compression): 84 MB -> 16 MB, same triangles, so deploys and first loads are fast
+    const { MeshoptDecoder } = await import('three/examples/jsm/libs/meshopt_decoder.module.js');
+    const gltf = await new Promise<{ scene: THREE.Group }>((res, rej) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parse(buf, '', res, rej));
     return new CockpitFull(gltf.scene, partBoxes);
   }
 
