@@ -80,7 +80,6 @@ function fuselage() {
 
 /** TEMPORARY: paint the control surfaces that have been cut out and animated so far (elevators, ailerons) bright orange for checking. Set to false to remove. */
 const TEMP_TINT_SURFACES = true;
-const DEG_RAD = Math.PI / 180;
 
 export class B737Model {
   readonly root = new THREE.Group();
@@ -352,9 +351,9 @@ export class B737Model {
       // control surfaces follow the flight model's actual (lagged) surface angles; the simulator's elevator is negative with the trailing edge UP
       for (const f of this.fullSurf) {
         if (f.kind === 'flap') {
-          // Fowler flap: trailing edge DOWN by the flap angle and slid aft (0.006 m per degree, 0.24 m at 40 deg: small, so the gap stays closed)
-          const slide = 0.006 * (ac.flap / DEG_RAD);
-          f.obj.matrix.makeTranslation(0, 0, -slide).multiply(new THREE.Matrix4().makeTranslation(f.p0.x, f.p0.y, f.p0.z)).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, -ac.flap)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
+          // flap: trailing edge DOWN by the flap angle
+          // tilt only (no slide aft, so no slit opens between the wing and the flap); the hinge is on the upper skin so the top stays closed
+          f.obj.matrix.makeTranslation(f.p0.x, f.p0.y, f.p0.z).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, -ac.flap)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
           f.obj.matrixWorldNeedsUpdate = true; continue;
         }
         const ang = f.kind === 'elevator' ? -ac.elevator : f.kind === 'aileronL' ? -ac.aileronL : f.kind === 'aileronR' ? -ac.aileronR : -ac.rudder; // the simulator's angles are negative with the trailing edge UP
@@ -476,8 +475,8 @@ export class B737Model {
     // rudder: hinge runs up the fin (p0 low, p1 high); +angle about this axis swings the trailing edge toward model -x = the aircraft's right
     { const g = root.getObjectByName('rud'); const h = g?.userData?.hinge as number[][] | undefined;
       if (g && h) { let a = new THREE.Vector3(...h[0]), b = new THREE.Vector3(...h[1]); if (b.y < a.y) [a, b] = [b, a]; g.matrixAutoUpdate = false; this.fullSurf.push({ obj: g, p0: a, axis: b.clone().sub(a).normalize(), kind: 'rudder' }); } }
-    // flaps: three sections per wing, all driven by the same flap angle (tilt down about the front edge and slide aft); the track pods stay fixed
-    for (const name of ['flapR1', 'flapR2', 'flapR3', 'flapL1', 'flapL2', 'flapL3']) {
+    // flaps: two sections per wing (inboard, outboard), hinged on the upper skin and tilted down only, all driven by the same flap angle (tilt down about the front edge on the upper skin); the track pods stay fixed
+    for (const name of ['flapRI', 'flapRO', 'flapLI', 'flapLO']) {
       const g = root.getObjectByName(name); const h = g?.userData?.hinge as number[][] | undefined; if (!g || !h) continue;
       let a = new THREE.Vector3(...h[0]), b = new THREE.Vector3(...h[1]); if (b.x < a.x) [a, b] = [b, a]; // axis toward +x: +angle = trailing edge up
       g.matrixAutoUpdate = false; this.fullSurf.push({ obj: g, p0: a, axis: b.clone().sub(a).normalize(), kind: 'flap' });
