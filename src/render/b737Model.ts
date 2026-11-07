@@ -352,7 +352,9 @@ export class B737Model {
       // control surfaces follow the flight model's actual (lagged) surface angles; the simulator's elevator is negative with the trailing edge UP
       for (const f of this.fullSurf) {
         if (f.kind === 'pod') {
-          f.obj.matrix.makeTranslation(0, 0, -POD_SLIDE_PER_RAD * ac.flap); f.obj.matrixWorldNeedsUpdate = true; continue; // 0.55 m aft at 40 deg
+          // slides aft (0.55 m at 40 deg) and tilts its tail end down (0.3 x the flap angle, about 12 deg at 40 deg) about the front cut
+          f.obj.matrix.makeTranslation(0, 0, -POD_SLIDE_PER_RAD * ac.flap).multiply(new THREE.Matrix4().makeTranslation(f.p0.x, f.p0.y, f.p0.z)).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, -0.3 * ac.flap)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
+          f.obj.matrixWorldNeedsUpdate = true; continue;
         }
         if (f.kind === 'flap') {
           // flap: trailing edge DOWN by the flap angle
@@ -488,7 +490,8 @@ export class B737Model {
     // flap-track fairings (pods): the part behind the flap front edge slides aft with the flaps (user request)
     for (const name of ['podR1', 'podR2', 'podR3', 'podL1', 'podL2', 'podL3']) {
       const g = root.getObjectByName(name); if (!g) continue;
-      g.matrixAutoUpdate = false; this.fullSurf.push({ obj: g, p0: new THREE.Vector3(), axis: new THREE.Vector3(1, 0, 0), kind: 'pod' });
+      const pv = g.userData?.pivot as number[] | undefined; // the pod swings about its front cut
+      g.matrixAutoUpdate = false; this.fullSurf.push({ obj: g, p0: pv ? new THREE.Vector3(...pv) : new THREE.Vector3(), axis: new THREE.Vector3(1, 0, 0), kind: 'pod' });
     }
     // matte + slight glow so the temporary tint reads as orange in any light
     if (TEMP_TINT_SURFACES) for (const f of this.fullSurf) f.obj.traverse((o) => {
