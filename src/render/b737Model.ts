@@ -80,7 +80,7 @@ function fuselage() {
 
 /** TEMPORARY: paint the control surfaces that have been cut out and animated so far (elevators, ailerons) bright orange for checking. Set to false to remove. */
 const TEMP_TINT_SURFACES = true;
-const POD_SLIDE_PER_RAD = 0.55 / (40 * Math.PI / 180);
+const POD_SLIDE_PER_RAD = 0.6 / (40 * Math.PI / 180);
 
 export class B737Model {
   readonly root = new THREE.Group();
@@ -352,8 +352,8 @@ export class B737Model {
       // control surfaces follow the flight model's actual (lagged) surface angles; the simulator's elevator is negative with the trailing edge UP
       for (const f of this.fullSurf) {
         if (f.kind === 'pod') {
-          // slides aft (0.55 m at 40 deg) and tilts its tail end down (0.3 x the flap angle, about 12 deg at 40 deg) about the front cut
-          f.obj.matrix.makeTranslation(0, 0, -POD_SLIDE_PER_RAD * ac.flap).multiply(new THREE.Matrix4().makeTranslation(f.p0.x, f.p0.y, f.p0.z)).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, -0.3 * ac.flap)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
+          // slides aft (0.6 m at 40 deg) and tilts its tail end down (0.45 x the flap angle, about 18 deg at 40 deg) about the front cut
+          f.obj.matrix.makeTranslation(0, 0, -POD_SLIDE_PER_RAD * ac.flap).multiply(new THREE.Matrix4().makeTranslation(f.p0.x, f.p0.y, f.p0.z)).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, -0.45 * ac.flap)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
           f.obj.matrixWorldNeedsUpdate = true; continue;
         }
         if (f.kind === 'flap') {
