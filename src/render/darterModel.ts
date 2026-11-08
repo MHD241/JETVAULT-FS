@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import type { Aircraft } from '../sim/fdm/aircraft';
 import type { FlightControls } from '../sim/controls';
+import { droneSpeed } from '../sim/fdm/aircraft';
 
 export class DarterModel {
   readonly root = new THREE.Group();
@@ -13,7 +14,11 @@ export class DarterModel {
   private flame: THREE.Mesh;
   private body: THREE.Object3D[] = [];
 
-  constructor() {
+  private drone: boolean;
+  private engine: THREE.Object3D[] = [];
+
+  constructor(drone = false) {
+    this.drone = drone;
     const white = new THREE.MeshPhysicalMaterial({ color: 0xe9edf2, roughness: 0.3, metalness: 0.3, clearcoat: 1, clearcoatRoughness: 0.1 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x1b1e24, roughness: 0.5, metalness: 0.6 });
     const accent = new THREE.MeshStandardMaterial({ color: 0xff5a1f, roughness: 0.4, metalness: 0.2 });
@@ -45,6 +50,15 @@ export class DarterModel {
       const fm = new THREE.Mesh(new THREE.ExtrudeGeometry(fs, { depth: 0.06, bevelEnabled: false }), white); fm.rotation.x = Math.PI / 2; fm.position.y = -0.03; fm.castShadow = true; fin.add(fm);
       add(fin); this.fins.push(fin);
     }
+    if (drone) {
+      // rocket engine: a motor casing riding on the spine, a big flared bell at the tail, cooling rings and a long exhaust plume
+      const casing = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 2.6, 24).rotateZ(Math.PI / 2), dark); casing.position.set(-1.2, 0, -0.62); this.engine.push(add(casing));
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.55, 24).rotateZ(Math.PI / 2 * -1), dark); cone.position.set(0.37, 0, -0.62); this.engine.push(add(cone));
+      for (const x of [-0.4, -1.2, -2.0]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(0.305, 0.03, 8, 28).rotateY(Math.PI / 2), accent); ring.position.set(x, 0, -0.62); this.engine.push(add(ring)); }
+      for (const s of [-1, 1]) { const strut = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 0.28), dark); strut.position.set(-1.2, s * 0.12, -0.42); strut.rotation.x = s * 0.35; this.engine.push(add(strut)); }
+      const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.3, 0.7, 28, 1, true).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3a2a22, roughness: 0.35, metalness: 0.85, side: THREE.DoubleSide })); bell.position.set(-2.85, 0, -0.62); this.engine.push(add(bell));
+      this.flame.position.set(-4.9, 0, -0.62); this.flame.scale.set(2.4, 1.6, 1.6);
+    }
     this.landingLight.visible = false; this.root.add(this.landingLight, this.landingLight.target);
     this.root.name = 'Darter';
   }
@@ -53,9 +67,12 @@ export class DarterModel {
     const e = ac.elevator, l = ac.aileronL, r = ac.aileronR;
     this.elevons[0].rotation.y = e + l; this.elevons[1].rotation.y = e + r;
     for (const f of this.fins) f.rotation.z = ac.rudder * 0.8;
-    const burn = c.throttle > 0.05 && ac.cable != null;
-    (this.flame.material as THREE.MeshBasicMaterial).opacity = burn ? 0.7 : 0;
+    const burn = this.drone ? !!ac.def.drone && droneSpeed(c.throttle, ac.def.drone) > 0 : c.throttle > 0.05 && ac.cable != null;
+    (this.flame.material as THREE.MeshBasicMaterial).opacity = burn ? 0.7 + (this.drone ? 0.2 * Math.sin(performance.now() * 0.06) : 0) : 0;
   }
 
-  setCockpitView(inCockpit: boolean) { for (const b of this.body) b.visible = !inCockpit; }
+  setCockpitView(inCockpit: boolean) {
+    for (const b of this.body) b.visible = !inCockpit;
+    if (this.drone) for (const o of this.root.children) if (!(o as THREE.Light).isLight) o.visible = !inCockpit; // the glass ball: see everything, nothing of the airframe in the way
+  }
 }
