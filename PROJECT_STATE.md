@@ -667,3 +667,6 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 
 ## Update 107 — Pro ground colours
 - Pro fields: deeper natural green (less lime), gentler parcel tints; built-up areas are now calm grey roofs/streets with some garden green (no more brown/pink stripes). Free edition untouched. Checked in one headless screenshot only (real-GPU look unverified).
+
+## Update 108 — Pro ground matched to the concept pictures
+- User: the ground did not look like the reference. In the concept pictures the land is one lush olive-green grass with soft variation, woods and hedges, not coloured parcels. Pro ground now paints cropland/grass classes as that single grass (soft large-scale variation, faint stripes), everywhere including near the airfield; hedgerows and woods kept. Brightness was nudged up after the last screenshot (not re-checked). Still different from the reference: trees are lollipops, buildings grey boxes, no hill/castle, no hand-built terminal.

@@ -383,18 +383,18 @@ float gWater; float gBuilt; float gPaved;
       vec2 w = en + 45.0 * (vec2(texture2D(uDetail, en / 900.0).r, texture2D(uDetail, en / 900.0 + 0.37).g) - 0.5) * 2.0;
       vec2 cell = w / 130.0; vec2 id = floor(cell); vec2 fc = fract(cell);
       float h1 = hash12(id), h2 = hash12(id + 7.7), h3 = hash12(id + 19.3);
-      vec3 tint = mix(vec3(0.92, 1.0, 0.88), vec3(1.05, 1.03, 0.86), h1);
-      tint = mix(tint, vec3(1.10, 0.98, 0.78), step(0.82, h2) * 0.7);
-      col *= mix(vec3(1.0), tint, away);
+      // reference look: one lush, slightly olive grass green with soft large-scale variation (no strongly coloured parcels)
+      vec3 grass = mix(vec3(0.26, 0.37, 0.12), vec3(0.34, 0.45, 0.16), smoothstep(0.3, 0.7, texture2D(uDetail, en / 260.0).r));
+      grass *= mix(0.94, 1.06, h1) * (0.92 + 0.16 * n2);
+      col = srgb(grass);
       float ang = h3 * 3.1416;
       float stripe = sin(dot(w, vec2(cos(ang), sin(ang))) * (6.2832 / (3.0 + 3.0 * h2))) * 0.5 + 0.5;
-      col *= 1.0 + (stripe - 0.5) * 0.18 * nearP * (lc < 35.0 ? 0.6 : 1.0) * away;
+      col *= 1.0 + (stripe - 0.5) * 0.06 * nearP * (lc < 35.0 ? 0.6 : 1.0) * away;
       float edge = min(min(fc.x, 1.0 - fc.x), min(fc.y, 1.0 - fc.y)) * 130.0 + (texture2D(uDetail, en / 7.0).r - 0.5) * 2.4;
       float hedge = (1.0 - smoothstep(0.8, 2.6, edge)) * step(0.3, h1) * away;
       col = mix(col, srgb(vec3(0.10, 0.17, 0.07)) * (0.8 + 0.5 * n2), hedge * 0.85 * midP);
     }
     if (lc < 15.0) col *= 0.78 + 0.55 * texture2D(uDetail, en / 5.0).g;      // woodland floor and canopy mottling
-    if (lc > 25.0 && lc < 45.0) col *= vec3(0.70, 0.80, 0.62);              // deeper natural green, less lime
     if (lc > 45.0 && lc < 55.0) {                                            // built-up: calm grey roofs and streets with garden green, no coloured stripes
       float g2 = smoothstep(0.5, 0.7, texture2D(uDetail, en / 23.0).a);
       col = mix(srgb(vec3(0.38, 0.37, 0.36)), srgb(vec3(0.24, 0.31, 0.18)), g2 * 0.5) * (0.88 + 0.24 * n2);
