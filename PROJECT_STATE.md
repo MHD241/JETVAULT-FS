@@ -664,3 +664,6 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 - Cockpit view of the inspection drone is now a clear glass ball (faint tint + three rings) with the eye at its centre, the airframe hidden, and a flight stick on a small floor disc at the bottom that follows pitch/roll (`src/render/cockpitDrone.ts`).
 - The drone model has a rocket engine: motor casing on the spine, nose cone, orange cooling rings, struts, flared bell and a flickering plume whenever the motor is on (`darterModel.ts`, drone only; the normal Darter is unchanged).
 - Checked in headless screenshots only (outside view and ball view); not flown on a real GPU/keyboard. Tests unchanged (110 pass).
+
+## Update 107 — Pro ground colours
+- Pro fields: deeper natural green (less lime), gentler parcel tints; built-up areas are now calm grey roofs/streets with some garden green (no more brown/pink stripes). Free edition untouched. Checked in one headless screenshot only (real-GPU look unverified).
