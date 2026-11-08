@@ -77,16 +77,16 @@ export class CloudField {
           if (a < 0.01) discard;
           vec3 nrm = normalize(vec3(uv * 0.9, sqrt(max(0.05, 1.0 - r * r))));
           float diff = clamp(dot(nrm, vSun) * 0.5 + 0.5, 0.0, 1.0);
-          float shade = mix(0.35, 1.0, smoothstep(0.0, 0.65, vH));
+          float shade = mix(0.45, 1.0, smoothstep(0.0, 0.65, vH));
           // sunlit tops are brilliant white-gold, undersides and shadowed flanks are cool blue-grey, with a silver lining at the sunlit edge
-          vec3 lit = uSunCol * 2.2 + uAmb * 0.8;
-          vec3 dark = uAmb * 0.62 * vec3(0.82, 0.88, 1.0) + uSunCol * 0.05;
+          vec3 lit = uSunCol * 1.9 + uAmb * 0.7;      // HDR on purpose: the renderer tone-maps with a low exposure
+          vec3 dark = lit * vec3(0.52, 0.61, 0.82);                // soft blue-white shadow side, never grey-purple
           float sunSide = clamp(dot(nrm, vSun), 0.0, 1.0);
           vec3 col = mix(dark, lit, pow(diff, 1.6) * shade);
           col += uSunCol * 0.9 * pow(1.0 - nrm.z, 2.0) * sunSide * 0.6;
           float dist = length(vW - uCam);
           float fog = 1.0 - exp(-pow(uFogD * dist, 2.0));
-          col = mix(col, uFogCol, fog);
+          col = mix(col, max(uFogCol, vec3(0.8, 0.86, 0.95)), min(fog, 0.35));   // distant clouds fade toward a bright haze, never to grey
           float fade = 1.0 - smoothstep(15000.0, 21000.0, dist);
           gl_FragColor = vec4(col, a * 0.92 * fade);
         }`,

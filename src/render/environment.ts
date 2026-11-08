@@ -123,7 +123,7 @@ export class EnvironmentRenderer {
           float below = step(uCam.y, vW.y);
           float lit = clamp(uSun.y * 1.5 + 0.2, 0.0, 1.0);
           vec3 top = uSunCol * (0.6 + 0.6 * lit) + uAmb * 0.8;
-          vec3 bottom = mix(uAmb * 1.2, uSunCol * 0.35 + uAmb * 0.8, 1.0 - d) * (1.0 - 0.25 * uCover);
+          vec3 bottom = top * 1.3 * mix(vec3(0.66, 0.74, 0.88), vec3(0.93, 0.96, 1.0), 1.0 - d);   // white edges, soft blue-grey bellies
           vec3 col = mix(top, bottom, below * 0.85);
           float dist = length(vW - uCam);
           float fog = 1.0 - exp(-pow(uFogD * dist, 2.0));
@@ -185,9 +185,9 @@ export class EnvironmentRenderer {
     for (const s of [this.sky, this.envSky]) {
       const u = s.material.uniforms;
       u.sunPosition.value.copy(this.sunDir);
-      u.turbidity.value = 2.4 + overcast * 10 + w.rain * 6;   // clearer air: deeper blue zenith
-      u.rayleigh.value = 2.1 + overcast * 1.0;
-      u.mieCoefficient.value = 0.0025 + overcast * 0.02;
+      u.turbidity.value = 1.6 + overcast * 10 + w.rain * 6;   // clearer air: deeper blue zenith
+      u.rayleigh.value = 3.0 + overcast * 1.0;
+      u.mieCoefficient.value = 0.0012 + overcast * 0.02;
       u.mieDirectionalG.value = 0.85;
     }
     this.sky.position.copy(cam);

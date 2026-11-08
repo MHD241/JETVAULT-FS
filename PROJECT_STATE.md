@@ -678,3 +678,7 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 
 ## Update 110 — Bigger sun
 - Sun disc 1.1° -> 5° with a soft 20° glow sprite re-enabled (was hidden when bloom was removed; this is a sprite, not post-process bloom); cloud undersides slightly brighter (`environment.ts`). Headless screenshot shows only the top edge of the sun, so its final size/look is NOT verified; cloud colour is still greyer than the reference's white fluffy clouds.
+
+## Update 111 — White clouds, bluer sky
+- Cause of the grey/purple clouds: the cloud shaders were clamped/tone-mapped under the low renderer exposure (0.45) and mixed with grey fog. `cloudField.ts`: lit side is now deliberately HDR (sun*1.9 + ambient*0.7), shadow side is a soft blue-white (0.52,0.61,0.82 x lit), fog on clouds capped at 35% toward a bright haze. `environment.ts`: flat overcast layers brighter; clear sky bluer (turbidity 1.6, rayleigh 3.0, mie 0.0012).
+- Checked in one headless screenshot looking toward the sun (clouds are now white with light blue-grey shading; sky there is still pale because it is the sun side). Fluffy shape/contrast is only mildly improved; not seen on a real GPU or from the other directions.
