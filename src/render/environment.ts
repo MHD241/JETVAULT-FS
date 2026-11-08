@@ -59,7 +59,7 @@ export class EnvironmentRenderer {
     // deep-blue zenith fading to a pale hazy horizon (the stock atmosphere model alone is washed out after tone mapping)
     this.sky.material.onBeforeCompile = (sh) => {
       sh.fragmentShader = sh.fragmentShader.replace('gl_FragColor = vec4( texColor, 1.0 );',
-        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.42, 0.70, 1.55), smoothstep(0.02, 0.6, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n gl_FragColor = vec4( texColor, 1.0 );');
+        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.20, 0.46, 1.45), smoothstep(0.0, 0.28, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n gl_FragColor = vec4( texColor, 1.0 );');
     };
     this.sky.material.depthWrite = false;
     scene.add(this.sky);
@@ -87,8 +87,8 @@ export class EnvironmentRenderer {
       const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, fog: false }));
       m.renderOrder = order; m.frustumCulled = false; scene.add(m); return m;
     };
-    this.sunGlow = mk(disc([[0, 'rgba(255,245,215,0.42)'], [0.06, 'rgba(255,232,180,0.17)'], [0.2, 'rgba(255,214,150,0.05)'], [0.5, 'rgba(255,198,135,0.012)'], [1, 'rgba(255,190,120,0)']]), 1);
-    this.sunCore = mk(disc([[0, 'rgba(255,255,255,1)'], [0.55, 'rgba(255,252,235,1)'], [0.8, 'rgba(255,240,200,0.55)'], [1, 'rgba(255,230,180,0)']]), 1);
+    this.sunGlow = mk(disc([[0, 'rgba(255,248,225,0.95)'], [0.08, 'rgba(255,238,195,0.55)'], [0.22, 'rgba(255,222,165,0.2)'], [0.5, 'rgba(255,205,140,0.05)'], [1, 'rgba(255,190,120,0)']]), 5);
+    this.sunCore = mk(disc([[0, 'rgba(255,255,255,1)'], [0.7, 'rgba(255,252,235,1)'], [0.88, 'rgba(255,240,200,0.6)'], [1, 'rgba(255,230,180,0)']]), 5);
     this.hemi = new THREE.HemisphereLight(0xbfd6ff, 0x4a4a3a, 0.6);
     scene.add(this.hemi);
     this.fog = new THREE.FogExp2(0xc8d4e2, 0.00004);
@@ -185,9 +185,9 @@ export class EnvironmentRenderer {
     for (const s of [this.sky, this.envSky]) {
       const u = s.material.uniforms;
       u.sunPosition.value.copy(this.sunDir);
-      u.turbidity.value = 1.6 + overcast * 10 + w.rain * 6;   // clearer air: deeper blue zenith
-      u.rayleigh.value = 3.0 + overcast * 1.0;
-      u.mieCoefficient.value = 0.0012 + overcast * 0.02;
+      u.turbidity.value = 1.1 + overcast * 10 + w.rain * 6;   // clearer air: deeper blue zenith
+      u.rayleigh.value = 4.5 + overcast * 1.0;
+      u.mieCoefficient.value = 0.0006 + overcast * 0.02;
       u.mieDirectionalG.value = 0.85;
     }
     this.sky.position.copy(cam);
@@ -195,7 +195,7 @@ export class EnvironmentRenderer {
       // sun disc: 1.6 deg core, ~22 deg glow; hidden below the horizon, dimmer and warmer when low or overcast
       const D = 200000, vis = THREE.MathUtils.smoothstep(sp.elevation, -2, 1.5);
       const low = 1 - THREE.MathUtils.smoothstep(sp.elevation, 2, 25);
-      for (const [s, ang, k] of [[this.sunCore, 5, 1.6], [this.sunGlow, 20, 0.8]] as [THREE.Sprite, number, number][]) {
+      for (const [s, ang, k] of [[this.sunCore, 15, 2.0], [this.sunGlow, 70, 2.0]] as [THREE.Sprite, number, number][]) {
         s.position.copy(cam).addScaledVector(this.sunDir, D);
         s.scale.setScalar(2 * D * Math.tan((ang * Math.PI) / 360));
         const m = s.material as THREE.SpriteMaterial;

@@ -22,7 +22,7 @@ export class CloudField {
   private geo = new THREE.InstancedBufferGeometry();
   private aPos: THREE.InstancedBufferAttribute;
   private aInfo: THREE.InstancedBufferAttribute; // size, seed, height fraction
-  private cap = 9000;
+  private cap = 20000;
   private cx = 1e9; private cz = 1e9; private lastCover = -1; private lastBase = -1;
   private data: { x: number; y: number; z: number; s: number }[] = [];
   private mat: THREE.ShaderMaterial;
@@ -73,7 +73,7 @@ export class CloudField {
           vec2 q = uv * 0.42 + vec2(vSeed * 7.3, vSeed * 3.1);
           float n = texture2D(uNoise, q).r * 0.6 + texture2D(uNoise, q * 2.7 + 0.37).g * 0.4;
           float shape = (1.0 - r) + (n - 0.5) * 0.75;
-          float a = smoothstep(0.02, 0.5, shape);
+          float a = smoothstep(0.12, 0.5, shape);                    // crisper, cauliflower-like edge
           if (a < 0.01) discard;
           vec3 nrm = normalize(vec3(uv * 0.9, sqrt(max(0.05, 1.0 - r * r))));
           float diff = clamp(dot(nrm, vSun) * 0.5 + 0.5, 0.0, 1.0);
@@ -83,7 +83,7 @@ export class CloudField {
           vec3 dark = lit * vec3(0.52, 0.61, 0.82);                // soft blue-white shadow side, never grey-purple
           float sunSide = clamp(dot(nrm, vSun), 0.0, 1.0);
           vec3 col = mix(dark, lit, pow(diff, 1.6) * shade);
-          col += uSunCol * 0.9 * pow(1.0 - nrm.z, 2.0) * sunSide * 0.6;
+          col += uSunCol * 1.3 * pow(1.0 - nrm.z, 2.0) * sunSide * 0.8;   // bright sunlit rim on every puff
           float dist = length(vW - uCam);
           float fog = 1.0 - exp(-pow(uFogD * dist, 2.0));
           col = mix(col, max(uFogCol, vec3(0.8, 0.86, 0.95)), min(fog, 0.35));   // distant clouds fade toward a bright haze, never to grey
@@ -123,14 +123,14 @@ export class CloudField {
         const ccx = (i + hash(i, j, 2)) * CELL, ccz = (j + hash(i, j, 3)) * CELL;
         const rad = CELL * (0.55 + 0.45 * hash(i, j, 4));
         const height = 700 + 1900 * hash(i, j, 5) * (0.5 + cover);
-        const puffs = 8 + Math.floor(6 * hash(i, j, 6));
+        const puffs = 18 + Math.floor(12 * hash(i, j, 6));
         for (let k = 0; k < puffs && n < this.cap; k++) {
           const a = hash(i, j, 10 + k) * Math.PI * 2, rr = Math.sqrt(hash(i, j, 40 + k)) * rad;
           const hf = hash(i, j, 70 + k); // 0 = base, 1 = top
           // towers: the cloud is tallest in the middle
           const mid = 1 - rr / rad;
           const y = baseM + 150 + hf * height * (0.35 + 0.65 * mid);
-          const size = (520 + 650 * hash(i, j, 100 + k)) * (0.75 + 0.5 * Math.sin(hf * Math.PI));
+          const size = (300 + 520 * hash(i, j, 100 + k)) * (0.7 + 0.5 * Math.sin(hf * Math.PI));
           const x = ccx + Math.cos(a) * rr, z = ccz + Math.sin(a) * rr;
           pa[3 * n] = x; pa[3 * n + 1] = y; pa[3 * n + 2] = z;
           ia[3 * n] = size; ia[3 * n + 1] = hash(i, j, 130 + k) * 10; ia[3 * n + 2] = hf;

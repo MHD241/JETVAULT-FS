@@ -682,3 +682,9 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 ## Update 111 — White clouds, bluer sky
 - Cause of the grey/purple clouds: the cloud shaders were clamped/tone-mapped under the low renderer exposure (0.45) and mixed with grey fog. `cloudField.ts`: lit side is now deliberately HDR (sun*1.9 + ambient*0.7), shadow side is a soft blue-white (0.52,0.61,0.82 x lit), fog on clouds capped at 35% toward a bright haze. `environment.ts`: flat overcast layers brighter; clear sky bluer (turbidity 1.6, rayleigh 3.0, mie 0.0012).
 - Checked in one headless screenshot looking toward the sun (clouds are now white with light blue-grey shading; sky there is still pale because it is the sun side). Fluffy shape/contrast is only mildly improved; not seen on a real GPU or from the other directions.
+
+## Update 112 — Fluffier clouds, deeper sky, much bigger sun
+- Clouds (`cloudField.ts`): about 2.5x more, smaller puffs per cloud (18-30, sizes 300-820 m), crisper cauliflower edge, brighter sunlit rim; instance cap 9000 -> 20000.
+- Sky: stronger blue ramp (0.20,0.46,1.45 up to 28% elevation), rayleigh 4.5, turbidity 1.1, mie 0.0006.
+- Sun: core 15 deg, glow 70 deg, brighter glow gradient, and both now draw AFTER the clouds (before, clouds covered the sun completely, which is why it looked tiny and dim).
+- Headless checks only: puffs look rounder and more numerous; sun shows as a soft glow with a hot white centre. The sky still looks pale in my screenshots because thin white cloud fills most of the view; true zenith blue and the real-GPU look are unverified. Unknown: the hot core is smaller than the 15 deg setting suggests.
