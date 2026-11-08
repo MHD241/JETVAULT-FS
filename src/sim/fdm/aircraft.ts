@@ -17,6 +17,12 @@ import {
 import { FlightControls } from '../controls';
 import { ObstacleIndex } from '../../world/obstacles';
 
+/** Speed (m/s) the inspection drone's motor holds for a throttle setting 0..1; 0 = motor off. Keys 2..9 give 8 exponential steps from vMin to vMax. */
+export function droneSpeed(t: number, d: { vMin: number; vMax: number }): number {
+  if (t < 0.06) return 0;
+  return d.vMin * Math.pow(d.vMax / d.vMin, clamp((t - 0.125) / 0.875, 0, 1));
+}
+
 export type ControlChannel = 'aileronL' | 'aileronR' | 'elevator' | 'rudder' | 'flap';
 
 export interface AeroSurfaceDef extends SurfaceDef {
@@ -74,6 +80,8 @@ export interface AircraftDef {
   swirl?: number;
   /** Glider: unpowered; the (inert) engine definition is a placeholder and the propulsion block is skipped. */
   glider?: boolean;
+  /** Inspection drone: a motor that holds the speed chosen with the throttle keys (exponential vMin..vMax m/s; motor off at idle). */
+  drone?: { vMin: number; vMax: number; maxAccel: number };
   /** Transonic wave-drag onset Mach number (sets compressibility drag for gliders and other non-jets). */
   wave?: { mach: number; k: number };
   /** Tow/winch hook position, body frame. */
@@ -147,6 +155,7 @@ export class Aircraft {
   gearExt = 1;
   /** Spoiler panel extension 0..1. */
   spoiler = 0;
+  private droneI = 0;
   gearStates: GearState[];
   contactActive: boolean[];
   payload: number[];
@@ -340,7 +349,15 @@ export class Aircraft {
     this.fuelStarved = !fuelAvailable;
     const engIn = { throttle: c.throttle, mixture: c.mixture, mags: c.mags, starterPower: busPowered, fuelAvailable, reverse: c.reverse, onGround: this.onGround };
     if (d.glider) {
-      // unpowered
+      // unpowered, except the inspection drone's speed-hold motor (works on the ground and in the air)
+      if (d.drone) {
+        const vt = droneSpeed(c.throttle, d.drone);
+        if (vt > 0) {
+          const err = vt - Math.max(0, vb.x), lim = d.drone.maxAccel;
+          this.droneI = clamp(this.droneI + err * 0.5 * dt, -0.3 * lim, lim);
+          F.addIn(new Vec3(this.mass * clamp(0.9 * err + this.droneI, -0.3 * lim, lim), 0, 0));
+        } else this.droneI = 0;
+      }
     } else if (d.turbofans) {
       d.turbofans.forEach((t, i) => {
         const e = this.engines[i];

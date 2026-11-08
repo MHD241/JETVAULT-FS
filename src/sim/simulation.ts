@@ -170,7 +170,7 @@ export class Simulation {
     if (!ac.def.glider || !ac.onGround || Math.hypot(ac.vel.x, ac.vel.y) > 1.5) return false;
     const fwd = ac.q.rotate(new Vec3(1, 0, 0)), h = Math.hypot(fwd.x, fwd.y) || 1;
     const n = ac.pos.x + (fwd.x / h) * 2500, e = ac.pos.y + (fwd.y / h) * 2500;
-    ac.cable = { anchor: new Vec3(n, e, -(this.world.heightAt(e, n) + 60)), vTarget: 420, tMax: 45000, t: 0, bungee: true };
+    ac.cable = { anchor: new Vec3(n, e, -(this.world.heightAt(e, n) + 60)), vTarget: ac.def.drone ? 130 : 420, tMax: 45000, t: 0, bungee: true };
     return true;
   }
 
