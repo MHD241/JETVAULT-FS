@@ -451,16 +451,16 @@ export class AirportRenderer {
         const at = (m: number, lat: number, c: [number, number, number], sz: number, alw: number, hgt = 1.5, fl = 0) =>
           add(end.x - ux * dir * m + px * lat, end.y - uy * dir * m + py * lat, c, sz, alw, hgt, fl);
         for (let m = 30; m <= 900; m += 30) {
-          for (let k = -2; k <= 2; k++) at(m, k * 1.0, W, 1.0, 0.55);
-          if (m >= 300) at(m, 0, [1, 1, 1], 2.4, 0, 1.9, m / 900);
-          if (m <= 270) for (const sgn of [-1, 1]) for (const l of [9, 10.5, 12]) at(m, sgn * l, R, 0.9, 0.45);
+          for (let k = -2; k <= 2; k++) at(m, k * 1.0, W, 1.9, 0.55);
+          if (m >= 300) at(m, 0, [1, 1, 1], 4.2, 0, 1.9, m / 900);
+          if (m <= 270) for (const sgn of [-1, 1]) for (const l of [9, 10.5, 12]) at(m, sgn * l, R, 1.7, 0.45);
         }
         for (const [m, half, step] of [[150, 9, 1.8], [300, 15, 1.5], [450, 6, 1.5], [600, 6, 1.5], [750, 6, 1.5]] as const) {
-          for (let l = -half; l <= half + 1e-6; l += step) if (Math.abs(l) > 2.5) at(m, l, W, 1.0, 0.5);
+          for (let l = -half; l <= half + 1e-6; l += step) if (Math.abs(l) > 2.5) at(m, l, W, 1.8, 0.5);
         }
         // runway centreline lights and touchdown-zone bars
-        for (let m = 0; m <= L; m += 15) add(end.x + ux * dir * m, end.y + uy * dir * m, W, 0.8, 0, 0.12);
-        for (let m = 60; m <= 900; m += 60) for (const sgn of [-1, 1]) for (const l of [5.5, 7, 8.5]) add(tx + ux * dir * m + px * sgn * l, ty + uy * dir * m + py * sgn * l, W, 0.8, 0, 0.12);
+        for (let m = 0; m <= L; m += 15) add(end.x + ux * dir * m, end.y + uy * dir * m, W, 0.9, 0, 0.3);
+        for (let m = 60; m <= 900; m += 60) for (const sgn of [-1, 1]) for (const l of [5.5, 7, 8.5]) add(tx + ux * dir * m + px * sgn * l, ty + uy * dir * m + py * sgn * l, W, 0.9, 0, 0.3);
       }
     }
     // taxiway edge (blue)
@@ -473,7 +473,7 @@ export class AirportRenderer {
           const x = x0 + ((x1 - x0) * m) / L, y = y0 + ((y1 - y0) * m) / L;
           for (const s of [-1, 1]) add(x + nx * (TAXIWAY_HALF_WIDTH + 1) * s, y + ny * (TAXIWAY_HALF_WIDTH + 1) * s, [0.2, 0.35, 1], 0.7);
         }
-        for (let m = 0; m < L; m += 30) add(x0 + ((x1 - x0) * m) / L, y0 + ((y1 - y0) * m) / L, [0.2, 1, 0.35], 0.7, 0, 0.08);
+        for (let m = 0; m < L; m += 30) add(x0 + ((x1 - x0) * m) / L, y0 + ((y1 - y0) * m) / L, [0.2, 1, 0.35], 0.8, 0, 0.3);
       }
     }
     const g = new THREE.BufferGeometry();
