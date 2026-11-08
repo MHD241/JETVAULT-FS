@@ -80,6 +80,7 @@ function fuselage() {
 
 /** TEMPORARY: paint the control surfaces that have been cut out and animated so far (elevators, ailerons) bright orange for checking. Set to false to remove. */
 const TEMP_TINT_SURFACES = true;
+const SPOILER_MAX_RAD = 40 * Math.PI / 180;
 const POD_SLIDE_PER_RAD = 0.3 / (40 * Math.PI / 180);
 
 export class B737Model {
@@ -351,6 +352,11 @@ export class B737Model {
     if (this.fullLoaded) {
       // control surfaces follow the flight model's actual (lagged) surface angles; the simulator's elevator is negative with the trailing edge UP
       for (const f of this.fullSurf) {
+        if (f.kind === 'spoiler') {
+          // 0 -> 1 follows aircraft.spoiler; full lever = 40 degrees up
+          f.obj.matrix.makeTranslation(f.p0.x, f.p0.y, f.p0.z).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, SPOILER_MAX_RAD * ac.spoiler)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
+          f.obj.matrixWorldNeedsUpdate = true; continue;
+        }
         if (f.kind === 'pod') {
           // slides aft (0.3 m at 40 deg) and tilts its tail end down (0.25 x the flap angle, about 10 deg at 40 deg) about the front cut
           f.obj.matrix.makeTranslation(0, 0, -POD_SLIDE_PER_RAD * ac.flap).multiply(new THREE.Matrix4().makeTranslation(f.p0.x, f.p0.y, f.p0.z)).multiply(new THREE.Matrix4().makeRotationAxis(f.axis, -0.25 * ac.flap)).multiply(new THREE.Matrix4().makeTranslation(-f.p0.x, -f.p0.y, -f.p0.z));
@@ -423,7 +429,7 @@ export class B737Model {
   /** Gear parts of the full glTF (hidden when the gear is up). */
   private fullGear: { obj: THREE.Object3D; pivot: THREE.Vector3; kind: 'N' | 'L' | 'R' }[] = [];
   /** Control surfaces cut out of the model, each swinging about a hinge line (two points in model space, root to tip, x increasing). */
-  private fullSurf: { obj: THREE.Object3D; p0: THREE.Vector3; axis: THREE.Vector3; kind: 'elevator' | 'aileronL' | 'aileronR' | 'rudder' | 'flap' | 'pod' }[] = [];
+  private fullSurf: { obj: THREE.Object3D; p0: THREE.Vector3; axis: THREE.Vector3; kind: 'elevator' | 'aileronL' | 'aileronR' | 'rudder' | 'flap' | 'pod' | 'spoiler' }[] = [];
   private fullLoaded = false;
 
   /**
@@ -492,6 +498,12 @@ export class B737Model {
       const g = root.getObjectByName(name); if (!g) continue;
       const pv = g.userData?.pivot as number[] | undefined; // the pod swings about its front cut
       g.matrixAutoUpdate = false; this.fullSurf.push({ obj: g, p0: pv ? new THREE.Vector3(...pv) : new THREE.Vector3(), axis: new THREE.Vector3(1, 0, 0), kind: 'pod' });
+    }
+    // spoilers: five panels per wing, each hinged on its front edge and rising with the simulator's spoiler position (speedbrake lever)
+    for (const name of ['spoR1', 'spoR2', 'spoR3', 'spoR4', 'spoR5', 'spoL1', 'spoL2', 'spoL3', 'spoL4', 'spoL5']) {
+      const g = root.getObjectByName(name); const h = g?.userData?.hinge as number[][] | undefined; if (!g || !h) continue;
+      let a = new THREE.Vector3(...h[0]), b = new THREE.Vector3(...h[1]); if (b.x < a.x) [a, b] = [b, a]; // axis toward +x: +angle raises the trailing edge
+      g.matrixAutoUpdate = false; this.fullSurf.push({ obj: g, p0: a, axis: b.clone().sub(a).normalize(), kind: 'spoiler' });
     }
     // matte + slight glow so the temporary tint reads as orange in any light
     if (TEMP_TINT_SURFACES) for (const f of this.fullSurf) f.obj.traverse((o) => {
