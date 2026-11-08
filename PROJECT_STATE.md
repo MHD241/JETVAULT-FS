@@ -670,3 +670,8 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 
 ## Update 108 — Pro ground matched to the concept pictures
 - User: the ground did not look like the reference. In the concept pictures the land is one lush olive-green grass with soft variation, woods and hedges, not coloured parcels. Pro ground now paints cropland/grass classes as that single grass (soft large-scale variation, faint stripes), everywhere including near the airfield; hedgerows and woods kept. Brightness was nudged up after the last screenshot (not re-checked). Still different from the reference: trees are lollipops, buildings grey boxes, no hill/castle, no hand-built terminal.
+
+## Update 109 — Pro grass: photo texture, relief and real 3D blades
+- Ground uses the user's ambientCG Grass001 (CC0) colour map (`public/textures/grass001.jpg`, 512 px) at two scales (fades to flat colour with distance) and its normal map (`grass001_n.jpg`) for relief lighting up to ~500 m. Base grass colour darkened.
+- New `src/render/grassBlades.ts` (pro only): instanced tufts of real 3D blades within 38 m of the camera on grass/crop land, one draw call, re-centred every 8 m, off above 120 m height.
+- Verified in headless screenshots only (blades visible; the photo detail on the flat ground is subtle). Not measured on a real GPU. Free edition unchanged.

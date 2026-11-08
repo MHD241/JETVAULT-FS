@@ -44,7 +44,8 @@ import { TreeField, FieldScenery, BuggyModel } from './render/gliderField';
 import { GroundVehicles } from './render/groundVehicles';
 import { Grade } from './render/grade';
 import { Forest } from './render/forest';
-import { FOCUS_MODE, airportVisible, FOCUS_AIRCRAFT } from './config';
+import { GrassBlades } from './render/grassBlades';
+import { FOCUS_MODE, airportVisible, FOCUS_AIRCRAFT, PRO } from './config';
 import { generateCity } from './world/city';
 import { loadCustomDesign } from './render/cockpitCustom';
 import { STUDIO_ORIGIN } from './studio/parts';
@@ -103,6 +104,7 @@ class App implements MenuHost {
   private winchFx = 0;
   private rollFx = 0;
   private forest: Forest | null = null;
+  private grassBlades: GrassBlades | null = null;
   /** Live reflection probe at the aircraft: a cube map of the real surroundings (terrain, buildings, sky), refreshed every few frames. */
   private reflectRT: THREE.WebGLCubeRenderTarget | null = null;
   private reflectCam: THREE.CubeCamera | null = null;
@@ -867,6 +869,8 @@ class App implements MenuHost {
     }
     if (!this.forest && !new URLSearchParams(location.search).has('noforest')) { this.forest = new Forest(this.world, new URLSearchParams(location.search).has('forestlite') ? 1300 : 2300, 15); this.scene.add(this.forest.group); }
     if (this.forest && !this.menu.open) this.forest.update(this.rig.camera.position);
+    if (PRO && !this.grassBlades) { this.grassBlades = new GrassBlades(this.world); this.scene.add(this.grassBlades.group); }
+    if (this.grassBlades && !this.menu.open) { const g = this.rig.camera.position; if (g.y - this.world.terrain.heightAt(g.x, -g.z) < 120) this.grassBlades.update(g); else this.grassBlades.group.visible = false; if (g.y - this.world.terrain.heightAt(g.x, -g.z) < 120) this.grassBlades.group.visible = true; }
     this.syncAircraftEnv();
     {
       // contact shadow: follows the aircraft over the ground, fades with height; size by aircraft type

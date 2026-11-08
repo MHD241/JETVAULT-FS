@@ -41,6 +41,19 @@ export interface TerrainPatch {
   imagery: TerrainOverlay | null;
 }
 
+let grassTex: THREE.Texture | null = null, grassNTex: THREE.Texture | null = null;
+function grassNormalTexture(): THREE.Texture {
+  if (!grassNTex) { grassNTex = new THREE.TextureLoader().load(import.meta.env.BASE_URL + 'textures/grass001_n.jpg'); grassNTex.wrapS = grassNTex.wrapT = THREE.RepeatWrapping; grassNTex.anisotropy = 8; grassNTex.colorSpace = THREE.NoColorSpace; }
+  return grassNTex;
+}
+function grassTexture(): THREE.Texture {
+  if (!grassTex) {
+    grassTex = new THREE.TextureLoader().load(import.meta.env.BASE_URL + 'textures/grass001.jpg');
+    grassTex.wrapS = grassTex.wrapT = THREE.RepeatWrapping; grassTex.anisotropy = 8; grassTex.colorSpace = THREE.NoColorSpace;
+  }
+  return grassTex;
+}
+
 export class TerrainRenderer {
   readonly group = new THREE.Group();
   private chunks: Chunk[] = [];
@@ -300,6 +313,8 @@ function makeTerrainMaterial(shared: Record<string, THREE.IUniform>, lc: LandCov
     uRoads: { value: roads ? roads.texture : null },
     uImg: { value: imagery ? imagery.texture : null },
     uPro: { value: PRO ? 1 : 0 },
+    uGrass: { value: grassTexture() },
+    uGrassN: { value: grassNormalTexture() },
     uImgRect: { value: imagery ? new THREE.Vector3(imagery.e0, imagery.n0, imagery.size) : new THREE.Vector3(0, 0, -1) },
     uRoadsRect: { value: roads ? new THREE.Vector3(roads.e0, roads.n0, roads.size) : new THREE.Vector3(0, 0, -1) },
   };
@@ -323,6 +338,8 @@ uniform vec3 uRoadsRect;
 uniform sampler2D uImg;
 uniform vec3 uImgRect;
 uniform float uPro;
+uniform sampler2D uGrass;
+uniform sampler2D uGrassN;
 float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 vec3 srgb(vec3 c) { return pow(c, vec3(2.2)); }
 // ESA WorldCover class -> albedo, with per-field variation for cropland
@@ -384,9 +401,14 @@ float gWater; float gBuilt; float gPaved;
       vec2 cell = w / 130.0; vec2 id = floor(cell); vec2 fc = fract(cell);
       float h1 = hash12(id), h2 = hash12(id + 7.7), h3 = hash12(id + 19.3);
       // reference look: one lush, slightly olive grass green with soft large-scale variation (no strongly coloured parcels)
-      vec3 grass = mix(vec3(0.26, 0.37, 0.12), vec3(0.34, 0.45, 0.16), smoothstep(0.3, 0.7, texture2D(uDetail, en / 260.0).r));
+      vec3 grass = mix(vec3(0.17, 0.27, 0.08), vec3(0.23, 0.34, 0.10), smoothstep(0.3, 0.7, texture2D(uDetail, en / 260.0).r));
       grass *= mix(0.94, 1.06, h1) * (0.92 + 0.16 * n2);
-      col = srgb(grass);
+      // real grass photo (ambientCG Grass001, CC0), two scales so the repeat does not show, fading to flat colour with distance
+      float dG = length(vWorldPos - cameraPosition);
+      vec3 g1 = texture2D(uGrass, en / 3.0).rgb, g2 = texture2D(uGrass, en / 17.0 + 0.31).rgb;
+      float lum = dot(mix(g1, g2, 0.45), vec3(0.3, 0.55, 0.15)) / 0.30;     // photo brightness relative to its average
+      lum = mix(1.0, clamp(lum, 0.55, 1.6), 1.0 - smoothstep(60.0, 700.0, dG));
+      col = srgb(grass) * lum;
       float ang = h3 * 3.1416;
       float stripe = sin(dot(w, vec2(cos(ang), sin(ang))) * (6.2832 / (3.0 + 3.0 * h2))) * 0.5 + 0.5;
       col *= 1.0 + (stripe - 0.5) * 0.06 * nearP * (lc < 35.0 ? 0.6 : 1.0) * away;
@@ -462,6 +484,15 @@ roughnessFactor = mix(roughnessFactor, 0.08, gWater * (1.0 - gPaved));
 roughnessFactor = mix(roughnessFactor, mix(0.85, 0.35, uWet), gPaved);
 `)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+if (uPro > 0.5) {
+  // grass relief: the photo's normal map bends the lighting on the ground, strongest close to the camera and fading smoothly with distance
+  vec2 enN = vec2(vWorldPos.x, -vWorldPos.z);
+  float dN = length(vWorldPos - cameraPosition);
+  vec3 nm = mix(texture2D(uGrassN, enN / 2.2).xyz, texture2D(uGrassN, enN / 9.0 + 0.17).xyz, 0.5) * 2.0 - 1.0;
+  float gs = (1.0 - smoothstep(30.0, 500.0, dN)) * (1.0 - gPaved) * (1.0 - gWater) * (1.0 - gBuilt);
+  vec3 wn2 = normalize(vec3(nm.x * 1.3 * gs, 1.0, -nm.y * 1.3 * gs));
+  normal = normalize(mix(normal, normalize((viewMatrix * vec4(wn2, 0.0)).xyz), gs));
+}
 if (gWater > 0.01) {
   vec2 en2 = vec2(vWorldPos.x, -vWorldPos.z);
   vec2 r1 = texture2D(uDetail, en2 / 31.0 + vec2(uTime * 0.011, uTime * 0.007)).rg - 0.5;
