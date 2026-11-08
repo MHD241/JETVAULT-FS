@@ -643,3 +643,7 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 - Runtime: each panel rotates about its hinge by 40 deg x `aircraft.spoiler` (0..1, the simulator's spoiler position, moved by the speedbrake lever over 1.5 s). Measured in a browser: spoR4's highest point 3.213 m at lever 0, 3.349 at 0.5, 3.506 at 1 (0.29 m = 40 deg). Rendered from behind: raised strips visible on both wings. All panels rise together (no separate ground-spoiler / roll-spoiler logic yet).
 - Known: the dividers between panels are straight while the model's engraved ones slant slightly; raising leaves small side slits; the wing body mesh grew ~11k triangles from the clipping (108.8k -> 119.8k body triangles).
 - Next: slats/trim optional; remove `TEMP_TINT_SURFACES` at the end; flaps + pods rebuild later.
+
+## Update 103 — spoilers smaller, with gaps
+- User approved a drawing: each spoiler 15 % shallower (about 0.42 m, was 0.50 m; hinge line unchanged, rear edge moved forward) and 12 cm narrower so there is a 12 cm gap between neighbouring panels (outer panels 6 cm in from the ends). `tools/b738/conv3_spoilers.py` has `SPO_GAP` and the new `SPO_RE`; triangles per panel 78-112, left and right similar.
+- Rendered from above with the lever down and up: five separate strips per wing with clear gaps. The gap areas show the wing's own upper skin.
