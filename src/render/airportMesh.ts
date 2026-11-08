@@ -2,6 +2,7 @@
 // (painted into the terrain overlay so it lies exactly on the physics surface), taxiway
 // centrelines, runway/taxiway lighting and an optically correct PAPI.
 
+import { PRO } from '../config';
 import * as THREE from 'three';
 import { AirportData, Runway, TAXIWAY_HALF_WIDTH } from '../world/airport';
 import { Terrain } from '../world/terrain';
@@ -445,6 +446,12 @@ export class AirportRenderer {
           add(tx + px * k * 3.5, ty + py * k * 3.5, [0.2, 1, 0.35], 1.2);
           add(end.x + px * k * 3.5 - ux * dir * 1, end.y + py * k * 3.5 - uy * dir * 1, [1, 0.12, 0.1], 1.1);
         }
+        if (!PRO) {
+          // simple approach light centreline (barrettes every 30 m out to 600 m)
+          for (let m = 30; m <= 600; m += 30) {
+            for (let k = -2; k <= 2; k++) add(end.x - ux * dir * m + px * k * 1.2, end.y - uy * dir * m + py * k * 1.2, [1, 0.95, 0.8], 1, 0, 1.5);
+          }
+        } else {
         // approach lighting (ALSF-2 style): centreline barrettes every 30 m out to 900 m, crossbars at 150 / 300 / 450 / 600 / 750 m,
         // red side rows over the last 270 m, and sequenced flashers from 300 m outward. Faintly visible in daylight too.
         const W: [number, number, number] = [1, 0.95, 0.82], R: [number, number, number] = [1, 0.14, 0.1];
@@ -461,6 +468,7 @@ export class AirportRenderer {
         // runway centreline lights and touchdown-zone bars
         for (let m = 0; m <= L; m += 15) add(end.x + ux * dir * m, end.y + uy * dir * m, W, 0.9, 0, 0.3);
         for (let m = 60; m <= 900; m += 60) for (const sgn of [-1, 1]) for (const l of [5.5, 7, 8.5]) add(tx + ux * dir * m + px * sgn * l, ty + uy * dir * m + py * sgn * l, W, 0.9, 0, 0.3);
+        }
       }
     }
     // taxiway edge (blue)
@@ -473,7 +481,7 @@ export class AirportRenderer {
           const x = x0 + ((x1 - x0) * m) / L, y = y0 + ((y1 - y0) * m) / L;
           for (const s of [-1, 1]) add(x + nx * (TAXIWAY_HALF_WIDTH + 1) * s, y + ny * (TAXIWAY_HALF_WIDTH + 1) * s, [0.2, 0.35, 1], 0.7);
         }
-        for (let m = 0; m < L; m += 30) add(x0 + ((x1 - x0) * m) / L, y0 + ((y1 - y0) * m) / L, [0.2, 1, 0.35], 0.8, 0, 0.3);
+        if (PRO) for (let m = 0; m < L; m += 30) add(x0 + ((x1 - x0) * m) / L, y0 + ((y1 - y0) * m) / L, [0.2, 1, 0.35], 0.8, 0, 0.3);
       }
     }
     const g = new THREE.BufferGeometry();

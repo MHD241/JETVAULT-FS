@@ -4,6 +4,7 @@
 // (NE-SW diagonal), so near the aircraft the drawn surface and the physics surface are
 // the same triangles. Coarser LODs are used further away; skirts hide LOD cracks.
 
+import { PRO } from '../config';
 import * as THREE from 'three';
 import { HeightGrid } from '../world/terrain';
 import { LandCover } from '../world/world';
@@ -298,6 +299,7 @@ function makeTerrainMaterial(shared: Record<string, THREE.IUniform>, lc: LandCov
     uOverlayRect: { value: overlay ? new THREE.Vector3(overlay.e0, overlay.n0, overlay.size) : new THREE.Vector3(0, 0, -1) },
     uRoads: { value: roads ? roads.texture : null },
     uImg: { value: imagery ? imagery.texture : null },
+    uPro: { value: PRO ? 1 : 0 },
     uImgRect: { value: imagery ? new THREE.Vector3(imagery.e0, imagery.n0, imagery.size) : new THREE.Vector3(0, 0, -1) },
     uRoadsRect: { value: roads ? new THREE.Vector3(roads.e0, roads.n0, roads.size) : new THREE.Vector3(0, 0, -1) },
   };
@@ -320,6 +322,7 @@ uniform sampler2D uRoads;
 uniform vec3 uRoadsRect;
 uniform sampler2D uImg;
 uniform vec3 uImgRect;
+uniform float uPro;
 float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 vec3 srgb(vec3 c) { return pow(c, vec3(2.2)); }
 // ESA WorldCover class -> albedo, with per-field variation for cropland
@@ -368,9 +371,33 @@ float gWater; float gBuilt; float gPaved;
   float slope = 1.0 - clamp(vWorldNormal.y, 0.0, 1.0);
   col = mix(col, srgb(vec3(0.42, 0.40, 0.37)) * (0.8 + 0.4 * n2), smoothstep(0.25, 0.45, slope) * (1.0 - gWater));
   col *= 0.88 + 0.24 * n2;
+  // PRO ground: authored fields instead of the blurry satellite photo (no photo reads, no sharpening: lighter on the GPU)
+  if (uPro > 0.5) {
+    float dd0 = length(vWorldPos - cameraPosition);
+    float nearP = 1.0 - smoothstep(40.0, 600.0, dd0);
+    float midP = 1.0 - smoothstep(250.0, 2600.0, dd0);
+    float lc = t.x < 0.5 ? (t.y < 0.5 ? c00 : c01) : (t.y < 0.5 ? c10 : c11);
+    float away = smoothstep(1700.0, 2600.0, length(en));          // not over the airfield itself
+    if (lc > 25.0 && lc < 45.0) {
+      // parcels of about 130 m with their own tone, mowing / crop stripes, and a hedgerow along the border
+      vec2 w = en + 45.0 * (vec2(texture2D(uDetail, en / 900.0).r, texture2D(uDetail, en / 900.0 + 0.37).g) - 0.5) * 2.0;
+      vec2 cell = w / 130.0; vec2 id = floor(cell); vec2 fc = fract(cell);
+      float h1 = hash12(id), h2 = hash12(id + 7.7), h3 = hash12(id + 19.3);
+      vec3 tint = mix(vec3(0.90, 1.0, 0.84), vec3(1.12, 1.08, 0.80), h1);
+      tint = mix(tint, vec3(1.18, 0.98, 0.72), step(0.82, h2) * 0.8);
+      col *= mix(vec3(1.0), tint, away);
+      float ang = h3 * 3.1416;
+      float stripe = sin(dot(w, vec2(cos(ang), sin(ang))) * (6.2832 / (3.0 + 3.0 * h2))) * 0.5 + 0.5;
+      col *= 1.0 + (stripe - 0.5) * 0.18 * nearP * (lc < 35.0 ? 0.6 : 1.0) * away;
+      float edge = min(min(fc.x, 1.0 - fc.x), min(fc.y, 1.0 - fc.y)) * 130.0 + (texture2D(uDetail, en / 7.0).r - 0.5) * 2.4;
+      float hedge = (1.0 - smoothstep(0.8, 2.6, edge)) * step(0.3, h1) * away;
+      col = mix(col, srgb(vec3(0.10, 0.17, 0.07)) * (0.8 + 0.5 * n2), hedge * 0.85 * midP);
+    }
+    if (lc < 15.0) col *= 0.78 + 0.55 * texture2D(uDetail, en / 5.0).g;      // woodland floor and canopy mottling
+  }
   // Sentinel-2 true-colour imagery (real ground appearance), fading out at its edges
   float gImg = 0.0;
-  if (uImgRect.z > 0.0) {
+  if (uImgRect.z > 0.0 && uPro < 0.5) {
     vec2 iuv = (en - uImgRect.xy) / uImgRect.z;
     if (iuv.x > 0.0 && iuv.y > 0.0 && iuv.x < 1.0 && iuv.y < 1.0) {
       vec2 ed = min(iuv, 1.0 - iuv) * uImgRect.z;
@@ -456,6 +483,6 @@ if (uNight > 0.01) {
 }
 `);
   };
-  mat.customProgramCacheKey = () => (overlay ? 'terrain-ov' : 'terrain') + (roads ? '-rd' : '') + (imagery ? '-img' : '');
+  mat.customProgramCacheKey = () => (PRO ? 'pro-' : '') + (overlay ? 'terrain-ov' : 'terrain') + (roads ? '-rd' : '') + (imagery ? '-img' : '');
   return mat;
 }
