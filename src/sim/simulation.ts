@@ -76,7 +76,7 @@ export class Simulation {
       const list = this.def.profile.standClearance > 12 && ap.standsJet?.length ? ap.standsJet : ap.stands;
       const [x, y, hdgDeg] = list[s.index % list.length];
       const hdg = hdgDeg * DEG;
-      this.controls = s.coldAndDark ? defaultControls() : readyControls(this.def.profile.takeoffTrim, this.def.profile.takeoffFlapLever);
+      this.controls = s.coldAndDark ? defaultControls() : readyControls(this.def.profile.takeoffTrim, this.def.profile.takeoffFlapLever); if (this.def.drone) this.controls.throttle = 0; // the inspection drone always starts with its motor off
       this.controls.parkingBrake = true;
       this.controls.kollsman = this.weather.qnh;
       for (const e of ac.engines) { if (s.coldAndDark) { e.rpm = 0; e.running = false; } else e.warmUp(P.idleRpm, ac.air); }
@@ -88,7 +88,7 @@ export class Simulation {
       const L = Math.hypot(other.x - end.x, other.y - end.y);
       const t = (end.displaced + 15) / L;
       const x = end.x + (other.x - end.x) * t, y = end.y + (other.y - end.y) * t;
-      this.controls = readyControls(this.def.profile.takeoffTrim, this.def.profile.takeoffFlapLever);
+      this.controls = readyControls(this.def.profile.takeoffTrim, this.def.profile.takeoffFlapLever); if (this.def.drone) this.controls.throttle = 0; // the inspection drone always starts with its motor off
       this.controls.kollsman = this.weather.qnh;
       this.controls.parkingBrake = false;
       this.controls.brakeLeft = 0; this.controls.brakeRight = 0;
@@ -107,7 +107,7 @@ export class Simulation {
       const tdx = end.x + ux * (end.displaced + 300), tdy = end.y + uy * (end.displaced + 300);
       const x = tdx - ux * d, y = tdy - uy * d;
       const alt = end.elev + Math.tan(3 * DEG) * d;
-      this.controls = readyControls(this.def.profile.takeoffTrim, this.def.profile.takeoffFlapLever);
+      this.controls = readyControls(this.def.profile.takeoffTrim, this.def.profile.takeoffFlapLever); if (this.def.drone) this.controls.throttle = 0; // the inspection drone always starts with its motor off
       this.controls.kollsman = this.weather.qnh;
       this.controls.throttle = P.approachThrottle;
       this.controls.flapLever = P.approachFlapLever;
@@ -129,7 +129,7 @@ export class Simulation {
     const ac = this.aircraft;
     const P = this.def.profile;
     this.autopilot.disengage();
-    this.controls = readyControls(this.def.profile.takeoffTrim, this.def.profile.takeoffFlapLever);
+    this.controls = readyControls(this.def.profile.takeoffTrim, this.def.profile.takeoffFlapLever); if (this.def.drone) this.controls.throttle = 0; // the inspection drone always starts with its motor off
     this.controls.kollsman = this.weather.qnh;
     this.controls.throttle = P.cruiseThrottle;
     this.controls.gearDown = !this.def.retractableGear;
