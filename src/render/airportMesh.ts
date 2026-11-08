@@ -248,19 +248,22 @@ export class AirportRenderer {
   constructor(private ap: AirportData, private terrain: Terrain) {
     this.group.name = 'airport';
     this.lightMat = new THREE.ShaderMaterial({
-      uniforms: { uLevel: { value: 1 }, uScale: { value: 1 } },
+      uniforms: { uLevel: { value: 1 }, uScale: { value: 1 }, uTime: { value: 0 } },
       vertexShader: `
-        attribute vec3 color; attribute float size; attribute float always;
-        uniform float uLevel; uniform float uScale;
+        attribute vec3 color; attribute float size; attribute float always; attribute float fl;
+        uniform float uLevel; uniform float uScale; uniform float uTime;
         varying vec3 vColor; varying float vA;
         void main() {
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
           gl_Position = projectionMatrix * mv;
           float d = -mv.z;
           float lvl = max(uLevel, always);
+          // fl > 0: sequenced flasher ('rabbit') on the approach centreline; fl = distance from the threshold / 900 m, the flash runs toward the runway twice a second
+          float fx = 1.0;
+          if (fl > 0.0) { float ph = fract((uTime - (1.0 - fl) * 0.28) / 0.5); fx = smoothstep(0.0, 0.04, ph) * (1.0 - smoothstep(0.07, 0.2, ph)); lvl = max(lvl, 0.9) * fx; }
           vA = lvl;
           vColor = color;
-          gl_PointSize = clamp(size * uScale * 900.0 / max(d, 1.0), 1.5, 24.0) * (0.35 + 0.65 * lvl);
+          gl_PointSize = clamp(size * uScale * 900.0 / max(d, 1.0), 1.5, 24.0) * (0.35 + 0.65 * lvl) * (fl > 0.0 ? (0.4 + 0.6 * fx) : 1.0);
         }`,
       fragmentShader: `
         varying vec3 vColor; varying float vA;
@@ -422,9 +425,9 @@ export class AirportRenderer {
   }
 
   private buildLights() {
-    const pos: number[] = [], col: number[] = [], size: number[] = [], always: number[] = [];
-    const add = (e: number, n: number, c: [number, number, number], s = 1, alw = 0, hgt = 0.35) => {
-      pos.push(e, this.h(e, n) + hgt, -n); col.push(...c); size.push(s); always.push(alw);
+    const pos: number[] = [], col: number[] = [], size: number[] = [], always: number[] = [], flash: number[] = [];
+    const add = (e: number, n: number, c: [number, number, number], s = 1, alw = 0, hgt = 0.35, fl = 0) => {
+      pos.push(e, this.h(e, n) + hgt, -n); col.push(...c); size.push(s); always.push(alw); flash.push(fl);
     };
     for (const rw of this.ap.runways) {
       if (rw.surface === 'grass') continue; // unlit grass strip
@@ -442,10 +445,22 @@ export class AirportRenderer {
           add(tx + px * k * 3.5, ty + py * k * 3.5, [0.2, 1, 0.35], 1.2);
           add(end.x + px * k * 3.5 - ux * dir * 1, end.y + py * k * 3.5 - uy * dir * 1, [1, 0.12, 0.1], 1.1);
         }
-        // simple approach light centreline (barrettes every 30 m out to 600 m)
-        for (let m = 30; m <= 600; m += 30) {
-          for (let k = -2; k <= 2; k++) add(end.x - ux * dir * m + px * k * 1.2, end.y - uy * dir * m + py * k * 1.2, [1, 0.95, 0.8], 1, 0, 1.5);
+        // approach lighting (ALSF-2 style): centreline barrettes every 30 m out to 900 m, crossbars at 150 / 300 / 450 / 600 / 750 m,
+        // red side rows over the last 270 m, and sequenced flashers from 300 m outward. Faintly visible in daylight too.
+        const W: [number, number, number] = [1, 0.95, 0.82], R: [number, number, number] = [1, 0.14, 0.1];
+        const at = (m: number, lat: number, c: [number, number, number], sz: number, alw: number, hgt = 1.5, fl = 0) =>
+          add(end.x - ux * dir * m + px * lat, end.y - uy * dir * m + py * lat, c, sz, alw, hgt, fl);
+        for (let m = 30; m <= 900; m += 30) {
+          for (let k = -2; k <= 2; k++) at(m, k * 1.0, W, 1.0, 0.55);
+          if (m >= 300) at(m, 0, [1, 1, 1], 2.4, 0, 1.9, m / 900);
+          if (m <= 270) for (const sgn of [-1, 1]) for (const l of [9, 10.5, 12]) at(m, sgn * l, R, 0.9, 0.45);
         }
+        for (const [m, half, step] of [[150, 9, 1.8], [300, 15, 1.5], [450, 6, 1.5], [600, 6, 1.5], [750, 6, 1.5]] as const) {
+          for (let l = -half; l <= half + 1e-6; l += step) if (Math.abs(l) > 2.5) at(m, l, W, 1.0, 0.5);
+        }
+        // runway centreline lights and touchdown-zone bars
+        for (let m = 0; m <= L; m += 15) add(end.x + ux * dir * m, end.y + uy * dir * m, W, 0.8, 0, 0.12);
+        for (let m = 60; m <= 900; m += 60) for (const sgn of [-1, 1]) for (const l of [5.5, 7, 8.5]) add(tx + ux * dir * m + px * sgn * l, ty + uy * dir * m + py * sgn * l, W, 0.8, 0, 0.12);
       }
     }
     // taxiway edge (blue)
@@ -458,6 +473,7 @@ export class AirportRenderer {
           const x = x0 + ((x1 - x0) * m) / L, y = y0 + ((y1 - y0) * m) / L;
           for (const s of [-1, 1]) add(x + nx * (TAXIWAY_HALF_WIDTH + 1) * s, y + ny * (TAXIWAY_HALF_WIDTH + 1) * s, [0.2, 0.35, 1], 0.7);
         }
+        for (let m = 0; m < L; m += 30) add(x0 + ((x1 - x0) * m) / L, y0 + ((y1 - y0) * m) / L, [0.2, 1, 0.35], 0.7, 0, 0.08);
       }
     }
     const g = new THREE.BufferGeometry();
@@ -465,6 +481,7 @@ export class AirportRenderer {
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
     g.setAttribute('size', new THREE.Float32BufferAttribute(size, 1));
     g.setAttribute('always', new THREE.Float32BufferAttribute(always, 1));
+    g.setAttribute('fl', new THREE.Float32BufferAttribute(flash, 1));
     const pts = new THREE.Points(g, this.lightMat);
     pts.frustumCulled = false;
     pts.name = 'airfield lights';
@@ -509,6 +526,7 @@ export class AirportRenderer {
     this.lightLevel = lightLevel;
     this.lightMat.uniforms.uLevel.value = lightLevel;
     this.lightMat.uniforms.uScale.value = pixelScale;
+    this.lightMat.uniforms.uTime.value = performance.now() / 1000;
     for (const p of this.papi) {
       p.units.forEach((u, k) => {
         const d = Math.hypot(eye.x - u.pos.x, eye.z - u.pos.z);
