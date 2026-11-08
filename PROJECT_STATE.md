@@ -675,3 +675,6 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 - Ground uses the user's ambientCG Grass001 (CC0) colour map (`public/textures/grass001.jpg`, 512 px) at two scales (fades to flat colour with distance) and its normal map (`grass001_n.jpg`) for relief lighting up to ~500 m. Base grass colour darkened.
 - New `src/render/grassBlades.ts` (pro only): instanced tufts of real 3D blades within 38 m of the camera on grass/crop land, one draw call, re-centred every 8 m, off above 120 m height.
 - Verified in headless screenshots only (blades visible; the photo detail on the flat ground is subtle). Not measured on a real GPU. Free edition unchanged.
+
+## Update 110 — Bigger sun
+- Sun disc 1.1° -> 5° with a soft 20° glow sprite re-enabled (was hidden when bloom was removed; this is a sprite, not post-process bloom); cloud undersides slightly brighter (`environment.ts`). Headless screenshot shows only the top edge of the sun, so its final size/look is NOT verified; cloud colour is still greyer than the reference's white fluffy clouds.

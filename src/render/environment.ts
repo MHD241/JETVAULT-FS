@@ -88,7 +88,6 @@ export class EnvironmentRenderer {
       m.renderOrder = order; m.frustumCulled = false; scene.add(m); return m;
     };
     this.sunGlow = mk(disc([[0, 'rgba(255,245,215,0.42)'], [0.06, 'rgba(255,232,180,0.17)'], [0.2, 'rgba(255,214,150,0.05)'], [0.5, 'rgba(255,198,135,0.012)'], [1, 'rgba(255,190,120,0)']]), 1);
-    this.sunGlow.visible = false; // the wide halo is not used any more (no glow / bloom look)
     this.sunCore = mk(disc([[0, 'rgba(255,255,255,1)'], [0.55, 'rgba(255,252,235,1)'], [0.8, 'rgba(255,240,200,0.55)'], [1, 'rgba(255,230,180,0)']]), 1);
     this.hemi = new THREE.HemisphereLight(0xbfd6ff, 0x4a4a3a, 0.6);
     scene.add(this.hemi);
@@ -124,7 +123,7 @@ export class EnvironmentRenderer {
           float below = step(uCam.y, vW.y);
           float lit = clamp(uSun.y * 1.5 + 0.2, 0.0, 1.0);
           vec3 top = uSunCol * (0.6 + 0.6 * lit) + uAmb * 0.8;
-          vec3 bottom = mix(uAmb * 1.2, uSunCol * 0.35 + uAmb * 0.8, 1.0 - d) * (1.0 - 0.45 * uCover);
+          vec3 bottom = mix(uAmb * 1.2, uSunCol * 0.35 + uAmb * 0.8, 1.0 - d) * (1.0 - 0.25 * uCover);
           vec3 col = mix(top, bottom, below * 0.85);
           float dist = length(vW - uCam);
           float fog = 1.0 - exp(-pow(uFogD * dist, 2.0));
@@ -196,7 +195,7 @@ export class EnvironmentRenderer {
       // sun disc: 1.6 deg core, ~22 deg glow; hidden below the horizon, dimmer and warmer when low or overcast
       const D = 200000, vis = THREE.MathUtils.smoothstep(sp.elevation, -2, 1.5);
       const low = 1 - THREE.MathUtils.smoothstep(sp.elevation, 2, 25);
-      for (const [s, ang, k] of [[this.sunCore, 1.1, 1.6]] as [THREE.Sprite, number, number][]) {
+      for (const [s, ang, k] of [[this.sunCore, 5, 1.6], [this.sunGlow, 20, 0.8]] as [THREE.Sprite, number, number][]) {
         s.position.copy(cam).addScaledVector(this.sunDir, D);
         s.scale.setScalar(2 * D * Math.tan((ang * Math.PI) / 360));
         const m = s.material as THREE.SpriteMaterial;
