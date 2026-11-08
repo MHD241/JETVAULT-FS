@@ -70,7 +70,9 @@ def front_fn(nm,x):
 # ---- spoilers (user-approved drawing): five panels per wing between the model's engraved lines; hinge on the front line, panels rise
 SPO_X=[4.75,5.85,6.85,7.90,8.90,10.15]
 SPO_FR=lambda x:-5.65+(-7.53+5.65)*(x-4.75)/(10.15-4.75)      # front (hinge) line
-SPO_RE=lambda x:-6.10+(-8.10+6.10)*(x-4.75)/(10.15-4.75)      # rear edge
+SPO_RE0=lambda x:-6.10+(-8.10+6.10)*(x-4.75)/(10.15-4.75)     # the first (approved) rear edge
+SPO_RE=lambda x:SPO_FR(x)-0.85*(SPO_FR(x)-SPO_RE0(x))           # 15 % shallower (user request), hinge unchanged
+SPO_GAP=0.12                                                    # gap between neighbouring panels (user request)
 SPO_TOPX=[1.65,2,3,4,5,6,7,8,9,10.15];SPO_TOPY=[2.40,2.42,2.54,2.75,2.85,2.95,3.05,3.13,3.21,3.34]
 SPO_TOP=lambda x:float(np.interp(x,SPO_TOPX,SPO_TOPY))
 SPO_THICK=0.05
@@ -164,7 +166,7 @@ def proc(verts,k,m,allow_flap,allow_spo=True):
         xr_=lambda v:XC+side*(v[0]-XC)
         pieces=[list(verts)];hit=False
         for i in range(5):
-            xa,xb=SPO_X[i],SPO_X[i+1];nxt=[]
+            xa,xb=SPO_X[i]+SPO_GAP/2,SPO_X[i+1]-SPO_GAP/2;nxt=[]
             fns=[lambda v:xr_(v)-xa,lambda v:xb-xr_(v),lambda v:SPO_FR(xr_(v))-v[2],lambda v:v[2]-SPO_RE(xr_(v))]
             for pc in pieces:
                 ins,outs=clip_convex(pc,fns)
@@ -397,7 +399,7 @@ for _n,_pv in POD_PIVOT.items():extras[_n]={'pivot':_pv}
 for side in (1,-1):
     mx=(lambda x:x) if side==1 else (lambda x:2*XC-x)
     for i in range(5):
-        xa,xb=SPO_X[i],SPO_X[i+1]
+        xa,xb=SPO_X[i]+SPO_GAP/2,SPO_X[i+1]-SPO_GAP/2
         extras['spo%s%d'%('R' if side==1 else 'L',i+1)]={'hinge':[[mx(xa),SPO_TOP(xa)-0.02,SPO_FR(xa)],[mx(xb),SPO_TOP(xb)-0.02,SPO_FR(xb)]]}
 extras['rud']={'hinge':[[XC,6.3,float(rhzB(6.3))],[XC,RUD_YT,float(rhzB(RUD_YT))]]}
 for part in ('body','gearN','gearL','gearR','elevL','elevR','ailL','ailR','rud')+tuple('spo%s%d'%(sd,i+1) for sd in 'RL' for i in range(5)):
