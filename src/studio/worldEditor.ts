@@ -36,7 +36,7 @@ export class WorldEditor {
   private info!: HTMLDivElement;
   private yaw = 0; private pitch = -0.4; private speed = 80;
   private keys = new Set<string>();
-  private look = false;
+  private down: { x: number; y: number; btn: number; moved: boolean } | null = null;
   private ray = new THREE.Raycaster();
   private undo: string[] = [];
   onChange: (on: boolean) => void = () => {};
@@ -53,7 +53,7 @@ export class WorldEditor {
         <button data-a="rl">⟲ Rotate</button><button data-a="rr">⟳ Rotate</button><button data-a="sm">Smaller</button><button data-a="sb">Bigger</button>
         <button data-a="del">Delete</button><button data-a="undo">Undo</button><button data-a="exp">Export</button><button data-a="imp">Import</button>
         <button data-a="clr" style="grid-column:1/3">Clear everything</button></div>
-      <div style="color:#8b94a0;font-size:12px;margin-top:8px;line-height:1.5">Fly: <b>WASD</b>, <b>Q/E</b> down/up, <b>Shift</b> fast, wheel = speed, hold <b>right mouse</b> to look.<br>Click ground = place. Click a part = select. <b>Alt+click</b> = move selected. Esc = stop placing.</div>`;
+      <div style="color:#8b94a0;font-size:12px;margin-top:8px;line-height:1.5">Trackpad: <b>two-finger scroll</b> = fly forward/back/sideways, <b>pinch</b> = up/down, <b>press and drag</b> = look around, <b>, .</b> = slower/faster. (Keys also work: WASD, Q/E, Shift.)<br>Tap ground = place. Click a part = select. <b>Alt+click</b> = move selected. Esc = stop placing.</div>`;
     document.body.appendChild(this.panel);
     this.info = this.panel.querySelector('#ws-info') as HTMLDivElement;
     const kinds = this.panel.querySelector('#ws-kinds') as HTMLDivElement;
@@ -70,11 +70,23 @@ export class WorldEditor {
     });
     window.addEventListener('keydown', (e) => this.onKey(e, true), true);
     window.addEventListener('keyup', (e) => this.onKey(e, false), true);
-    window.addEventListener('wheel', (e) => { if (this.active && !this.panel.contains(e.target as Node)) { this.speed = Math.min(6000, Math.max(5, this.speed * (e.deltaY < 0 ? 1.2 : 1 / 1.2))); this.refresh(); } }, { passive: true });
+    window.addEventListener('wheel', (e) => {
+      if (!this.active || this.panel.contains(e.target as Node)) return;
+      e.preventDefault();                                   // trackpad: two-finger scroll flies, pinch moves up/down (no page zoom)
+      const k = this.speed * 0.004, p = this.cam.position;
+      if (e.ctrlKey) { p.y -= e.deltaY * k * 6; return; }
+      const f = new THREE.Vector3(-Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), -Math.cos(this.yaw) * Math.cos(this.pitch));
+      const r = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+      p.addScaledVector(f, -e.deltaY * k).addScaledVector(r, e.deltaX * k);
+    }, { passive: false });
     dom.addEventListener('contextmenu', (e) => { if (this.active) e.preventDefault(); });
-    dom.addEventListener('mousedown', (e) => this.onDown(e));
-    window.addEventListener('mouseup', (e) => { if (e.button === 2) this.look = false; });
-    window.addEventListener('mousemove', (e) => { if (this.active && this.look) { this.yaw -= e.movementX * 0.003; this.pitch = Math.max(-1.55, Math.min(1.55, this.pitch - e.movementY * 0.003)); } });
+    dom.addEventListener('mousedown', (e) => { if (this.active && !this.panel.contains(e.target as Node) && (e.button === 0 || e.button === 2)) { this.down = { x: e.clientX, y: e.clientY, btn: e.button, moved: false }; } });
+    window.addEventListener('mouseup', (e) => { const d = this.down; this.down = null; if (this.active && d && !d.moved && d.btn === 0) this.onClick(e); });
+    window.addEventListener('mousemove', (e) => {
+      const d = this.down; if (!this.active || !d) return;
+      if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 5) d.moved = true;   // drag with one finger down = look around
+      if (d.moved) { this.yaw -= e.movementX * 0.004; this.pitch = Math.max(-1.55, Math.min(1.55, this.pitch - e.movementY * 0.004)); }
+    });
     this.refresh();
   }
 
@@ -82,7 +94,7 @@ export class WorldEditor {
     if (on === this.active) return;
     this.active = on; this.panel.style.display = on ? 'block' : 'none';
     if (on) { const e = new THREE.Euler().setFromQuaternion(this.cam.quaternion, 'YXZ'); this.yaw = e.y; this.pitch = Math.min(-0.3, e.x); this.cam.position.y += 40; }
-    this.look = false; this.keys.clear(); this.onChange(on);
+    this.down = null; this.keys.clear(); this.onChange(on);
   }
 
   private refresh() {
@@ -119,10 +131,8 @@ export class WorldEditor {
     return null;
   }
 
-  private onDown(ev: MouseEvent) {
+  private onClick(ev: MouseEvent) {
     if (!this.active || this.panel.contains(ev.target as Node)) return;
-    if (ev.button === 2) { this.look = true; return; }
-    if (ev.button !== 0) return;
     const r = this.dom.getBoundingClientRect();
     this.ray.setFromCamera(new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1), this.cam);
     const hit = this.ray.intersectObjects(this.objs, true)[0];
@@ -145,6 +155,7 @@ export class WorldEditor {
     else if (k === '[') this.edit((i) => { i.r -= 0.2618; }); else if (k === ']') this.edit((i) => { i.r += 0.2618; });
     else if (k === '-') this.edit((i) => { i.s = Math.max(0.2, i.s / 1.15); }); else if (k === '=' || k === '+') this.edit((i) => { i.s = Math.min(8, i.s * 1.15); });
     else if (k === 'escape') { this.armed = null; this.sel = -1; this.commit(false); this.refresh(); }
+    else if (k === ',') { this.speed = Math.max(5, this.speed / 1.3); this.refresh(); } else if (k === '.') { this.speed = Math.min(6000, this.speed * 1.3); this.refresh(); }
     else if (k === 'z' && (e.ctrlKey || e.metaKey)) this.doUndo();
   }
 
