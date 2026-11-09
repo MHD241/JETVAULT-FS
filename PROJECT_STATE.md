@@ -691,3 +691,7 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 
 ## Update 113 — Grass blades visible, thin out with altitude
 - Blades are bigger/greener (0.30-0.52 m tall, wider, brighter tips), radius 38 m, none within 1.5 m of the camera. They no longer vanish all at once at 120 m: the kept fraction falls smoothly from 100% at 6 m height to 0% at ~156 m (per-blade random threshold, rebuilt when the fraction moves 6%). Verified visible at ground level in a headless screenshot; the thinning at mid-altitude was not seen in a screenshot (my altitude test shot went wrong), only by the formula.
+
+## Update 114 — Drone is now a flying camera (no physics)
+- The inspection drone no longer uses the flight model: `Aircraft.step` has a kinematic branch for `def.drone`. No gravity, aerodynamics, gusts, stall buffet, gear or crashing. Throttle keys 1..9 set the speed (key 1 / idle = stop and hover); speed eases in with a 0.35 s time constant. The stick turns it at fixed rates (roll 1.6, pitch 0.9, yaw 0.6 rad/s at full deflection) and it keeps its attitude when the stick is centred. It cannot go below 1.2 m above the ground. Bungee launch is disabled for it (not needed).
+- Test (`tests/drone.test.ts`): holds 110-118 m/s and altitude within 0.5 m for 30 s with centred stick, then stops dead when the throttle is idle. 110 tests pass. Not flown with a real keyboard/mouse; the turn rates are my guess and may need tuning.

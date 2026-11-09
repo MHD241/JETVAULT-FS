@@ -156,6 +156,7 @@ export class Aircraft {
   /** Spoiler panel extension 0..1. */
   spoiler = 0;
   private droneI = 0;
+  private droneV = 0;
   gearStates: GearState[];
   contactActive: boolean[];
   payload: number[];
@@ -341,6 +342,26 @@ export class Aircraft {
     this.mach = this.tas / this.air.speedOfSound;
     this.qbar = 0.5 * this.air.density * this.tas * this.tas;
     this.cas = casFromImpactPressure(impactPressure(Math.max(0, vb.x), this.air));
+
+    // --- Inspection drone: a flying camera, not an aircraft. No gravity, no aerodynamics, no gusts and no crashing: it holds the
+    // speed the 1..9 keys select (0 = hover), turns with the stick at fixed rates and keeps its attitude when the stick is centred.
+    const isDrone = !!d.drone;
+    if (isDrone) {
+      const vt = droneSpeed(c.throttle, d.drone!);
+      this.droneV = approach(this.droneV, vt, 0.35, dt);
+      this.omega = new Vec3(clamp(c.roll, -1, 1) * 1.6, clamp(c.pitch, -1, 1) * 0.9, clamp(c.yaw, -1, 1) * 0.6);
+      this.q.integrate(this.omega, dt);
+      this.vel = this.q.rotate(new Vec3(this.droneV, 0, 0));
+      this.pos.addScaled(this.vel, dt);
+      const floor = this.groundElevation + 1.2;
+      if (this.altitude < floor) this.pos.z = -floor;
+      this.onGround = false; this.crashed = false; this.cable = null;
+      this.tas = this.droneV; this.mach = this.tas / this.air.speedOfSound; this.alpha = 0; this.beta = 0; this.buffet = 0; this.stallWarning = false;
+      this.specificForce = new Vec3(0, 0, -9.80665); this.loadFactor = 1; this.airVelBody = new Vec3(this.droneV, 0, 0);
+      this.qbar = 0.5 * this.air.density * this.tas * this.tas;
+      this.cas = casFromImpactPressure(impactPressure(this.droneV, this.air));
+      return;
+    }
 
     // --- Propulsion
     const F = new Vec3();

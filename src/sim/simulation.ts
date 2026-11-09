@@ -151,7 +151,7 @@ export class Simulation {
   /** Winch launch: a cable to a winch 1,400 m ahead along the heading (glider stopped on the ground). */
   startWinch(): boolean {
     const ac = this.aircraft;
-    if (!ac.def.glider || !ac.onGround || Math.hypot(ac.vel.x, ac.vel.y) > 1.5) return false;
+    if (ac.def.drone || !ac.def.glider || !ac.onGround || Math.hypot(ac.vel.x, ac.vel.y) > 1.5) return false;
     const fwd = ac.q.rotate(new Vec3(1, 0, 0));
     const h = Math.hypot(fwd.x, fwd.y) || 1;
     const n = ac.pos.x + (fwd.x / h) * 1400, e = ac.pos.y + (fwd.y / h) * 1400;

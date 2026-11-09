@@ -1,4 +1,4 @@
-// Inspection drone: the speed-hold motor accelerates it toward the speed chosen with the throttle keys; motor off = coasting.
+// Inspection drone: a kinematic flying camera (no physics): holds the chosen speed, altitude and attitude.
 import { describe, it, expect } from 'vitest';
 import { flatWorld, newSim, run } from './helpers';
 import { DRONE } from '../src/sim/aircraft/drone';
@@ -14,15 +14,20 @@ describe('inspection drone', () => {
     expect(droneSpeed(0.5, d)).toBeGreaterThan(100);
     expect(droneSpeed(0.5, d)).toBeLessThan(130);
   });
-  it('accelerates under power toward the chosen speed and keeps flying', () => {
+  it('is a flying camera: holds speed, altitude and heading with the stick centred (no gravity, no shaking)', () => {
     const sim = newSim(flatWorld(0), undefined, DRONE);
     sim.spawnAir(0, -20000, 5000, 0);
-    sim.aircraft.vel = sim.aircraft.vel.scale(60 / sim.aircraft.vel.len());
-    sim.controls.throttle = 0.5; // target about 114 m/s
-    const at = new AutoTrim(); let vmax = 0;
-    run(sim, 40, () => { sim.controls.roll = -sim.aircraft.euler[0]; at.update(1 / 240, sim.aircraft, sim.controls, 0); vmax = Math.max(vmax, sim.aircraft.tas); });
-    console.log(`drone: peak ${vmax.toFixed(0)} m/s, final ${sim.aircraft.tas.toFixed(0)} m/s, alt ${(sim.aircraft.altitude).toFixed(0)} m`);
-    expect(Number.isFinite(sim.aircraft.tas)).toBe(true);
-    expect(vmax).toBeGreaterThan(95);
+    sim.controls.throttle = 0.5; // about 114 m/s
+    const alt0 = sim.aircraft.altitude;
+    run(sim, 30);
+    const ac = sim.aircraft;
+    expect(ac.tas).toBeGreaterThan(110);
+    expect(ac.tas).toBeLessThan(118);
+    expect(Math.abs(ac.altitude - alt0)).toBeLessThan(0.5);
+    expect(ac.omega.len()).toBeLessThan(1e-9);
+    // motor off = it simply stops and hovers
+    sim.controls.throttle = 0; run(sim, 30);
+    expect(ac.tas).toBeLessThan(0.5);
+    expect(Math.abs(ac.altitude - alt0)).toBeLessThan(0.5);
   });
 });
