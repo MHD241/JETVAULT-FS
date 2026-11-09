@@ -45,6 +45,7 @@ import { GroundVehicles } from './render/groundVehicles';
 import { Grade } from './render/grade';
 import { Forest } from './render/forest';
 import { GrassBlades } from './render/grassBlades';
+import { WorldEditor } from './studio/worldEditor';
 import { FOCUS_MODE, airportVisible, FOCUS_AIRCRAFT, PRO } from './config';
 import { generateCity } from './world/city';
 import { loadCustomDesign } from './render/cockpitCustom';
@@ -105,6 +106,8 @@ class App implements MenuHost {
   private rollFx = 0;
   private forest: Forest | null = null;
   private grassBlades: GrassBlades | null = null;
+  private editor: WorldEditor | null = null;
+  private editorPrevPaused = false;
   /** Live reflection probe at the aircraft: a cube map of the real surroundings (terrain, buildings, sky), refreshed every few frames. */
   private reflectRT: THREE.WebGLCubeRenderTarget | null = null;
   private reflectCam: THREE.CubeCamera | null = null;
@@ -884,7 +887,11 @@ class App implements MenuHost {
       (this.contactShadow.material as THREE.MeshBasicMaterial).opacity = 0.55 * k * (this.env.sunElevation > 5 ? 1 : 0.6);
       this.contactShadow.visible = k > 0.02 && !ac.crashed;
     }
-    this.rig.update(ac, dt);
+    if (PRO && !this.editor && this.world) {
+      this.editor = new WorldEditor(this.scene, this.rig.camera, this.renderer.domElement, this.world);
+      this.editor.onChange = (on) => { if (on) { this.editorPrevPaused = this.sim.paused; this.sim.paused = true; } else this.sim.paused = this.editorPrevPaused; };
+    }
+    if (this.editor?.active) this.editor.update(dt); else this.rig.update(ac, dt);
     const cam = this.rig.camera;
     {
       // stall: the camera shudders with the airframe buffet and a banner flashes while the aircraft is stalled / about to
