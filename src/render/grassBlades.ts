@@ -20,27 +20,34 @@ export class GrassBlades {
   constructor(private world: World, private radius = 38, private step = 0.5) {
     const blades: THREE.BufferGeometry[] = [];
     for (let k = 0; k < 7; k++) {
-      const a = (k / 7) * Math.PI * 2 + k, h = 0.16 + 0.12 * ((k * 37) % 7) / 7, w = 0.022;
+      const a = (k / 7) * Math.PI * 2 + k, h = 0.30 + 0.22 * ((k * 37) % 7) / 7, w = 0.032;
       const g = new THREE.BufferGeometry();
       const lean = 0.07 + 0.05 * (k % 3), ox = Math.cos(a) * 0.05, oz = Math.sin(a) * 0.05;
       const dx = Math.cos(a + 1.57) * w, dz = Math.sin(a + 1.57) * w, lx = Math.cos(a) * lean, lz = Math.sin(a) * lean;
       g.setAttribute('position', new THREE.Float32BufferAttribute([ox - dx, 0, oz - dz, ox + dx, 0, oz + dz, ox + lx, h, oz + lz], 3));
-      g.setAttribute('color', new THREE.Float32BufferAttribute([0.05, 0.10, 0.03, 0.05, 0.10, 0.03, 0.24, 0.36, 0.12], 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute([0.07, 0.14, 0.04, 0.07, 0.14, 0.04, 0.30, 0.46, 0.14], 3));
       g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
       blades.push(g);
     }
     this.geo = mergeGeometries(blades)!; this.group.name = 'grassblades';
   }
-  update(cam: THREE.Vector3) {
-    if (Math.hypot(cam.x - this.cx, cam.z - this.cz) < 8 && this.mesh) return;
-    this.cx = cam.x; this.cz = cam.z;
+  private lastKeep = -1;
+  /** Fraction of blades kept for a camera height above ground: all of them near the ground, thinning out gradually (not all at once) until none at ~160 m. */
+  static keepFor(agl: number) { return 1 - Math.min(1, Math.max(0, (agl - 6) / 150)); }
+  update(cam: THREE.Vector3, agl = 0) {
+    const keep = GrassBlades.keepFor(agl);
+    if (keep <= 0.02) { this.group.visible = false; return; }
+    this.group.visible = true;
+    if (Math.hypot(cam.x - this.cx, cam.z - this.cz) < 8 && this.mesh && Math.abs(keep - this.lastKeep) < 0.06) return;
+    this.lastKeep = keep; this.cx = cam.x; this.cz = cam.z;
     if (this.mesh) { this.group.remove(this.mesh); this.mesh.dispose(); this.mesh = null; }
     const R = this.radius, st = this.step, E0 = cam.x, N0 = -cam.z, r2 = R * R;
     const mats: THREE.Matrix4[] = [], m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     const i0 = Math.floor((E0 - R) / st), i1 = Math.floor((E0 + R) / st), j0 = Math.floor((N0 - R) / st), j1 = Math.floor((N0 + R) / st);
     for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
       const e = (i + hash(i, j, 1)) * st, n = (j + hash(i, j, 2)) * st, d2 = (e - E0) ** 2 + (n - N0) ** 2;
-      if (d2 > r2 || mats.length >= 14000) continue;
+      if (d2 > r2 || d2 < 1.5 * 1.5 || mats.length >= 16000) continue;   // nothing right at the camera
+      if (hash(i, j, 11) > keep) continue;                              // thin out progressively with altitude
       if (hash(i, j, 7) > 1 - 0.85 * (d2 / r2) * 0.9 - 0.0 && d2 > r2 * 0.25) continue; // thin out with distance
       const lc = this.world.landAt(e, n);
       if (lc !== LC.GRASS && lc !== LC.CROP) continue;

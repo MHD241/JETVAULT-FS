@@ -688,3 +688,6 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 - Sky: stronger blue ramp (0.20,0.46,1.45 up to 28% elevation), rayleigh 4.5, turbidity 1.1, mie 0.0006.
 - Sun: core 15 deg, glow 70 deg, brighter glow gradient, and both now draw AFTER the clouds (before, clouds covered the sun completely, which is why it looked tiny and dim).
 - Headless checks only: puffs look rounder and more numerous; sun shows as a soft glow with a hot white centre. The sky still looks pale in my screenshots because thin white cloud fills most of the view; true zenith blue and the real-GPU look are unverified. Unknown: the hot core is smaller than the 15 deg setting suggests.
+
+## Update 113 — Grass blades visible, thin out with altitude
+- Blades are bigger/greener (0.30-0.52 m tall, wider, brighter tips), radius 38 m, none within 1.5 m of the camera. They no longer vanish all at once at 120 m: the kept fraction falls smoothly from 100% at 6 m height to 0% at ~156 m (per-blade random threshold, rebuilt when the fraction moves 6%). Verified visible at ground level in a headless screenshot; the thinning at mid-altitude was not seen in a screenshot (my altitude test shot went wrong), only by the formula.

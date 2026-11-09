@@ -870,7 +870,7 @@ class App implements MenuHost {
     if (!this.forest && !new URLSearchParams(location.search).has('noforest')) { this.forest = new Forest(this.world, new URLSearchParams(location.search).has('forestlite') ? 1300 : 2300, 15); this.scene.add(this.forest.group); }
     if (this.forest && !this.menu.open) this.forest.update(this.rig.camera.position);
     if (PRO && !this.grassBlades) { this.grassBlades = new GrassBlades(this.world); this.scene.add(this.grassBlades.group); }
-    if (this.grassBlades && !this.menu.open) { const g = this.rig.camera.position; if (g.y - this.world.terrain.heightAt(g.x, -g.z) < 120) this.grassBlades.update(g); else this.grassBlades.group.visible = false; if (g.y - this.world.terrain.heightAt(g.x, -g.z) < 120) this.grassBlades.group.visible = true; }
+    if (this.grassBlades && !this.menu.open) { const g = this.rig.camera.position; this.grassBlades.update(g, g.y - this.world.terrain.heightAt(g.x, -g.z)); }
     this.syncAircraftEnv();
     {
       // contact shadow: follows the aircraft over the ground, fades with height; size by aircraft type
