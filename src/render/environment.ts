@@ -43,6 +43,10 @@ export class EnvironmentRenderer {
   sunElevation = 45;
   /** 0..1: how strongly the real sun shines right now (from its true elevation for this date, time and place, dimmed by cloud cover); drives the glare. */
   sunShine = 1;
+  /** 0 at sea level .. 1 above ~100 km: the sky fades to black and stars appear (smooth, starting around 15 km). */
+  space = 0;
+  private spaceU = { value: 0 };
+  private stars!: THREE.Points;
   night = 0;
   lightLevel = 0;
   coverage = 0.4;
@@ -60,11 +64,27 @@ export class EnvironmentRenderer {
     this.sky.scale.setScalar(400000);
     // deep-blue zenith fading to a pale hazy horizon (the stock atmosphere model alone is washed out after tone mapping)
     this.sky.material.onBeforeCompile = (sh) => {
+      sh.uniforms.uSpace = this.spaceU;
+      sh.fragmentShader = 'uniform float uSpace;\n' + sh.fragmentShader;
       sh.fragmentShader = sh.fragmentShader.replace('gl_FragColor = vec4( texColor, 1.0 );',
-        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.07, 0.30, 1.6), smoothstep(0.0, 0.2, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n gl_FragColor = vec4( texColor, 1.0 );');
+        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.07, 0.30, 1.6), smoothstep(0.0, 0.2, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n // thinning atmosphere: black overhead, a bright blue limb stays along the horizon\n float yRaw = normalize(vWorldPosition - cameraPosition).y;\n texColor *= pow(1.0 - uSpace * smoothstep(0.0, 0.3, skyE), 4.0) * mix(1.0, 0.22, uSpace) * (1.0 - uSpace * (1.0 - smoothstep(-0.05, 0.0, yRaw)));\n texColor += vec3(0.10, 0.28, 0.95) * 0.7 * uSpace * exp(-abs(yRaw + 0.01) * 22.0);   // the blue atmosphere limb\n gl_FragColor = vec4( texColor, 1.0 );');
     };
     this.sky.material.depthWrite = false;
     scene.add(this.sky);
+    {
+      // stars: ~4500 points on a huge sphere (seeded, so the same sky every time), faded in with altitude and at night
+      const N = 4500, pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
+      let sd = 12345; const rnd = () => ((sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0) / 4294967296);
+      for (let i = 0; i < N; i++) {
+        const z = rnd() * 2 - 1, a = rnd() * Math.PI * 2, r = Math.sqrt(1 - z * z), R = 300000;
+        pos.set([Math.cos(a) * r * R, z * R, Math.sin(a) * r * R], i * 3);
+        const b = 0.35 + 0.65 * Math.pow(rnd(), 3), t = rnd();
+        col.set([b * (0.85 + 0.15 * t), b * (0.9 + 0.1 * (1 - t)), b], i * 3);
+      }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      this.stars = new THREE.Points(g, new THREE.PointsMaterial({ size: 2.2, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0, depthWrite: false, fog: false, toneMapped: false }));
+      this.stars.renderOrder = 1; this.stars.frustumCulled = false; this.stars.visible = false; scene.add(this.stars);
+    }
     this.envSky = new Sky();
     this.envSky.scale.setScalar(1000);
     this.envScene.add(this.envSky);
@@ -234,8 +254,12 @@ export class EnvironmentRenderer {
     }
     else if (this.coverage > 0.05) inCloud = this.field.densityAt(cam);
     this.inCloud = inCloud;
+    this.space = THREE.MathUtils.smoothstep(camAlt, 15000, 100000);
+    this.spaceU.value = this.space;
+    const starA = Math.max(this.space, 0.85 * this.night);
+    this.stars.visible = starA > 0.01; (this.stars.material as THREE.PointsMaterial).opacity = starA; this.stars.position.copy(cam);
     const vis = Math.max(50, Math.min(w.visibility, 80000) * (1 - 0.97 * inCloud));
-    this.fog.density = Math.sqrt(3) / vis * 0.9;
+    this.fog.density = Math.sqrt(3) / vis * 0.9 * (1 - 0.92 * this.space); // no thick haze in thin air
     const fogBright = 0.25 + 0.75 * dayLight;
     this.fog.color.setRGB(0.56 * fogBright, 0.70 * fogBright, 0.90 * fogBright).lerp(new THREE.Color(0.8, 0.8, 0.82).multiplyScalar(fogBright), overcast * 0.6 + inCloud);
     this.lightLevel = Math.max(this.night, w.visibility < 5000 ? 1 : 0, overcast * 0.4);
