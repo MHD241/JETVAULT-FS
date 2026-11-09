@@ -695,3 +695,8 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 ## Update 114 — Drone is now a flying camera (no physics)
 - The inspection drone no longer uses the flight model: `Aircraft.step` has a kinematic branch for `def.drone`. No gravity, aerodynamics, gusts, stall buffet, gear or crashing. Throttle keys 1..9 set the speed (key 1 / idle = stop and hover); speed eases in with a 0.35 s time constant. The stick turns it at fixed rates (roll 1.6, pitch 0.9, yaw 0.6 rad/s at full deflection) and it keeps its attitude when the stick is centred. It cannot go below 1.2 m above the ground. Bungee launch is disabled for it (not needed).
 - Test (`tests/drone.test.ts`): holds 110-118 m/s and altitude within 0.5 m for 30 s with centred stick, then stops dead when the throttle is idle. 110 tests pass. Not flown with a real keyboard/mouse; the turn rates are my guess and may need tuning.
+
+## Update 115 — Sun from the real sun, deeper blue
+- The sun's glare (screen-space veil + soft streaks in `grade.ts`) and the sun disc/glow now follow the REAL sun: its direction and elevation come from the date/time/place model, strength = `Environment.sunShine` (0 below the horizon, full above ~6 deg, cut by cloud cover). Nothing is a fixed painted spot. Disc 26 deg, glow 60 deg, hot core + wide veil.
+- Sky ramp deeper blue (0.07,0.30,1.6 up to 20% elevation), rayleigh 6.0.
+- Headless screenshot: bright halo with a white centre around the sun is visible; the sky around it is still pale because this test time of day (17:28 UTC in November) puts the sun low, and a low sun makes a pale sky near it by physics. The blue away from the sun was not re-checked; real-GPU look unverified.

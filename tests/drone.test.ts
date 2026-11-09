@@ -3,7 +3,6 @@ import { describe, it, expect } from 'vitest';
 import { flatWorld, newSim, run } from './helpers';
 import { DRONE } from '../src/sim/aircraft/drone';
 import { droneSpeed } from '../src/sim/fdm/aircraft';
-import { AutoTrim } from '../src/sim/assists';
 
 describe('inspection drone', () => {
   it('speed steps are exponential 45 .. 400 m/s, motor off at idle', () => {

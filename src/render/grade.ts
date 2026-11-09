@@ -17,12 +17,12 @@ const GradeShader = {
     void main(){
       vec3 c = texture2D(tDiffuse, vUv).rgb * uExp;
       // sun glare: a warm veil that grows as you look towards the sun, plus a faint lens streak
-      if (uSunUv.z > 0.5) {
+      if (uSunUv.z > 0.01) {
         vec2 d = (vUv - uSunUv.xy) * vec2(1.7, 1.0);
         float r = length(d);
-        float veil = 0.0; // sun glare veil removed (no bloom / glow look)
-        float streak = 0.0;
-        c += vec3(1.0, 0.86, 0.62) * (veil + streak) * (1.0 - uNight);
+        float veil = 0.55 * exp(-r * 3.2) + 1.1 * exp(-r * 11.0) + 2.5 * exp(-r * 40.0); // strong sun shine: wide veil + hot core
+        float streak = 0.25 * exp(-abs(d.y) * 55.0) * exp(-abs(d.x) * 1.6) + 0.15 * exp(-abs(d.x) * 70.0) * exp(-abs(d.y) * 1.3); // soft light streaks
+        c += vec3(1.0, 0.86, 0.62) * (veil + streak) * uSunUv.z * (1.0 - uNight);   // uSunUv.z = how strongly the REAL sun is shining (elevation, cloud cover) and in front of the camera
       }
       float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
       // contrast about a mid-grey in linear light (pivot 0.18), keeps highlights from clipping because tone mapping follows

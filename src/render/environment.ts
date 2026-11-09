@@ -41,6 +41,8 @@ export class EnvironmentRenderer {
   private lastEnvSun = new THREE.Vector3(0, -1, 0);
   sunDir = new THREE.Vector3(0, 1, 0);
   sunElevation = 45;
+  /** 0..1: how strongly the real sun shines right now (from its true elevation for this date, time and place, dimmed by cloud cover); drives the glare. */
+  sunShine = 1;
   night = 0;
   lightLevel = 0;
   coverage = 0.4;
@@ -59,7 +61,7 @@ export class EnvironmentRenderer {
     // deep-blue zenith fading to a pale hazy horizon (the stock atmosphere model alone is washed out after tone mapping)
     this.sky.material.onBeforeCompile = (sh) => {
       sh.fragmentShader = sh.fragmentShader.replace('gl_FragColor = vec4( texColor, 1.0 );',
-        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.20, 0.46, 1.45), smoothstep(0.0, 0.28, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n gl_FragColor = vec4( texColor, 1.0 );');
+        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.07, 0.30, 1.6), smoothstep(0.0, 0.2, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n gl_FragColor = vec4( texColor, 1.0 );');
     };
     this.sky.material.depthWrite = false;
     scene.add(this.sky);
@@ -87,7 +89,7 @@ export class EnvironmentRenderer {
       const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, fog: false }));
       m.renderOrder = order; m.frustumCulled = false; scene.add(m); return m;
     };
-    this.sunGlow = mk(disc([[0, 'rgba(255,248,225,0.95)'], [0.08, 'rgba(255,238,195,0.55)'], [0.22, 'rgba(255,222,165,0.2)'], [0.5, 'rgba(255,205,140,0.05)'], [1, 'rgba(255,190,120,0)']]), 5);
+    this.sunGlow = mk(disc([[0, 'rgba(255,248,225,0.95)'], [0.08, 'rgba(255,238,195,0.5)'], [0.22, 'rgba(255,222,165,0.1)'], [0.5, 'rgba(255,205,140,0.012)'], [1, 'rgba(255,190,120,0)']]), 5);
     this.sunCore = mk(disc([[0, 'rgba(255,255,255,1)'], [0.7, 'rgba(255,252,235,1)'], [0.88, 'rgba(255,240,200,0.6)'], [1, 'rgba(255,230,180,0)']]), 5);
     this.hemi = new THREE.HemisphereLight(0xbfd6ff, 0x4a4a3a, 0.6);
     scene.add(this.hemi);
@@ -186,7 +188,7 @@ export class EnvironmentRenderer {
       const u = s.material.uniforms;
       u.sunPosition.value.copy(this.sunDir);
       u.turbidity.value = 1.1 + overcast * 10 + w.rain * 6;   // clearer air: deeper blue zenith
-      u.rayleigh.value = 4.5 + overcast * 1.0;
+      u.rayleigh.value = 6.0 + overcast * 1.0;
       u.mieCoefficient.value = 0.0006 + overcast * 0.02;
       u.mieDirectionalG.value = 0.85;
     }
@@ -195,7 +197,7 @@ export class EnvironmentRenderer {
       // sun disc: 1.6 deg core, ~22 deg glow; hidden below the horizon, dimmer and warmer when low or overcast
       const D = 200000, vis = THREE.MathUtils.smoothstep(sp.elevation, -2, 1.5);
       const low = 1 - THREE.MathUtils.smoothstep(sp.elevation, 2, 25);
-      for (const [s, ang, k] of [[this.sunCore, 15, 2.0], [this.sunGlow, 70, 2.0]] as [THREE.Sprite, number, number][]) {
+      for (const [s, ang, k] of [[this.sunCore, 26, 2.0], [this.sunGlow, 60, 2.0]] as [THREE.Sprite, number, number][]) {
         s.position.copy(cam).addScaledVector(this.sunDir, D);
         s.scale.setScalar(2 * D * Math.tan((ang * Math.PI) / 360));
         const m = s.material as THREE.SpriteMaterial;
@@ -208,6 +210,7 @@ export class EnvironmentRenderer {
     // night factor from solar elevation (civil twilight)
     this.night = THREE.MathUtils.smoothstep(-sp.elevation, -2, 10);
     const dayLight = THREE.MathUtils.smoothstep(sp.elevation, -4, 12);
+    this.sunShine = THREE.MathUtils.smoothstep(sp.elevation, -1, 6) * (1 - 0.75 * overcast);
     const sunVis = dayLight * (1 - 0.4 * overcast); // thin overcast still casts clear shadows
     const warm = THREE.MathUtils.smoothstep(sp.elevation, 0, 25);
     this.sun.color.setRGB(1, 0.72 + 0.28 * warm, 0.5 + 0.5 * warm);

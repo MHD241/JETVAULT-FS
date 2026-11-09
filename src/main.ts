@@ -943,7 +943,7 @@ class App implements MenuHost {
       // sun position on screen (z = 1 when the sun is in front of the camera): drives the glare veil
       const sp = this.env.sunDir.clone().multiplyScalar(50000).add(cam.position).project(cam);
       const fwd = new THREE.Vector3(); cam.getWorldDirection(fwd);
-      const ahead = fwd.dot(this.env.sunDir) > 0 && this.env.sunElevation > -1 ? 1 : 0;
+      const ahead = fwd.dot(this.env.sunDir) > 0 ? this.env.sunShine : 0;
       this.grade.setCamera(cam);
       this.grade.set(this.env.night, 1, new THREE.Vector3(sp.x * 0.5 + 0.5, sp.y * 0.5 + 0.5, ahead));
       this.grade.render();
