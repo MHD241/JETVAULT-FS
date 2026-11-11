@@ -24,6 +24,9 @@ export class GrassBlades {
       sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
         {
           vec3 wp = instanceMatrix[3].xyz;
+          float dFar = distance(wp.xz, cameraPosition.xz);
+          float edge = 1.0 - smoothstep(520.0, 690.0, dFar);          // blades shrink into the ground at the outer edge, so there is no visible circle
+          transformed *= mix(0.02, 1.0, edge);
           float tip = position.y * position.y * 9.0;                       // 0 at the root, about 1 at the tip
           float swell = sin(uTime * 1.3 + wp.x * 0.18 + wp.z * 0.11) * 0.6 + sin(uTime * 0.7 - wp.x * 0.07 + wp.z * 0.2) * 0.4;
           float flutter = sin(uTime * 2.4 + wp.x * 0.9 + wp.z * 0.7 + position.y * 3.0) * 0.12;   // gentle: no twitching
