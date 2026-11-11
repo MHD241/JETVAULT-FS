@@ -20,7 +20,7 @@ const GradeShader = {
       if (uSunUv.z > 0.01) {
         vec2 d = (vUv - uSunUv.xy) * vec2(1.7, 1.0);
         float r = length(d);
-        float veil = 0.55 * exp(-r * 3.2) + 1.1 * exp(-r * 11.0) + 2.5 * exp(-r * 40.0); // strong sun shine: wide veil + hot core
+        float veil = 0.55 * exp(-r * 3.2) + 1.1 * exp(-r * 11.0) + 0.6 * exp(-r * 30.0); // strong sun shine: wide veil + hot core
         float streak = 0.25 * exp(-abs(d.y) * 55.0) * exp(-abs(d.x) * 1.6) + 0.15 * exp(-abs(d.x) * 70.0) * exp(-abs(d.y) * 1.3); // soft light streaks
         c += vec3(1.0, 0.86, 0.62) * (veil + streak) * uSunUv.z * (1.0 - uNight);   // uSunUv.z = how strongly the REAL sun is shining (elevation, cloud cover) and in front of the camera
       }

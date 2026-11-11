@@ -109,8 +109,9 @@ export class EnvironmentRenderer {
       const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, fog: false }));
       m.renderOrder = order; m.frustumCulled = false; scene.add(m); return m;
     };
-    this.sunGlow = mk(disc([[0, 'rgba(255,248,225,0.95)'], [0.08, 'rgba(255,238,195,0.5)'], [0.22, 'rgba(255,222,165,0.1)'], [0.5, 'rgba(255,205,140,0.012)'], [1, 'rgba(255,190,120,0)']]), 5);
-    this.sunCore = mk(disc([[0, 'rgba(255,255,255,1)'], [0.7, 'rgba(255,252,235,1)'], [0.88, 'rgba(255,240,200,0.6)'], [1, 'rgba(255,230,180,0)']]), 5);
+    this.sunGlow = mk(disc([[0, 'rgba(255,248,225,0.55)'], [0.1, 'rgba(255,238,195,0.4)'], [0.22, 'rgba(255,222,165,0.1)'], [0.5, 'rgba(255,205,140,0.012)'], [1, 'rgba(255,190,120,0)']]), 5);
+    this.sunCore = mk(disc([[0, 'rgba(255,255,250,1)'], [0.9, 'rgba(255,251,238,1)'], [0.97, 'rgba(255,242,210,0.9)'], [1, 'rgba(255,236,190,0)']]), 5);
+    this.sunCore.material.blending = THREE.NormalBlending;   // a solid, clearly bounded disc (additive blending made it vanish into the bright sky)
     this.hemi = new THREE.HemisphereLight(0xbfd6ff, 0x4a4a3a, 0.6);
     scene.add(this.hemi);
     this.fog = new THREE.FogExp2(0xc8d4e2, 0.00004);
@@ -217,11 +218,11 @@ export class EnvironmentRenderer {
       // sun disc: 1.6 deg core, ~22 deg glow; hidden below the horizon, dimmer and warmer when low or overcast
       const D = 200000, vis = THREE.MathUtils.smoothstep(sp.elevation, -2, 1.5);
       const low = 1 - THREE.MathUtils.smoothstep(sp.elevation, 2, 25);
-      for (const [s, ang, k] of [[this.sunCore, 26, 2.0], [this.sunGlow, 60, 2.0]] as [THREE.Sprite, number, number][]) {
+      for (const [s, ang, k] of [[this.sunCore, 14, 2.0], [this.sunGlow, 50, 1.2]] as [THREE.Sprite, number, number][]) {
         s.position.copy(cam).addScaledVector(this.sunDir, D);
         s.scale.setScalar(2 * D * Math.tan((ang * Math.PI) / 360));
         const m = s.material as THREE.SpriteMaterial;
-        m.color.setRGB(1, 0.92 - 0.3 * low, 0.8 - 0.5 * low);
+        m.color.setRGB(1.6, 1.5 - 0.25 * low, 1.25 - 0.45 * low);   // over-bright so the disc reads white-hot, warmer when low
         m.opacity = Math.min(1, vis * k * (1 - 0.65 * overcast));
         s.visible = vis > 0.01;
       }

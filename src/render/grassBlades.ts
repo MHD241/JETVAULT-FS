@@ -48,13 +48,11 @@ export class GrassBlades {
     }
     this.geo = mergeGeometries(blades)!; this.geoFar = mergeGeometries(blades.slice(0, 3))!;   // far rings: 3 blades per tuft, flattened this.group.name = 'grassblades';
   }
-  /** Three rings so the grass reaches far but stays light: fine tufts near the camera, then bigger flatter tufts out to 2.6 km (fog hides the rest), so whole fields are covered. */
+  /** Three rings so the grass reaches far but stays light: fine tufts near the camera, then bigger tufts out to 200 m. Beyond that the terrain shader carries the grass look (single big blades read as random triangles from far away). */
   private rings: { r0: number; r1: number; step: number; scale: number; thresh: number; cap: number; flat?: number; mesh: THREE.InstancedMesh | null; cx: number; cz: number; keep: number }[] = [
     { r0: 0.5, r1: 24, step: 0.3, scale: 1, thresh: 8, cap: 30000, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
     { r0: 24, r1: 80, step: 0.85, scale: 2.4, thresh: 18, cap: 34000, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
     { r0: 80, r1: 200, step: 2.0, scale: 5.5, thresh: 40, cap: 34000, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
-    { r0: 200, r1: 800, step: 6, scale: 24, thresh: 120, cap: 60000, flat: 0.3, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
-    { r0: 800, r1: 2600, step: 18, scale: 90, thresh: 400, cap: 60000, flat: 0.1, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
   ];
   /** Fraction kept for a camera height above ground: everything below 30 m, then a slow thinning, last tufts gone at ~650 m. */
   static keepFor(agl: number) { return 1 - Math.min(1, Math.max(0, (agl - 30) / 620)); }

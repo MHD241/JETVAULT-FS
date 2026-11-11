@@ -407,7 +407,7 @@ float gWater; float gBuilt; float gPaved;
       float dG = length(vWorldPos - cameraPosition);
       vec3 g1 = texture2D(uGrass, en / 3.0).rgb, g2 = texture2D(uGrass, en / 17.0 + 0.31).rgb;
       float lum = dot(mix(g1, g2, 0.45), vec3(0.3, 0.55, 0.15)) / 0.30;     // photo brightness relative to its average
-      lum = mix(1.0, clamp(lum, 0.55, 1.6), 1.0 - smoothstep(60.0, 700.0, dG));
+      lum = mix(1.0, clamp(lum, 0.55, 1.6), 1.0 - smoothstep(400.0, 6000.0, dG));
       col = srgb(grass) * lum;
       float ang = h3 * 3.1416;
       float stripe = sin(dot(w, vec2(cos(ang), sin(ang))) * (6.2832 / (3.0 + 3.0 * h2))) * 0.5 + 0.5;
