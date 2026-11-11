@@ -14,6 +14,7 @@ const hash = (a: number, b: number, s = 0) => {
 export class GrassBlades {
   readonly group = new THREE.Group();
   private geo: THREE.BufferGeometry;
+  private geoFar: THREE.BufferGeometry;
   private mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   private uTime = { value: 0 };
   constructor(private world: World, _radius = 30, _step = 0.26) {
@@ -45,13 +46,15 @@ export class GrassBlades {
       g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
       blades.push(g);
     }
-    this.geo = mergeGeometries(blades)!; this.group.name = 'grassblades';
+    this.geo = mergeGeometries(blades)!; this.geoFar = mergeGeometries(blades.slice(0, 3))!;   // far rings: 3 blades per tuft, flattened this.group.name = 'grassblades';
   }
-  /** Three rings so the grass reaches far but stays light: fine tufts near the camera, then bigger and sparser tufts out to ~200 m, so whole fields are covered. */
-  private rings = [
+  /** Three rings so the grass reaches far but stays light: fine tufts near the camera, then bigger flatter tufts out to 2.6 km (fog hides the rest), so whole fields are covered. */
+  private rings: { r0: number; r1: number; step: number; scale: number; thresh: number; cap: number; flat?: number; mesh: THREE.InstancedMesh | null; cx: number; cz: number; keep: number }[] = [
     { r0: 0.5, r1: 24, step: 0.3, scale: 1, thresh: 8, cap: 30000, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
     { r0: 24, r1: 80, step: 0.85, scale: 2.4, thresh: 18, cap: 34000, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
     { r0: 80, r1: 200, step: 2.0, scale: 5.5, thresh: 40, cap: 34000, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
+    { r0: 200, r1: 800, step: 6, scale: 24, thresh: 120, cap: 60000, flat: 0.3, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
+    { r0: 800, r1: 2600, step: 18, scale: 90, thresh: 400, cap: 60000, flat: 0.1, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
   ];
   /** Fraction kept for a camera height above ground: everything below 30 m, then a slow thinning, last tufts gone at ~650 m. */
   static keepFor(agl: number) { return 1 - Math.min(1, Math.max(0, (agl - 30) / 620)); }
@@ -75,10 +78,10 @@ export class GrassBlades {
         if (lc !== LC.GRASS && lc !== LC.CROP) continue;
         if (this.world.isPaved(e, n)) continue;
         const h = this.world.terrain.heightAt(e, n);
-        pos.set(e, h, -n); q.setFromAxisAngle(up, hash(i, j, 3) * 6.283); const s = rg.scale * (0.8 + 0.7 * hash(i, j, 4)); sc.set(s, s * (0.8 + 0.5 * hash(i, j, 5)), s);
+        pos.set(e, h, -n); q.setFromAxisAngle(up, hash(i, j, 3) * 6.283); const s = rg.scale * (0.8 + 0.7 * hash(i, j, 4)); sc.set(s, s * (0.8 + 0.5 * hash(i, j, 5)) * (rg.flat ?? 1), s);
         mats.push(m4.compose(pos, q, sc).clone());
       }
-      const im = new THREE.InstancedMesh(this.geo, this.mat, mats.length);
+      const im = new THREE.InstancedMesh(rg.flat ? this.geoFar : this.geo, this.mat, mats.length);
       mats.forEach((m, k) => im.setMatrixAt(k, m)); im.instanceMatrix.needsUpdate = true; im.frustumCulled = false;
       rg.mesh = im; this.group.add(im);
     }
