@@ -49,9 +49,11 @@ import { WorldEditor } from './studio/worldEditor';
 import { loadCityPack } from './render/cityPack';
 import { FOCUS_MODE, airportVisible, FOCUS_AIRCRAFT, PRO } from './config';
 import { generateCity } from './world/city';
+import { LC } from './world/world';
 import { loadCustomDesign } from './render/cockpitCustom';
 import { STUDIO_ORIGIN } from './studio/parts';
 import { TyreSmoke } from './render/tyreSmoke';
+import { WaterFx } from './render/waterFx';
 import { MarshalFigure } from './render/marshalFigure';
 import { marshalCall, MarshalSignal } from './sim/marshal';
 import { findGateSites } from './world/obstacles';
@@ -117,6 +119,7 @@ class App implements MenuHost {
   private pendingDetail: (() => void) | null = null;
   private grade: Grade | null = null;
   private tyreSmoke = new TyreSmoke();
+  private waterFx = new WaterFx();
   private stallEl!: HTMLDivElement;
   // stand marshal
   private marshalFig = new MarshalFigure();
@@ -215,7 +218,7 @@ class App implements MenuHost {
     this.launchBtn.style.display = 'none';
     document.body.appendChild(this.launchBtn);
     this.launchBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); this.handleSimple('launch'); });
-    this.scene.add(this.buggyModel.group, this.marshalFig.group, this.tyreSmoke.group);
+    this.scene.add(this.buggyModel.group, this.marshalFig.group, this.tyreSmoke.group, this.waterFx.group);
     const stamp = document.createElement('div');
     stamp.textContent = 'build ' + __BUILD_ID__;
     stamp.style.cssText = 'position:fixed;right:8px;bottom:4px;font:10px system-ui,sans-serif;color:rgba(255,255,255,0.55);text-shadow:0 0 3px #000;z-index:5;pointer-events:none';
@@ -808,6 +811,7 @@ class App implements MenuHost {
       if (!sim.paused && this.simple.assists && !sim.def.drone) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
     this.updateBuggy(dt);
+    if (PRO && !sim.paused) this.waterFx.update(dt * sim.timeScale, ac, (e, n) => this.world.landAt(e, n) === LC.WATER && this.world.terrain.heightAt(e, n) < 3, (e, n) => Math.max(0, this.world.terrain.heightAt(e, n)));
     if (!sim.paused) this.tyreSmoke.update(dt, ac, (e, n) => this.world.terrain.heightAt(e, n));
     this.updateMarshal(dt);
     if (!ac.crashed) nedToThree(ac.vel, this.lastVel);

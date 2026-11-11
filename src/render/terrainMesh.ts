@@ -488,7 +488,7 @@ float gWater; float gBuilt; float gPaved;
 }
 `)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-roughnessFactor = mix(roughnessFactor, 0.08, gWater * (1.0 - gPaved));
+roughnessFactor = mix(roughnessFactor, uPro > 0.5 ? 0.30 : 0.08, gWater * (1.0 - gPaved));
 roughnessFactor = mix(roughnessFactor, mix(0.85, 0.35, uWet), gPaved);
 `)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
@@ -503,9 +503,20 @@ if (uPro > 0.5) {
 }
 if (gWater > 0.01) {
   vec2 en2 = vec2(vWorldPos.x, -vWorldPos.z);
+  float dW = length(vWorldPos - cameraPosition);
+  float fadeW = 1.0 - smoothstep(250.0, 3500.0, dW);
   vec2 r1 = texture2D(uDetail, en2 / 31.0 + vec2(uTime * 0.011, uTime * 0.007)).rg - 0.5;
   vec2 r2 = texture2D(uDetail, en2 / 7.0 - vec2(uTime * 0.02, uTime * 0.013)).ba - 0.5;
   vec3 wn = normalize(vec3((r1.x + 0.5 * r2.x) * 0.18, 1.0, (r1.y + 0.5 * r2.y) * 0.18));
+  if (uPro > 0.5) {
+    // waves: long swells travelling with the wind, crossed by choppy mid waves and fine ripples (all animated), strongest near the camera
+    vec2 s1 = texture2D(uDetail, en2 / 210.0 + vec2(uTime * 0.012, uTime * 0.006)).rg - 0.5;
+    vec2 s2 = texture2D(uDetail, en2 / 95.0 - vec2(uTime * 0.02, -uTime * 0.011) + 0.41).ba - 0.5;
+    vec2 s3 = texture2D(uDetail, en2 / 38.0 + vec2(uTime * 0.034, uTime * 0.02) + 0.77).rg - 0.5;
+    vec2 s4 = texture2D(uDetail, en2 / 13.0 - vec2(uTime * 0.05, uTime * 0.04) + 0.19).ba - 0.5;
+    vec2 sl = s1 * 1.0 + s2 * 0.85 + s3 * 0.6 + s4 * 0.4 + r2 * 0.25;
+    wn = normalize(vec3(sl.x * 0.45 * fadeW, 1.0, sl.y * 0.45 * fadeW));
+  }
   normal = normalize(mix(normal, normalize((viewMatrix * vec4(wn, 0.0)).xyz), gWater));
 }
 `)
@@ -515,6 +526,34 @@ if (gWater > 0.01) {
   vec3 Vn = normalize(vViewPosition);
   float fr = pow(1.0 - clamp(dot(normalize(normal), Vn), 0.0, 1.0), 3.0);
   totalEmissiveRadiance += vec3(0.30, 0.52, 0.85) * (0.12 + 0.9 * fr) * gWater * (1.0 - gPaved) * (1.0 - uNight);
+  if (uPro > 0.5) {
+    vec2 enP = vec2(vWorldPos.x, -vWorldPos.z);
+    float dP = length(vWorldPos - cameraPosition);
+    float nearP2 = 1.0 - smoothstep(800.0, 9000.0, dP);
+    // depth: how much of the surroundings is water (sampled 40-240 m around) - near the shore it is shallow: turquoise, sandy, see-through;
+    // far from any shore it is deep, dark blue
+    vec2 fW = vec2((enP.x - uLcC.x + uLcHalf) / uLcStep, (uLcC.y + uLcHalf - enP.y) / uLcStep);
+    float stepW = max(uLcStep, 1.0);
+    float acc = 0.0;
+    for (int k = 0; k < 8; k++) {
+      float a = float(k) * 0.7854, rr = (k < 4 ? 60.0 : 210.0);
+      vec2 o = vec2(cos(a), sin(a)) * rr / stepW;
+      float c = lcAt(ivec2(floor(fW + o)));
+      acc += (c > 75.0 && c < 85.0) ? 1.0 : 0.0;
+    }
+    float deep = smoothstep(0.55, 1.0, acc / 8.0);               // 0 near a shore, 1 in open water
+    vec3 shallow = vec3(0.10, 0.42, 0.40), deepC = vec3(0.01, 0.07, 0.19);
+    vec3 wcol = mix(shallow, deepC, deep);
+    float clear = 1.0 - deep;
+    wcol += vec3(0.20, 0.17, 0.08) * clear * clear * 0.5;        // sandy bottom glimmering through the shallows
+    totalEmissiveRadiance += wcol * (0.35 + 0.65 * (1.0 - fr)) * gWater * (1.0 - gPaved) * (1.0 - uNight) * 0.30;
+    // foam: whitecaps on the wave crests (more in open water, wind-driven) and a bright surf line along the shore
+    float crest = smoothstep(0.80, 0.97, texture2D(uDetail, enP / 17.0 + vec2(uTime * 0.03, uTime * 0.02) + 0.5).r * 0.6 + texture2D(uDetail, enP / 5.0 - uTime * 0.04).g * 0.4);
+    float surf = smoothstep(0.85, 0.99, 1.0 - deep) * (0.5 + 0.5 * sin(uTime * 1.1 + enP.x * 0.2 + enP.y * 0.13));
+    float foam = clamp(crest * (0.10 + 0.25 * deep) + surf * 0.45, 0.0, 1.0) * (1.0 - smoothstep(300.0, 4000.0, dP));
+    totalEmissiveRadiance += vec3(0.85, 0.9, 0.95) * foam * 0.30 * gWater * (1.0 - gPaved) * (1.0 - uNight);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.8, 0.85, 0.9), foam * 0.35 * gWater);
+  }
 }
 if (uNight > 0.01) {
   vec2 en3 = vec2(vWorldPos.x, -vWorldPos.z);

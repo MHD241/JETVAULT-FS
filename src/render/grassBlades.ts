@@ -25,7 +25,7 @@ export class GrassBlades {
         {
           vec3 wp = instanceMatrix[3].xyz;
           float dFar = distance(wp.xz, cameraPosition.xz);
-          float edge = 1.0 - smoothstep(520.0, 690.0, dFar);          // blades shrink into the ground at the outer edge, so there is no visible circle
+          float edge = 1.0 - smoothstep(1180.0, 1540.0, dFar);          // blades shrink into the ground at the outer edge, so there is no visible circle
           transformed *= mix(0.02, 1.0, edge);
           float tip = position.y * position.y * 9.0;                       // 0 at the root, about 1 at the tip
           float swell = sin(uTime * 1.3 + wp.x * 0.18 + wp.z * 0.11) * 0.6 + sin(uTime * 0.7 - wp.x * 0.07 + wp.z * 0.2) * 0.4;
@@ -57,6 +57,7 @@ export class GrassBlades {
     { maxAgl: 1500, r0: 30, r1: 100, step: 0.8, scale: 2.4, thresh: 20, cap: 50000, mesh: null, cx: 1e9, cz: 1e9, keep: -1 },
     { maxAgl: 1500, r0: 100, r1: 300, step: 1.6, scale: 4.5, thresh: 50, cap: 60000, mesh: null, cx: 1e9, cz: 1e9, keep: -1 },
     { maxAgl: 1500, r0: 300, r1: 750, step: 3.4, scale: 9, thresh: 120, cap: 60000, mesh: null, cx: 1e9, cz: 1e9, keep: -1 },
+    { maxAgl: 1500, r0: 750, r1: 1600, step: 6.5, scale: 17, thresh: 250, cap: 60000, mesh: null, cx: 1e9, cz: 1e9, keep: -1 },
   ];
   /** Fraction kept for a camera height above ground: full below 25 m, then thinning to none at the ring's own limit (big tufts go first, since from height they read as loose triangles). */
   static keepFor(agl: number, maxAgl = 650) { return 1 - Math.min(1, Math.max(0, (agl - 200) / Math.max(1, maxAgl - 200))); }
