@@ -56,13 +56,52 @@ float bh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453)
 float gWin;`)
         .replace('#include <color_fragment>', `#include <color_fragment>
 gWin = 0.0;
-if (vWall.z > 1.5) {
+float fwd = length(fwidth(vWall.xy));
+float fine = 1.0 - smoothstep(0.12, 0.45, fwd);                 // fine detail (brick courses, stone joints) fades out with distance so it never shimmers
+if (vWall.z > 4.5) {
+  // concrete panels: 3 m panels with seams, a continuous ribbon window on every 3.4 m storey
+  vec2 cell = vec2(vWall.x / 3.0, vWall.y / 3.4);
+  vec2 f = fract(cell);
+  float seam = (1.0 - smoothstep(0.0, 0.025, f.x)) * fine;
+  float win = step(0.30, f.y) * step(f.y, 0.78) * step(1.0, vWall.y) * step(0.04, f.x) * step(f.x, 0.96);
+  diffuseColor.rgb *= 1.0 - 0.18 * seam - 0.05 * bh(floor(cell));
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.13, 0.16, 0.19), win * 0.85);
+  gWin = win * 0.7;
+} else if (vWall.z > 3.5) {
+  // sandstone / granite: ashlar blocks 1.0 x 0.5 m with per-block tone, tall sash windows with pale surrounds
+  vec2 bc = vec2(vWall.x / 1.0 + 0.5 * mod(floor(vWall.y / 0.5), 2.0), vWall.y / 0.5);
+  vec2 bf = fract(bc);
+  float joint = (1.0 - step(0.04, bf.x) * step(0.06, bf.y)) * fine;
+  diffuseColor.rgb *= (0.9 + 0.2 * bh(floor(bc))) * (1.0 - 0.22 * joint);
+  vec2 cell = vec2(vWall.x / 3.2, vWall.y / 3.8);
+  vec2 f = fract(cell);
+  float surround = step(0.22, f.x) * step(f.x, 0.78) * step(0.2, f.y) * step(f.y, 0.88) * step(1.0, vWall.y);
+  float win = step(0.30, f.x) * step(f.x, 0.70) * step(0.26, f.y) * step(f.y, 0.84) * step(1.0, vWall.y);
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 1.12, surround * (1.0 - win));
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.07, 0.08), win * 0.9);
+  gWin = win * step(0.5, bh(floor(cell) + 3.0));
+} else if (vWall.z > 2.5) {
+  // red brick: 0.5 x 0.14 m coursing with mortar, 3 m storeys with 1.3 m windows and pale lintels
+  vec2 bc = vec2(vWall.x / 0.5 + 0.5 * mod(floor(vWall.y / 0.14), 2.0), vWall.y / 0.14);
+  vec2 bf = fract(bc);
+  float mortar = (1.0 - step(0.06, bf.x) * step(0.14, bf.y)) * fine;
+  diffuseColor.rgb *= (0.86 + 0.28 * bh(floor(bc))) ;
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.66, 0.62, 0.55), mortar * 0.8);
+  vec2 cell = vec2(vWall.x / 2.4, vWall.y / 3.0);
+  vec2 f = fract(cell);
+  float win = step(0.28, f.x) * step(f.x, 0.72) * step(0.30, f.y) * step(f.y, 0.80) * step(1.0, vWall.y);
+  float lintel = step(0.28, f.x) * step(f.x, 0.72) * step(0.80, f.y) * step(f.y, 0.86) * step(1.0, vWall.y);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.74, 0.72, 0.66), lintel);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.06, 0.07), win * 0.9);
+  gWin = win * step(0.4, bh(floor(cell) + 9.0));
+} else if (vWall.z > 1.5) {
   // glazed facade: continuous ribbon glazing with mullions, 4.5 m storeys
   vec2 cell = vec2(vWall.x / 1.8, vWall.y / 4.5);
   vec2 f = fract(cell);
   float win = step(0.06, f.x) * step(f.x, 0.96) * step(0.12, f.y) * step(f.y, 0.86) * step(1.0, vWall.y);
   gWin = win * 0.9;
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.10, 0.17, 0.24), win * 0.85);
+  diffuseColor.rgb += 0.10 * (bh(floor(cell)) - 0.5) * win;       // slight per-pane reflection variation
 } else if (vWall.z > 0.5) {
   // windows: 3.2 m storeys, ~2.6 m bays
   vec2 cell = vec2(vWall.x / 2.6, vWall.y / 3.2);
@@ -98,6 +137,14 @@ const PALETTE = [
 const ROOFS = [[0.30, 0.31, 0.33], [0.36, 0.34, 0.33], [0.42, 0.25, 0.20], [0.25, 0.26, 0.27], [0.18, 0.19, 0.21], [0.48, 0.30, 0.24], [0.33, 0.30, 0.27]]
   .map((c) => new THREE.Color().setRGB(c[0], c[1], c[2], THREE.SRGBColorSpace));
 
+const mk = (r: number, g: number, b: number) => new THREE.Color().setRGB(r, g, b, THREE.SRGBColorSpace);
+const STYLE_COLORS: Record<number, THREE.Color[]> = {
+  2: [mk(0.38, 0.52, 0.62), mk(0.30, 0.44, 0.52), mk(0.42, 0.48, 0.55), mk(0.34, 0.50, 0.50), mk(0.50, 0.46, 0.38)],     // glass: blue, teal, grey, bronze tints
+  3: [mk(0.55, 0.26, 0.19), mk(0.62, 0.32, 0.22), mk(0.48, 0.22, 0.17), mk(0.66, 0.40, 0.28), mk(0.42, 0.25, 0.20)],     // red / brown brick
+  4: [mk(0.76, 0.64, 0.46), mk(0.70, 0.60, 0.46), mk(0.62, 0.55, 0.45), mk(0.52, 0.52, 0.52), mk(0.74, 0.68, 0.56)],     // sandstone and granite
+  5: [mk(0.70, 0.70, 0.68), mk(0.58, 0.58, 0.57), mk(0.78, 0.76, 0.72), mk(0.46, 0.47, 0.48)],                           // concrete
+};
+const STYLE_ROOFS = [mk(0.30, 0.31, 0.33), mk(0.24, 0.25, 0.27), mk(0.40, 0.24, 0.19), mk(0.18, 0.19, 0.21), mk(0.52, 0.52, 0.50)];
 const GLASS = new THREE.Color().setRGB(0.42, 0.52, 0.60, THREE.SRGBColorSpace);
 const CLAD = new THREE.Color().setRGB(0.62, 0.66, 0.70, THREE.SRGBColorSpace);
 const TERM_ROOF = new THREE.Color().setRGB(0.70, 0.71, 0.72, THREE.SRGBColorSpace);
@@ -111,7 +158,8 @@ function buildTileGeometry(list: Building[], cx: number, cn: number) {
     let wall = PALETTE[Math.floor(rnd() * PALETTE.length)];
     let roof = ROOFS[Math.floor(rnd() * ROOFS.length)];
     let tall = b.top - b.base > 6 ? 1 : 0;
-    if (b.role === 'terminal' || b.role === 'pier') { wall = GLASS; roof = TERM_ROOF; tall = 2; }
+    if (b.style) { const pal = STYLE_COLORS[b.style]; wall = pal[Math.floor(rnd() * pal.length)]; roof = STYLE_ROOFS[Math.floor(rnd() * STYLE_ROOFS.length)]; tall = b.style; }
+    else if (b.role === 'terminal' || b.role === 'pier') { wall = GLASS; roof = TERM_ROOF; tall = 2; }
     else if (b.role === 'airside') { wall = CLAD; roof = TERM_ROOF; tall = 0; }
     let perim = 0;
     for (let i = 0; i < n; i++) {

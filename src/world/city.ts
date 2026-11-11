@@ -5,6 +5,7 @@
 import { World, LC } from './world';
 import { LocalProjection, EGPH_ORIGIN } from './geo';
 import type { Building } from './obstacles';
+import { PRO } from '../config';
 
 const hash = (a: number, b: number, s = 0) => {
   let h = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(s | 0, 144665231);
@@ -43,6 +44,16 @@ export function generateCity(world: World, radius = 8500, cell = 58, isBuilt: (e
       else if (dk < 3.5) h = 16 + r2 * 46 + (hash(i, j, 7) < 0.02 ? 40 : 0);
       else if (dk < 6) h = 11 + r2 * 28;
       else h = 8 + r * 14;
+      // facade style: each neighbourhood (4x4 blocks) leans one way (old stone, brick terraces, concrete, glass offices), with some mixing;
+      // tall buildings in the centre and mid ring are mostly glass
+      const dist = hash(i >> 2, j >> 2, 20), mix = hash(i, j, 21);
+      let style: 2 | 3 | 4 | 5;
+      const pick = mix < 0.7 ? dist : hash(i, j, 22);
+      if (h > 62 && mix < 0.7) style = 2;
+      else if (dk < 1.8) style = pick < 0.5 ? 4 : pick < 0.75 ? 2 : pick < 0.9 ? 5 : 3;
+      else if (dk < 3.5) style = pick < 0.34 ? 4 : pick < 0.64 ? 3 : pick < 0.84 ? 5 : 2;
+      else if (dk < 6) style = pick < 0.5 ? 3 : pick < 0.72 ? 5 : pick < 0.88 ? 4 : 2;
+      else style = pick < 0.6 ? 3 : pick < 0.82 ? 5 : 4;
       const pts = new Float32Array(8);
       const corners: [number, number][] = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]]; // counter-clockwise
       let minH = Infinity, maxH = -Infinity;
@@ -51,7 +62,7 @@ export function generateCity(world: World, radius = 8500, cell = 58, isBuilt: (e
         pts[2 * k] = px; pts[2 * k + 1] = py;
         const hh = world.heightAt(px, py); minH = Math.min(minH, hh); maxH = Math.max(maxH, hh);
       });
-      out.push({ pts, base: minH - 1, top: maxH + h, minE: Math.min(pts[0], pts[2], pts[4], pts[6]), maxE: Math.max(pts[0], pts[2], pts[4], pts[6]), minN: Math.min(pts[1], pts[3], pts[5], pts[7]), maxN: Math.max(pts[1], pts[3], pts[5], pts[7]) });
+      out.push({ style: PRO ? style : undefined, pts, base: minH - 1, top: maxH + h, minE: Math.min(pts[0], pts[2], pts[4], pts[6]), maxE: Math.max(pts[0], pts[2], pts[4], pts[6]), minN: Math.min(pts[1], pts[3], pts[5], pts[7]), maxN: Math.max(pts[1], pts[3], pts[5], pts[7]) });
     }
   }
   return out;

@@ -10,6 +10,8 @@ export interface Building {
   minE: number; maxE: number; minN: number; maxN: number;
   /** Airport building class (set by styleAirportBuildings); 'terminal' and 'pier' render with glazing. */
   role?: 'terminal' | 'pier' | 'airside';
+  /** City facade style: 2 glass curtain wall, 3 red brick, 4 sandstone/granite blocks, 5 concrete panels with ribbon windows (undefined = the older mixed look). */
+  style?: 2 | 3 | 4 | 5;
 }
 
 export class ObstacleIndex {
