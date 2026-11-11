@@ -711,3 +711,7 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 
 ## Update 118 — World Studio on a trackpad
 - No right mouse needed: press and drag with one finger = look around; a tap/click without dragging = place / select; two-finger scroll flies forward/back/sideways (distance scales with the speed setting); pinch (ctrl+wheel) = up/down; `,` / `.` = slower/faster. Keyboard flying (WASD, Q/E, Shift) and Alt+click still work. Headless test with synthetic wheel/drag/click: flew, looked, placed 5 parts. Not tried on a real trackpad (scroll amounts may need tuning).
+
+## Update 119 — Grass: waving, dense, closer
+- Blades now sway in the wind (vertex shader in `grassBlades.ts`): bend grows toward the tip, slow swells roll across the field (two sine waves by world position), faster flutter on top, tips dip slightly when bent. Density about 6x (cell step 0.5 -> 0.26 m, 9 blades per tuft, cap 45,000 tufts), radius 38 -> 30 m, nothing closer than 0.5 m to the camera (was 1.5 m). Rebuild every 10 m of camera travel.
+- Headless screenshot: thick lawn right up to the drone. Two screenshots 0.7 s apart differ in many pixels (consistent with waving; not isolated, as the cloud and camera also moved). NOT measured: GPU cost (up to ~400k triangles) or the rebuild hitch (~53k cells scanned every 10 m) on a real machine; if it stutters, lower density via the constructor defaults.
