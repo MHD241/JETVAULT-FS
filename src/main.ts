@@ -55,7 +55,7 @@ import { STUDIO_ORIGIN } from './studio/parts';
 import { TyreSmoke } from './render/tyreSmoke';
 import { WaterFx } from './render/waterFx';
 import { SeaSurface } from './render/seaSurface';
-import { sea, seaAmpFromWind, seaHeight } from './world/waves';
+import { sea, seaAmpFromWind, seaHeight, addSurge } from './world/waves';
 import { MarshalFigure } from './render/marshalFigure';
 import { marshalCall, MarshalSignal } from './sim/marshal';
 import { findGateSites } from './world/obstacles';
@@ -818,7 +818,7 @@ class App implements MenuHost {
       sea.t = performance.now() / 1000; sea.amp = seaAmpFromWind(sim.weather.windSpeed);
       if (!this.seaSurface) { this.seaSurface = new SeaSurface(this.terrain.uniforms.uDetail.value as THREE.Texture); this.scene.add(this.seaSurface.group); }
       this.seaSurface.update(this.rig.camera.position, this.env.night);
-      while (ac.waterImpacts.length) { const v = ac.waterImpacts.shift()!; const p = nedToThree(ac.pos); p.y = seaHeight(ac.pos.y, ac.pos.x); if (v > 6) this.waterFx.impact(p, v); }
+      while (ac.waterImpacts.length) { const v = ac.waterImpacts.shift()!; const p = nedToThree(ac.pos); p.y = seaHeight(ac.pos.y, ac.pos.x); if (v > 6) { this.waterFx.impact(p, v); addSurge(ac.pos.y, ac.pos.x, Math.min(1.8, v / 40)); } }
     }
     if (PRO && !sim.paused) this.waterFx.update(dt * sim.timeScale, ac, (e, n) => this.world.landAt(e, n) === LC.WATER && this.world.terrain.heightAt(e, n) < 3, (e, n) => seaHeight(e, n));
     if (!sim.paused) this.tyreSmoke.update(dt, ac, (e, n) => this.world.terrain.heightAt(e, n));
@@ -946,6 +946,11 @@ class App implements MenuHost {
     this.cockpit.root.visible = inCockpit;
     const focus = nedToThree(ac.pos);
     this.env.update(sim.weather, sim.simTime, cam.position, focus);
+    if (PRO) {
+      // under the sea surface: blue-green murk, short visibility
+      const under = this.world.landAt(cam.position.x, -cam.position.z) === LC.WATER && this.world.terrain.heightAt(cam.position.x, -cam.position.z) < 3 && cam.position.y < seaHeight(cam.position.x, -cam.position.z);
+      if (under) { const f = this.scene.fog as THREE.FogExp2; f.color.setRGB(0.02, 0.12, 0.2); f.density = 0.045; }
+    }
     for (const m of this.scene.children) if (m.renderOrder >= 2 && m.renderOrder <= 3) m.visible = m.visible && this.graphics.clouds;
     this.model.update(ac, sim.controls, sim.paused ? 0 : dt * sim.timeScale, this.env.night);
     if (inCockpit) this.cockpit.update(dt, this.env.night);
