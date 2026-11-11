@@ -50,15 +50,16 @@ export class GrassBlades {
   }
   /** Three rings so the grass reaches far but stays light: fine tufts near the camera, then bigger tufts out to 200 m. Beyond that the terrain shader carries the grass look (single big blades read as random triangles from far away). */
   private rings: { maxAgl: number; r0: number; r1: number; step: number; scale: number; thresh: number; cap: number; flat?: number; mesh: THREE.InstancedMesh | null; cx: number; cz: number; keep: number }[] = [
-    { maxAgl: 450, r0: 0.5, r1: 24, step: 0.3, scale: 1, thresh: 8, cap: 30000, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
-    { maxAgl: 250, r0: 24, r1: 80, step: 0.85, scale: 2.4, thresh: 18, cap: 34000, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
-    { maxAgl: 110, r0: 80, r1: 200, step: 2.0, scale: 5.5, thresh: 40, cap: 34000, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
+    { maxAgl: 1500, r0: 0.5, r1: 30, step: 0.3, scale: 1, thresh: 8, cap: 45000, mesh: null, cx: 1e9, cz: 1e9, keep: -1 },
+    { maxAgl: 1500, r0: 30, r1: 100, step: 0.8, scale: 2.4, thresh: 20, cap: 50000, mesh: null, cx: 1e9, cz: 1e9, keep: -1 },
+    { maxAgl: 1500, r0: 100, r1: 300, step: 1.6, scale: 4.5, thresh: 50, cap: 60000, mesh: null, cx: 1e9, cz: 1e9, keep: -1 },
+    { maxAgl: 1500, r0: 300, r1: 750, step: 3.4, scale: 9, thresh: 120, cap: 60000, mesh: null, cx: 1e9, cz: 1e9, keep: -1 },
   ];
   /** Fraction kept for a camera height above ground: full below 25 m, then thinning to none at the ring's own limit (big tufts go first, since from height they read as loose triangles). */
-  static keepFor(agl: number, maxAgl = 650) { return 1 - Math.min(1, Math.max(0, (agl - 25) / Math.max(1, maxAgl - 25))); }
+  static keepFor(agl: number, maxAgl = 650) { return 1 - Math.min(1, Math.max(0, (agl - 200) / Math.max(1, maxAgl - 200))); }
   update(cam: THREE.Vector3, agl = 0, time = 0) {
     this.uTime.value = time;
-    if (agl >= 450) { this.group.visible = false; return; }
+    if (agl >= 1500) { this.group.visible = false; return; }
     this.group.visible = true;
     let rebuilt = false;                                         // at most ONE ring is rebuilt per frame, so there is never a long stall
     for (const rg of this.rings) {
