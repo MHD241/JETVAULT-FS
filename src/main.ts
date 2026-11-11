@@ -46,6 +46,7 @@ import { Grade } from './render/grade';
 import { Forest } from './render/forest';
 import { GrassBlades } from './render/grassBlades';
 import { WorldEditor } from './studio/worldEditor';
+import { loadCityPack } from './render/cityPack';
 import { FOCUS_MODE, airportVisible, FOCUS_AIRCRAFT, PRO } from './config';
 import { generateCity } from './world/city';
 import { loadCustomDesign } from './render/cockpitCustom';
@@ -369,6 +370,7 @@ class App implements MenuHost {
       city = new BuildingsRenderer(generateCity(this.world));
       city.maxDistance = this.graphics.buildingDistanceKm * 1000;
       this.scene.add(city.group);
+      if (PRO) loadCityPack(this.world).then((g) => { this.scene.add(g); }).catch((e) => console.warn('city pack not loaded', e));
     }
     this.patchRender.set(pm.id, { airport: ar, buildings: br, extras, city, scenery, sites: gateStands });
     this.jetBridges.addPatch(pm.id, airport.gates ?? [], lp.buildings, (e, n) => this.world.terrain.heightAt(e, n) - 0.2);
