@@ -39,7 +39,7 @@ export const DEFAULT_WEATHER: WeatherSettings = {
   turbulence: 0.15,
   temperatureC: 12,
   qnh: 1013.25,
-  visibility: 30000,
+  visibility: 70000,
   cloudCover: 'SCT',
   cloudBaseFt: 3500,
   rain: 0,

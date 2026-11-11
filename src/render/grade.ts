@@ -22,7 +22,9 @@ const GradeShader = {
         float r = length(d);
         float veil = 0.55 * exp(-r * 3.2) + 1.1 * exp(-r * 11.0) + 0.6 * exp(-r * 30.0); // strong sun shine: wide veil + hot core
         float streak = 0.25 * exp(-abs(d.y) * 55.0) * exp(-abs(d.x) * 1.6) + 0.15 * exp(-abs(d.x) * 70.0) * exp(-abs(d.y) * 1.3); // soft light streaks
-        c += vec3(1.0, 0.86, 0.62) * (veil + streak) * uSunUv.z * (1.0 - uNight);   // uSunUv.z = how strongly the REAL sun is shining (elevation, cloud cover) and in front of the camera
+        float look = exp(-r * 2.2);                                  // 1 when the sun is dead ahead, fading as it leaves the view
+        c += vec3(1.0, 0.86, 0.62) * (veil * (1.0 + 4.0 * look) + streak * (1.0 + 2.0 * look)) * uSunUv.z * (1.0 - uNight);
+        c = mix(c, vec3(1.6, 1.45, 1.2), clamp(look * look * 0.55 * uSunUv.z, 0.0, 0.7) * (1.0 - uNight));   // washes the whole picture out toward white, like being dazzled
       }
       float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
       // contrast about a mid-grey in linear light (pivot 0.18), keeps highlights from clipping because tone mapping follows

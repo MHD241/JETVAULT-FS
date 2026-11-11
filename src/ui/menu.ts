@@ -327,7 +327,7 @@ export class Menu {
     range('windSpeed', 'Wind speed', 0, 40, 1, 'kt');
     range('gustSpeed', 'Gusts to', 0, 50, 1, 'kt');
     range('turbulence', 'Turbulence', 0, 1, 0.05, '');
-    range('visibility', 'Visibility', 200, 60000, 100, 'm');
+    range('visibility', 'Visibility (fog distance)', 200, 120000, 100, 'm');
     form.insertAdjacentHTML('beforeend', `<label>Cloud cover</label><select data-k="cloudCover">${(['SKC', 'FEW', 'SCT', 'BKN', 'OVC'] as CloudCover[]).map((c) => `<option ${c === w.cloudCover ? 'selected' : ''}>${c}</option>`).join('')}</select><span></span>`);
     range('cloudBaseFt', 'Cloud base', 500, 10000, 100, 'ft');
     range('temperatureC', 'Temperature (field)', -20, 35, 1, '°C');
@@ -347,7 +347,7 @@ export class Menu {
     const ap = document.createElement('button'); ap.className = 'jv-btn'; ap.textContent = 'APPLY';
     ap.onclick = () => this.host.applyWeather({ ...w, source: 'manual' });
     const presets: [string, Partial<WeatherSettings>][] = [
-      ['Clear day', { windSpeed: 5, gustSpeed: 0, turbulence: 0.1, visibility: 50000, cloudCover: 'FEW', rain: 0, timeOfDay: 13 }],
+      ['Clear day', { windSpeed: 5, gustSpeed: 0, turbulence: 0.1, visibility: 100000, cloudCover: 'FEW', rain: 0, timeOfDay: 13 }],
       ['Scottish showers', { windDirection: 250, windSpeed: 16, gustSpeed: 26, turbulence: 0.45, visibility: 8000, cloudCover: 'BKN', cloudBaseFt: 1800, rain: 0.5 }],
       ['Low cloud and fog', { windSpeed: 3, gustSpeed: 0, turbulence: 0.05, visibility: 800, cloudCover: 'OVC', cloudBaseFt: 600, rain: 0.1 }],
       ['Night', { timeOfDay: 23, cloudCover: 'FEW', visibility: 30000, rain: 0 }],

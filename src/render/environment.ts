@@ -259,8 +259,8 @@ export class EnvironmentRenderer {
     this.spaceU.value = this.space;
     const starA = Math.max(this.space, 0.85 * this.night);
     this.stars.visible = starA > 0.01; (this.stars.material as THREE.PointsMaterial).opacity = starA; this.stars.position.copy(cam);
-    const vis = Math.max(50, Math.min(w.visibility, 80000) * (1 - 0.97 * inCloud));
-    this.fog.density = Math.sqrt(3) / vis * 0.9 * (1 - 0.92 * this.space); // no thick haze in thin air
+    const vis = Math.max(50, Math.min(w.visibility, 120000) * (1 - 0.97 * inCloud));
+    this.fog.density = Math.sqrt(3) / vis * 0.7 * (1 - 0.92 * this.space); // no thick haze in thin air
     const fogBright = 0.25 + 0.75 * dayLight;
     this.fog.color.setRGB(0.56 * fogBright, 0.70 * fogBright, 0.90 * fogBright).lerp(new THREE.Color(0.8, 0.8, 0.82).multiplyScalar(fogBright), overcast * 0.6 + inCloud);
     this.lightLevel = Math.max(this.night, w.visibility < 5000 ? 1 : 0, overcast * 0.4);
