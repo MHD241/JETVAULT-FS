@@ -80,8 +80,14 @@ export class GrassBlades {
         const e = (i + hash(i, j, 1)) * st, n = (j + hash(i, j, 2)) * st, d2 = (e - E0) ** 2 + (n - N0) ** 2;
         if (d2 > r2 || d2 < in2 || mats.length >= rg.cap) continue;
         if (hash(i, j, 11) > keep) continue;                              // thin out progressively with altitude
-        const lc = this.world.landAt(e, n);
-        if (lc !== LC.GRASS && lc !== LC.CROP) continue;
+        // the land-cover map is made of square cells, so its edges would show as squares: wander the lookup position with smooth noise
+        // (organic, irregular borders) and thin the grass out across a soft band near the border instead of cutting it off
+        const wx = e + 22 * Math.sin(e * 0.031 + n * 0.017) + 11 * Math.sin(n * 0.083 - e * 0.05), wy = n + 22 * Math.sin(n * 0.027 - e * 0.021) + 11 * Math.sin(e * 0.071 + n * 0.06);
+        const isG = (x: number, y: number) => { const c = this.world.landAt(x, y); return c === LC.GRASS || c === LC.CROP; };
+        if (!isG(wx, wy)) continue;
+        let share = 1;
+        { const R2 = 14 + 10 * hash(i, j, 41); share = (+isG(wx + R2, wy) + +isG(wx - R2, wy) + +isG(wx, wy + R2) + +isG(wx, wy - R2) + 1) / 5; }
+        if (share < 1 && hash(i, j, 42) > share * share) continue;
         if (this.world.isPaved(e, n)) continue;
         const h = this.world.terrain.heightAt(e, n);
         pos.set(e, h, -n); q.setFromAxisAngle(up, hash(i, j, 3) * 6.283); const s = rg.scale * (0.8 + 0.7 * hash(i, j, 4)); sc.set(s, s * (0.8 + 0.5 * hash(i, j, 5)) * (rg.flat ?? 1), s);

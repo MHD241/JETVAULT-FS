@@ -408,6 +408,14 @@ float gWater; float gBuilt; float gPaved;
       vec3 g1 = texture2D(uGrass, en / 3.0).rgb, g2 = texture2D(uGrass, en / 17.0 + 0.31).rgb;
       float lum = dot(mix(g1, g2, 0.45), vec3(0.3, 0.55, 0.15)) / 0.30;     // photo brightness relative to its average
       lum = mix(1.0, clamp(lum, 0.55, 1.6), 1.0 - smoothstep(400.0, 6000.0, dG));
+      // far grass: where there are no real blades the ground carries blade-like texture at three coarser scales, so it keeps the same
+      // grainy, tufted look as the blades near you (strongest just past the blade rings, easing with distance), instead of a smooth colour
+      float farW = smoothstep(300.0, 800.0, dG);
+      float t1 = dot(texture2D(uGrass, en / 9.0 + 0.13).rgb, vec3(0.3, 0.55, 0.15)) / 0.30;
+      float t2 = dot(texture2D(uGrass, en / 31.0 + 0.57).rgb, vec3(0.3, 0.55, 0.15)) / 0.30;
+      float t3 = dot(texture2D(uGrass, en / 110.0 + 0.29).rgb, vec3(0.3, 0.55, 0.15)) / 0.30;
+      float tuft = clamp(mix(mix(t1, t2, 0.5), t3, 0.4), 0.5, 1.7);
+      lum = mix(lum, tuft, farW * (1.0 - 0.55 * smoothstep(3000.0, 14000.0, dG)));
       col = srgb(grass) * lum;
       float ang = h3 * 3.1416;
       float stripe = sin(dot(w, vec2(cos(ang), sin(ang))) * (6.2832 / (3.0 + 3.0 * h2))) * 0.5 + 0.5;
