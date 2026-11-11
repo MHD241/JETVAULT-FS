@@ -13,12 +13,10 @@ const hash = (a: number, b: number, s = 0) => {
 
 export class GrassBlades {
   readonly group = new THREE.Group();
-  private mesh: THREE.InstancedMesh | null = null;
-  private cx = 1e9; private cz = 1e9;
   private geo: THREE.BufferGeometry;
   private mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   private uTime = { value: 0 };
-  constructor(private world: World, private radius = 30, private step = 0.26) {
+  constructor(private world: World, _radius = 30, _step = 0.26) {
     // wind: every blade bends in the world wind direction, more towards its tip; slow swells travel across the field, with faster flutter on top
     this.mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = this.uTime;
@@ -49,34 +47,40 @@ export class GrassBlades {
     }
     this.geo = mergeGeometries(blades)!; this.group.name = 'grassblades';
   }
-  private lastKeep = -1;
-  /** Fraction of blades kept for a camera height above ground: all of them near the ground, thinning out gradually (not all at once) until none at ~160 m. */
-  static keepFor(agl: number) { return 1 - Math.min(1, Math.max(0, (agl - 6) / 150)); }
+  /** Three rings so the grass reaches far but stays light: fine tufts near the camera, then bigger and sparser tufts out to ~200 m, so whole fields are covered. */
+  private rings = [
+    { r0: 0.5, r1: 24, step: 0.3, scale: 1, thresh: 8, cap: 30000, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
+    { r0: 24, r1: 80, step: 0.85, scale: 2.4, thresh: 18, cap: 34000, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
+    { r0: 80, r1: 200, step: 2.0, scale: 5.5, thresh: 40, cap: 34000, mesh: null as THREE.InstancedMesh | null, cx: 1e9, cz: 1e9, keep: -1 },
+  ];
+  /** Fraction kept for a camera height above ground: everything below 30 m, then a slow thinning, last tufts gone at ~650 m. */
+  static keepFor(agl: number) { return 1 - Math.min(1, Math.max(0, (agl - 30) / 620)); }
   update(cam: THREE.Vector3, agl = 0, time = 0) {
     this.uTime.value = time;
     const keep = GrassBlades.keepFor(agl);
     if (keep <= 0.02) { this.group.visible = false; return; }
     this.group.visible = true;
-    if (Math.hypot(cam.x - this.cx, cam.z - this.cz) < 10 && this.mesh && Math.abs(keep - this.lastKeep) < 0.06) return;
-    this.lastKeep = keep; this.cx = cam.x; this.cz = cam.z;
-    if (this.mesh) { this.group.remove(this.mesh); this.mesh.dispose(); this.mesh = null; }
-    const R = this.radius, st = this.step, E0 = cam.x, N0 = -cam.z, r2 = R * R;
-    const mats: THREE.Matrix4[] = [], m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
-    const i0 = Math.floor((E0 - R) / st), i1 = Math.floor((E0 + R) / st), j0 = Math.floor((N0 - R) / st), j1 = Math.floor((N0 + R) / st);
-    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
-      const e = (i + hash(i, j, 1)) * st, n = (j + hash(i, j, 2)) * st, d2 = (e - E0) ** 2 + (n - N0) ** 2;
-      if (d2 > r2 || d2 < 0.5 * 0.5 || mats.length >= 45000) continue;   // nothing right at the camera
-      if (hash(i, j, 11) > keep) continue;                              // thin out progressively with altitude
-      if (hash(i, j, 7) > 1 - 0.7 * (d2 / r2) && d2 > r2 * 0.2) continue; // thin out with distance
-      const lc = this.world.landAt(e, n);
-      if (lc !== LC.GRASS && lc !== LC.CROP) continue;
-      if (this.world.isPaved(e, n)) continue;
-      const h = this.world.terrain.heightAt(e, n);
-      pos.set(e, h, -n); q.setFromAxisAngle(up, hash(i, j, 3) * 6.283); const s = 0.8 + 0.7 * hash(i, j, 4); sc.set(s, s * (0.8 + 0.5 * hash(i, j, 5)), s);
-      mats.push(m4.compose(pos, q, sc).clone());
+    for (const rg of this.rings) {
+      if (rg.mesh && Math.hypot(cam.x - rg.cx, cam.z - rg.cz) < rg.thresh && Math.abs(keep - rg.keep) < 0.06) continue;
+      rg.keep = keep; rg.cx = cam.x; rg.cz = cam.z;
+      if (rg.mesh) { this.group.remove(rg.mesh); rg.mesh.dispose(); rg.mesh = null; }
+      const st = rg.step, E0 = cam.x, N0 = -cam.z, R = rg.r1, r2 = R * R, in2 = rg.r0 * rg.r0;
+      const mats: THREE.Matrix4[] = [], m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), sc = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
+      const i0 = Math.floor((E0 - R) / st), i1 = Math.floor((E0 + R) / st), j0 = Math.floor((N0 - R) / st), j1 = Math.floor((N0 + R) / st);
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+        const e = (i + hash(i, j, 1)) * st, n = (j + hash(i, j, 2)) * st, d2 = (e - E0) ** 2 + (n - N0) ** 2;
+        if (d2 > r2 || d2 < in2 || mats.length >= rg.cap) continue;
+        if (hash(i, j, 11) > keep) continue;                              // thin out progressively with altitude
+        const lc = this.world.landAt(e, n);
+        if (lc !== LC.GRASS && lc !== LC.CROP) continue;
+        if (this.world.isPaved(e, n)) continue;
+        const h = this.world.terrain.heightAt(e, n);
+        pos.set(e, h, -n); q.setFromAxisAngle(up, hash(i, j, 3) * 6.283); const s = rg.scale * (0.8 + 0.7 * hash(i, j, 4)); sc.set(s, s * (0.8 + 0.5 * hash(i, j, 5)), s);
+        mats.push(m4.compose(pos, q, sc).clone());
+      }
+      const im = new THREE.InstancedMesh(this.geo, this.mat, mats.length);
+      mats.forEach((m, k) => im.setMatrixAt(k, m)); im.instanceMatrix.needsUpdate = true; im.frustumCulled = false;
+      rg.mesh = im; this.group.add(im);
     }
-    const im = new THREE.InstancedMesh(this.geo, this.mat, mats.length);
-    mats.forEach((m, k) => im.setMatrixAt(k, m)); im.instanceMatrix.needsUpdate = true; im.frustumCulled = false;
-    this.mesh = im; this.group.add(im);
   }
 }
