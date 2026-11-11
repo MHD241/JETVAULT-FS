@@ -552,13 +552,14 @@ export class Aircraft {
         const w = this.worldPoint(p), sy = env.water(w.y, w.x);
         if (sy === null) continue;
         const dep = sy - (-w.z);                           // metres below the surface (positive = submerged)
-        if (dep > 0) { depthMax = Math.max(depthMax, dep); fSum += Math.min(dep, 1.2) / 0.8 / n; }
+        if (dep > 0) { depthMax = Math.max(depthMax, dep); fSum += Math.min(dep, 2.6) / 2.0 / n; }   // buoyancy grows with depth like a real hull: equilibrium (floating) at about 2 m deep
       }
       if (fSum > 0) {
         const m = this.mass, v = this.vel, sp = v.len();
-        const up = m * 9.80665 * fSum;                      // buoyancy (about 1 g when the belly is ~0.8 m deep)
-        const drag = Math.min(fSum, 1.6) * m * 0.012;       // quadratic water drag
-        wf = new Vec3(-drag * sp * v.x, -drag * sp * v.y, -up - drag * sp * v.z - m * 1.5 * v.z * Math.min(fSum, 1));
+        const up = m * 9.80665 * fSum;                      // buoyancy: exactly 1 g at the floating depth, more only if pushed deeper
+        const drag = Math.min(fSum, 1.3) * m * 0.012;       // quadratic water drag
+        const lin = m * 0.45 * Math.min(fSum, 1);           // viscous drag keeps slow drift from lasting forever
+        wf = new Vec3(-drag * sp * v.x - lin * v.x, -drag * sp * v.y - lin * v.y, -up - drag * sp * v.z - m * 0.9 * v.z * Math.min(fSum, 1));          // gentle heave damping so it bobs a few times and settles
         this.omega = this.omega.scale(1 - Math.min(0.9, 2.2 * Math.min(fSum, 1.2) * dt));
       }
       if (depthMax > 0 && this.waterDepth <= 0) this.waterImpacts.push(this.vel.len());
