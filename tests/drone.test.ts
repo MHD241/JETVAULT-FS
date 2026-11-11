@@ -29,4 +29,16 @@ describe('inspection drone', () => {
     expect(ac.tas).toBeLessThan(0.5);
     expect(Math.abs(ac.altitude - alt0)).toBeLessThan(0.5);
   });
+  it('does exactly what the stick says: rolls at the commanded rate and holds the new attitude when released', () => {
+    const sim = newSim(flatWorld(0), undefined, DRONE);
+    sim.spawnAir(0, -20000, 5000, 0);
+    sim.controls.throttle = 0.5;
+    sim.controls.roll = 0.5; run(sim, 1);                 // half stick for one second
+    expect(sim.aircraft.omega.x).toBeCloseTo(0.8, 1);
+    sim.controls.roll = 0; run(sim, 2);                   // stick centred: it stays where it is
+    expect(sim.aircraft.omega.len()).toBeLessThan(1e-9);
+    const bank = sim.aircraft.euler[0];
+    run(sim, 3);
+    expect(Math.abs(sim.aircraft.euler[0] - bank)).toBeLessThan(1e-6);
+  });
 });

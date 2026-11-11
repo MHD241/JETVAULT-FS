@@ -147,8 +147,9 @@ export class SimpleControls {
     }
     // touch: with the stick released in the air, gently level the wings (aileron input only)
     const stickFree = IS_TOUCH ? Math.abs(this.joy.x) < 0.05 : Math.abs(roll) < 0.03;
-    if (ac.def.wave && !ac.onGround) roll = clamp(roll - 0.9 * ac.omega.x, -1, 1); // roll-rate damper (the Darter's small wings have little natural roll damping)
-    if ((IS_TOUCH || this.arcade || ac.def.wave) && !ac.onGround && stickFree) {
+    const drone = !!ac.def.drone;                                     // the inspection drone is a flying camera: no damper, no self-levelling, no rudder assist, nothing fights the stick
+    if (ac.def.wave && !drone && !ac.onGround) roll = clamp(roll - 0.9 * ac.omega.x, -1, 1); // roll-rate damper (the Darter's small wings have little natural roll damping)
+    if ((IS_TOUCH || this.arcade || ac.def.wave) && !drone && !ac.onGround && stickFree) {
       const bank = ac.euler[0];
       if (Math.abs(bank) < (this.arcade ? 1.2 : 0.7)) roll = clamp(-1.6 * bank - 0.5 * ac.omega.x, -0.5, 0.5);
     }
@@ -172,7 +173,8 @@ export class SimpleControls {
     const gs = Math.hypot(ac.vel.x, ac.vel.y);
     const steer = ac.onGround ? c.roll * (ac.def.turbofans ? 1 / (1 + gs / 18) : 1) : 0; // nosewheel authority fades with speed on a jet
     const heading = ac.euler[2];
-    if (!ac.onGround) {
+    if (drone) { this.holdHdg = null; assist = 0; }
+    else if (!ac.onGround) {
       // jets: yaw damper (rudder against yaw rate); the old sideslip-driven rudder made the 737 wallow
       // (headless, hands off: rms yaw rate 0.5 deg/s with it vs 0.07 deg/s with the damper)
       assist = ac.def.turbofans || ac.def.wave ? -4.6 * ac.q.invRotate(ac.omega).z - (ac.def.wave ? ac.beta * 3 : 0) : this.assists ? ac.beta * 4 : 0;
