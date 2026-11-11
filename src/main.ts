@@ -54,6 +54,8 @@ import { loadCustomDesign } from './render/cockpitCustom';
 import { STUDIO_ORIGIN } from './studio/parts';
 import { TyreSmoke } from './render/tyreSmoke';
 import { WaterFx } from './render/waterFx';
+import { SeaSurface } from './render/seaSurface';
+import { sea, seaAmpFromWind, seaHeight } from './world/waves';
 import { MarshalFigure } from './render/marshalFigure';
 import { marshalCall, MarshalSignal } from './sim/marshal';
 import { findGateSites } from './world/obstacles';
@@ -120,6 +122,7 @@ class App implements MenuHost {
   private grade: Grade | null = null;
   private tyreSmoke = new TyreSmoke();
   private waterFx = new WaterFx();
+  private seaSurface: SeaSurface | null = null;
   private stallEl!: HTMLDivElement;
   // stand marshal
   private marshalFig = new MarshalFigure();
@@ -811,7 +814,13 @@ class App implements MenuHost {
       if (!sim.paused && this.simple.assists && !sim.def.drone) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
     this.updateBuggy(dt);
-    if (PRO && !sim.paused) this.waterFx.update(dt * sim.timeScale, ac, (e, n) => this.world.landAt(e, n) === LC.WATER && this.world.terrain.heightAt(e, n) < 3, (e, n) => Math.max(0, this.world.terrain.heightAt(e, n)));
+    if (PRO) {
+      sea.t = performance.now() / 1000; sea.amp = seaAmpFromWind(sim.weather.windSpeed);
+      if (!this.seaSurface) { this.seaSurface = new SeaSurface(this.terrain.uniforms.uDetail.value as THREE.Texture); this.scene.add(this.seaSurface.group); }
+      this.seaSurface.update(this.rig.camera.position, this.env.night);
+      while (ac.waterImpacts.length) { const v = ac.waterImpacts.shift()!; const p = nedToThree(ac.pos); p.y = seaHeight(ac.pos.y, ac.pos.x); if (v > 6) this.waterFx.impact(p, v); }
+    }
+    if (PRO && !sim.paused) this.waterFx.update(dt * sim.timeScale, ac, (e, n) => this.world.landAt(e, n) === LC.WATER && this.world.terrain.heightAt(e, n) < 3, (e, n) => seaHeight(e, n));
     if (!sim.paused) this.tyreSmoke.update(dt, ac, (e, n) => this.world.terrain.heightAt(e, n));
     this.updateMarshal(dt);
     if (!ac.crashed) nedToThree(ac.vel, this.lastVel);

@@ -121,6 +121,8 @@ export interface Environment {
   lift?: (north: number, east: number, alt: number, agl: number) => number;
   ground: GroundQuery;
   obstacles?: ObstacleIndex;
+  /** Sea surface height above MSL at (east, north) if that point is open sea, else null. Drives floating, drag and splashes. */
+  water?: (east: number, north: number) => number | null;
 }
 
 export interface SurfaceRuntime {
@@ -157,6 +159,9 @@ export class Aircraft {
   spoiler = 0;
   private droneI = 0;
   private droneV = 0;
+  /** Deepest submersion (m) of the airframe in water this step, and the impact speeds (m/s) of each new water entry (drained by the renderer to make splashes). */
+  waterDepth = 0;
+  waterImpacts: number[] = [];
   gearStates: GearState[];
   contactActive: boolean[];
   payload: number[];
@@ -538,6 +543,28 @@ export class Aircraft {
       }
     }
 
+    // --- Water: the airframe floats and drags through the sea surface (the same waves that are drawn)
+    let wf: Vec3 | null = null;
+    if (env.water && !d.drone) {
+      const pts = [this.cg, ...d.gear.map((g) => g.attach), new Vec3(this.cg.x + 2.5, this.cg.y, this.cg.z), new Vec3(this.cg.x - 2.5, this.cg.y, this.cg.z)];
+      const n = pts.length; let depthMax = 0, fSum = 0;
+      for (const p of pts) {
+        const w = this.worldPoint(p), sy = env.water(w.y, w.x);
+        if (sy === null) continue;
+        const dep = sy - (-w.z);                           // metres below the surface (positive = submerged)
+        if (dep > 0) { depthMax = Math.max(depthMax, dep); fSum += Math.min(dep, 1.2) / 0.8 / n; }
+      }
+      if (fSum > 0) {
+        const m = this.mass, v = this.vel, sp = v.len();
+        const up = m * 9.80665 * fSum;                      // buoyancy (about 1 g when the belly is ~0.8 m deep)
+        const drag = Math.min(fSum, 1.6) * m * 0.012;       // quadratic water drag
+        wf = new Vec3(-drag * sp * v.x, -drag * sp * v.y, -up - drag * sp * v.z - m * 1.5 * v.z * Math.min(fSum, 1));
+        this.omega = this.omega.scale(1 - Math.min(0.9, 2.2 * Math.min(fSum, 1.2) * dt));
+      }
+      if (depthMax > 0 && this.waterDepth <= 0) this.waterImpacts.push(this.vel.len());
+      this.waterDepth = depthMax;
+    }
+
     // --- Integrate rigid body (semi-implicit Euler)
     this.specificForce = F.scale(1 / this.mass);
     this.loadFactor = -this.specificForce.z / 9.80665;
@@ -545,7 +572,8 @@ export class Aircraft {
       this.maxLoadFactor = Math.max(this.maxLoadFactor, flightNz);
       this.minLoadFactor = Math.min(this.minLoadFactor, flightNz);
     }
-    const Fw = this.q.rotate(F).add(new Vec3(0, 0, this.mass * 9.80665));
+    let Fw = this.q.rotate(F).add(new Vec3(0, 0, this.mass * 9.80665));
+    if (wf) Fw = Fw.add(wf);
     this.vel.addScaled(Fw, dt / this.mass);
     this.pos.addScaled(this.vel, dt);
     // Compressibility (wave) drag: a swept-wing jet cannot be pushed far past its cruise Mach (drag climbs steeply above ~M0.78)

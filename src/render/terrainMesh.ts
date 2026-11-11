@@ -381,6 +381,7 @@ float gWater; float gBuilt; float gPaved;
   float w00 = c00 > 75.0 && c00 < 85.0 ? 1.0 : 0.0, w10 = c10 > 75.0 && c10 < 85.0 ? 1.0 : 0.0;
   float w01 = c01 > 75.0 && c01 < 85.0 ? 1.0 : 0.0, w11 = c11 > 75.0 && c11 < 85.0 ? 1.0 : 0.0;
   gWater = smoothstep(0.35, 0.65, mix(mix(w00, w10, t.x), mix(w01, w11, t.x), t.y));
+  if (uPro > 0.5 && gWater > 0.5 && vWorldPos.y < 3.0) discard;   // sea level water is drawn by the moving sea surface (seaSurface.ts)
   float b00 = c00 > 45.0 && c00 < 55.0 ? 1.0 : 0.0, b10 = c10 > 45.0 && c10 < 55.0 ? 1.0 : 0.0;
   float b01 = c01 > 45.0 && c01 < 55.0 ? 1.0 : 0.0, b11 = c11 > 45.0 && c11 < 55.0 ? 1.0 : 0.0;
   gBuilt = mix(mix(b00, b10, t.x), mix(b01, b11, t.x), t.y);

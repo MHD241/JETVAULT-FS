@@ -5,7 +5,9 @@ import { Aircraft, AircraftDef, Environment } from './fdm/aircraft';
 import { C172Systems } from './systems/c172Systems';
 import { FlightControls, defaultControls, readyControls } from './controls';
 import { WindModel, WeatherSettings, DEFAULT_WEATHER, atmosphereFromWeather } from './weather';
-import { World } from '../world/world';
+import { World, LC } from '../world/world';
+import { seaHeight } from '../world/waves';
+import { PRO as PRO_WATER } from '../config';
 import { runwayEnd } from '../world/airport';
 import { Autopilot } from './autopilot';
 import { LiftField } from './lift';
@@ -52,8 +54,10 @@ export class Simulation {
       get atmosphere() { return atmosphereFromWeather(self.weather, fieldElev); },
       wind: (agl: number) => this.wind.windAt(agl),
       lift: (n: number, e: number, alt: number, agl: number) => this.lift.at(n, e, alt, agl),
-      ground: this.world,
+      // over open sea the physics ground is far below the surface, so aircraft sink/float in the water instead of rolling on an invisible sea floor
+      ground: PRO_WATER ? { heightAt: (e: number, n: number, no?: { e: number; n: number; u: number }) => (this.world.landAt(e, n) === LC.WATER && this.world.heightAt(e, n) < 3 ? -60 : this.world.heightAt(e, n, no)), surfaceAt: (e: number, n: number) => this.world.surfaceAt(e, n) } : this.world,
       obstacles: this.world.obstacles,
+      water: PRO_WATER ? (e: number, n: number) => (this.world.landAt(e, n) === LC.WATER && this.world.heightAt(e, n) < 3 ? seaHeight(e, n) : null) : undefined,
     };
   }
 
