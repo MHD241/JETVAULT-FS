@@ -6,6 +6,7 @@ import { World, LC } from './world';
 import { LocalProjection, EGPH_ORIGIN } from './geo';
 import type { Building } from './obstacles';
 import { PRO } from '../config';
+import { towerSpots } from '../render/cityPack';
 
 const hash = (a: number, b: number, s = 0) => {
   let h = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(s | 0, 144665231);
@@ -20,6 +21,7 @@ export function generateCity(world: World, radius = 8500, cell = 58, isBuilt: (e
   const c = proj.forward(EDINBURGH_CENTRE.lat, EDINBURGH_CENTRE.lon);
   const yaw = (20 * Math.PI) / 180, cy = Math.cos(yaw), sy = Math.sin(yaw);
   const out: Building[] = [];
+  const spots = PRO ? towerSpots(world) : [];
   const n = Math.ceil(radius / cell);
   for (let i = -n; i <= n; i++) {
     for (let j = -n; j <= n; j++) {
@@ -30,6 +32,7 @@ export function generateCity(world: World, radius = 8500, cell = 58, isBuilt: (e
       const e = c.east + ox * cy - oy * sy, nn = c.north + ox * sy + oy * cy;
       if (Math.hypot(e, nn) < 3200) continue; // keep the airport's surroundings as they are
       if (!isBuilt(e, nn)) continue;
+      if (spots.some((t) => Math.abs(t.e - e) < 70 && Math.abs(t.n - nn) < 70)) continue; // a pack tower stands here
       const dk = d / 1000;
       const occ = dk < 1.8 ? 0.98 : dk < 3.5 ? 0.92 : dk < 6 ? 0.85 : 0.75;
       if (hash(i, j, 3) > occ) continue;
