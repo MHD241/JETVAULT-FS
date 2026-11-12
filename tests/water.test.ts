@@ -41,3 +41,19 @@ describe('water', () => {
     expect(r.alts[2399]).toBeLessThan(r.alts[120] + 0.05);
   });
 });
+describe('water roll stability', () => {
+  it('a rolled aircraft rights itself on the water (no endless banking)', () => {
+    const sim = newSim(flatWorld(0), undefined, B738);
+    sim.spawnAir(0, -20000, 5, 0);
+    sim.env.ground = { heightAt: () => -60, surfaceAt: () => ({ friction: 0.05, rolling: 0.5, kind: 'water' }) } as never;
+    sim.env.water = (e, n) => seaHeight(e, n, 0, 0.3);
+    const ac = sim.aircraft;
+    ac.pos.z = -1.2; ac.vel.x = 0; ac.vel.z = 0;
+    ac.omega.x = 1.2; run(sim, 0.4);                   // kick it into a roll
+    const bank0 = Math.abs(ac.euler[0]);
+    run(sim, 40);
+    const bank1 = Math.abs(ac.euler[0]);
+    console.log('bank start', (bank0 * 57.3).toFixed(0), 'after 40 s', (bank1 * 57.3).toFixed(1));
+    expect(bank1).toBeLessThan(Math.max(0.12, bank0 * 0.5));
+  });
+});

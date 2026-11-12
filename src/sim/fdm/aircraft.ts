@@ -584,6 +584,23 @@ export class Aircraft {
         Fb.addIn(fw); Mb.addIn(rb.cross(fbody));
         Fup += bu; void wetted; void tail;
       }
+      // wings and engines: a round fuselage alone has no roll stability (its buoyancy always acts through the middle), so the wing panels
+      // (about 0.6 m thick, 4.5 m chord) float too: whichever wing dips deeper gets pushed up harder and rolls the aircraft level again
+      const span = d.wingSpan, WS = 6, dyw = (0.46 * span - 2.2) / WS;
+      for (const side of [-1, 1]) for (let j = 0; j < WS; j++) {
+        const yb = side * (2.2 + (j + 0.5) * dyw), pb = new Vec3(this.cg.x - 2.2 - 0.35 * Math.abs(yb), yb, zc + 0.8), w = this.worldPoint(pb), sy = env.water(w.y, w.x);
+        if (sy === null) continue;
+        const e = Math.max(0, Math.min(0.6, sy - (-w.z) + 0.3));         // submerged part of the wing thickness
+        if (e <= 0) continue;
+        wet = true;
+        const bu = RHO * G9 * 4.5 * dyw * e;
+        const rb = pb.sub(this.cg), fw = new Vec3(0, 0, -bu);
+        Fb.addIn(fw); Mb.addIn(rb.cross(this.q.invRotate(fw)));
+        const vst = this.vel.add(this.q.rotate(this.omega.cross(rb)));
+        const fd = vst.scale(-RHO * 1.0 * dyw * 4.5 * Math.min(1, e / 0.3) * vst.len() * 0.6);   // wing slamming and drag (blunt, flat plate)
+        const fdb = this.q.invRotate(fd);
+        Fb.addIn(fd); Mb.addIn(rb.cross(fdb));
+      }
       if (wet) {
         wf = Fb;
         const lim = this.mass * G9 * 6;                                   // never more than a 6 g shove from the water
