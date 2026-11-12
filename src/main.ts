@@ -816,8 +816,8 @@ class App implements MenuHost {
     this.updateBuggy(dt);
     if (PRO) {
       sea.t = performance.now() / 1000; sea.amp = seaAmpFromWind(sim.weather.windSpeed);
-      if (!this.seaSurface) { this.seaSurface = new SeaSurface(this.terrain.uniforms.uDetail.value as THREE.Texture); this.scene.add(this.seaSurface.group); }
-      this.seaSurface.update(this.rig.camera.position, this.env.night);
+      if (!this.seaSurface) { this.seaSurface = new SeaSurface(this.terrain.uniforms.uDetail.value as THREE.Texture, this.world); this.scene.add(this.seaSurface.group); }
+      { const cp = this.rig.camera.position; this.seaSurface.update(cp, this.env.night, this.world.landAt(cp.x, -cp.z) === LC.WATER && this.world.terrain.heightAt(cp.x, -cp.z) < 3 && cp.y < seaHeight(cp.x, -cp.z)); }
       while (ac.waterImpacts.length) { const v = ac.waterImpacts.shift()!; const p = nedToThree(ac.pos); p.y = seaHeight(ac.pos.y, ac.pos.x); if (v > 6) { this.waterFx.impact(p, v); addSurge(ac.pos.y, ac.pos.x, Math.min(3.0, v / 30)); } }
     }
     if (PRO && !sim.paused) this.waterFx.update(dt * sim.timeScale, ac, (e, n) => this.world.landAt(e, n) === LC.WATER && this.world.terrain.heightAt(e, n) < 3, (e, n) => seaHeight(e, n));
@@ -949,7 +949,9 @@ class App implements MenuHost {
     if (PRO) {
       // under the sea surface: blue-green murk, short visibility
       const under = this.world.landAt(cam.position.x, -cam.position.z) === LC.WATER && this.world.terrain.heightAt(cam.position.x, -cam.position.z) < 3 && cam.position.y < seaHeight(cam.position.x, -cam.position.z);
-      if (under) { const f = this.scene.fog as THREE.FogExp2; f.color.setRGB(0.02, 0.12, 0.2); f.density = 0.045; }
+      this.scene.background = under ? (this.scene.fog as THREE.FogExp2).color : null;
+      this.env.sky.visible = !under;   // underwater there is no sky behind the murk (it showed as white lines at the horizon)
+      if (under) { const f = this.scene.fog as THREE.FogExp2; const dep = Math.max(0, seaHeight(cam.position.x, -cam.position.z) - cam.position.y), k = 1 - Math.exp(-dep / 25); f.color.setRGB(0.02 * (1 - k) + 0.004 * k, 0.16 * (1 - k) + 0.03 * k, 0.24 * (1 - k) + 0.07 * k); f.density = 0.028 + 0.012 * k; }
     }
     for (const m of this.scene.children) if (m.renderOrder >= 2 && m.renderOrder <= 3) m.visible = m.visible && this.graphics.clouds;
     this.model.update(ac, sim.controls, sim.paused ? 0 : dt * sim.timeScale, this.env.night);
