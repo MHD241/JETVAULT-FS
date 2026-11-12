@@ -60,3 +60,10 @@ export class AutoTrim {
     return 0;
   }
 }
+
+/** Neutral-stick trim for an aircraft with a trim model (the 737): depends on the flap lever, the speed (kt) and the throttle. */
+export function trimFor(profile: { trimModel?: { t0: number[]; kr: number[]; s: number[]; b: number } }, lever: number, kt: number, thr: number): number | null {
+  const m = profile.trimModel; if (!m) return null;
+  const i = Math.max(0, Math.min(m.t0.length - 1, Math.round(lever))), v = Math.max(kt, 90), inv = 1 / (v * v);
+  return clamp(m.t0[i] + m.s[i] * (inv - 1 / (m.kr[i] * m.kr[i])) - (m.b * (thr - 0.5)) * inv, -1, 1);
+}

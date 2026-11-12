@@ -103,6 +103,8 @@ export interface AircraftDef {
     takeoffTrim: number; takeoffFlapLever: number;
     /** Fixed pitch trim for each flap lever position (measured: level flight at that detent's typical speed, centred stick = no pitching). Used when the beginner assists are on. */
     trimSchedule?: number[];
+    /** Trim model for the beginner assist: trim = t0[flap] + s[flap] * (1/kt^2 - 1/kr[flap]^2) - b * (throttle - 0.5) / kt^2, so the centred stick stays neutral whatever the thrust and speed (underslung engines pitch the nose up with power; slower flight needs more nose-up trim). */
+    trimModel?: { t0: number[]; kr: number[]; s: number[]; b: number };
     approachKias: number; approachThrottle: number; approachFlapLever: number; approachTrim: number; approachPitchDeg: number;
     cruiseKias: number; cruiseThrottle: number; idleRpm: number; approachRpm: number; cruiseRpm: number;
     /** Clearance radius needed at a parking stand, m. */
