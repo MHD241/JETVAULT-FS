@@ -22,8 +22,8 @@ function build(n = 48): WaveDef[] {
 }
 export const WAVES: WaveDef[] = build();
 export const sea = { t: 0, amp: 1 };
-/** Wave amplitude scale from the wind (knots): calm 1.0 .. gale 4.6. */
-export const seaAmpFromWind = (windKt: number) => Math.min(4.6, 1.0 + windKt * 0.12);
+/** Wave amplitude scale from the wind (knots): calm 0.3 .. gale 1.5 (a 10 kt breeze gives about 0.6: swells under 1.5 m). */
+export const seaAmpFromWind = (windKt: number) => Math.min(1.5, 0.28 + windKt * 0.035);
 
 /** Water surges from impacts: an expanding ring of raised water that travels outward and decays. */
 export interface Surge { e: number; n: number; t0: number; s: number }

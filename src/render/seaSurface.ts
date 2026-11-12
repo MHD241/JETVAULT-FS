@@ -49,7 +49,7 @@ export class SeaSurface {
   }
 
   private material(cell: number, hole: number, hc: { value: THREE.Vector2 }) {
-    const mat = new THREE.MeshStandardMaterial({ color: 0x0a2740, roughness: 0.07, metalness: 0.0, envMapIntensity: 1.0, side: THREE.DoubleSide });
+    const mat = new THREE.MeshStandardMaterial({ color: 0x0a2740, roughness: 0.07, metalness: 0.0, envMapIntensity: 0.2, side: THREE.DoubleSide });
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, this.uniforms);
       sh.uniforms.uMinL = { value: cell * 4.2 }; sh.uniforms.uHole = { value: hole }; sh.uniforms.uHoleC = hc; sh.uniforms.uSurge = this.surgeU;
@@ -128,10 +128,10 @@ float seaFoam = 0.0, seaFoamRough = 0.0; vec3 seaEmit = vec3(0.0);
   vec2 dUv = (vSeaW.xz - uDepthC) / ${DEPTH_SIZE.toFixed(1)} + 0.5;
   float dist = (dUv.x > 0.0 && dUv.x < 1.0 && dUv.y > 0.0 && dUv.y < 1.0) ? texture2D(uDepth, vec2(dUv.x, 1.0 - dUv.y)).r * 600.0 : 600.0;
   float deep = smoothstep(8.0, 380.0, dist);                          // 0 at the shore, 1 well out
-  vec3 shallowC = vec3(0.04, 0.34, 0.36), midC = vec3(0.012, 0.13, 0.22), deepC = vec3(0.004, 0.035, 0.10);
+  vec3 shallowC = vec3(0.02, 0.17, 0.20), midC = vec3(0.006, 0.07, 0.14), deepC = vec3(0.002, 0.02, 0.07);
   vec3 body = mix(shallowC, mix(midC, deepC, smoothstep(0.35, 1.0, deep)), smoothstep(0.0, 0.5, deep));
-  float crestH = clamp(vSeaH / (2.2 * uAmp + 0.01) * 0.5 + 0.5, 0.0, 1.0);
-  body += vec3(0.02, 0.16, 0.13) * smoothstep(0.55, 1.0, crestH) * (0.4 + 0.6 * (1.0 - deep));   // light scattering through thin crests
+  float crestH = clamp(vSeaH / (2.2 * max(uAmp, 1.0) + 0.01) * 0.5 + 0.5, 0.0, 1.0);
+  body += vec3(0.01, 0.07, 0.06) * smoothstep(0.55, 1.0, crestH) * (0.4 + 0.6 * (1.0 - deep));   // light scattering through thin crests
   diffuseColor.rgb = body;
   // foam: where the surface folds (Jacobian < ~0.5) = breaking crests, broken up with noise, plus a surf line along shores
   float n = texture2D(uDetail, vSeaW.xz / 7.0 + uTime * 0.02).r * 0.55 + texture2D(uDetail, vSeaW.xz / 2.6 - uTime * 0.03).g * 0.45;
@@ -154,7 +154,7 @@ roughnessFactor = mix(0.07, 0.85, seaFoamRough);`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 totalEmissiveRadiance += seaEmit;`);
     };
-    mat.customProgramCacheKey = () => 'sea-surface-v3';
+    mat.customProgramCacheKey = () => 'sea-surface-v4';
     return mat;
   }
 
