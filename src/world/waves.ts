@@ -1,16 +1,16 @@
 // Sea state: ONE spectrum-based set of travelling waves used by BOTH the drawn water surface (render/seaSurface.ts, same numbers in GLSL)
-// and the flight model (floating, drag, splashes). 48 waves from 6 m to 420 m across a wind-driven spread of directions with random
+// and the flight model (floating, drag, splashes). 22 waves from 7 m to 420 m across a wind-driven spread of directions with random
 // phases, steepness following a rough ocean spectrum (long swells gentle, short chop steeper). Heights in metres above sea level.
 export interface WaveDef { dx: number; dy: number; L: number; A: number; k: number; w: number; phi: number; Q: number }
 const G = 9.80665, TWO_PI = Math.PI * 2;
 export const waveOmega = (L: number) => Math.sqrt(G * TWO_PI / L);
 export const WIND_DIR = (25 * Math.PI) / 180;   // waves travel towards this heading (east-of-north not needed: (dx,dy) are east, north components)
 
-function build(n = 48): WaveDef[] {
+function build(n = 22): WaveDef[] {
   let seed = 90210; const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
   const out: WaveDef[] = [];
   for (let i = 0; i < n; i++) {
-    const t = i / (n - 1), L = 6 * Math.pow(70, t);                    // 6 m .. 420 m, geometric
+    const t = i / (n - 1), L = 7 * Math.pow(60, t);                    // 6 m .. 420 m, geometric
     const steep = L > 120 ? 0.016 : L > 40 ? 0.026 : 0.042;            // a*k
     const A = (steep * (0.55 + 0.45 * rnd()) * L) / TWO_PI;
     const spread = 0.25 + 0.9 * Math.pow(1 - t, 1.5);                  // short chop comes from more directions than the long swell

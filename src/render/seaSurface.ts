@@ -33,7 +33,7 @@ export class SeaSurface {
     this.floor = new THREE.Mesh(new THREE.PlaneGeometry(90000, 90000).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x07303a, fog: true }));
     this.floor.position.y = -58; this.floor.frustumCulled = false; this.group.add(this.floor);
     // [size, segments, y offset, half-size of the hole left for the finer ring inside]
-    const rings: [number, number, number, number][] = [[1600, 400, 0, 0], [9000, 300, -0.2, 780], [60000, 200, -0.4, 4400]];
+    const rings: [number, number, number, number][] = [[1400, 200, 0, 0], [9000, 128, -0.2, 680], [60000, 80, -0.4, 4400]];
     for (const [size, seg, dy, hole] of rings) {
       const g = new THREE.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
       const hc = { value: new THREE.Vector2() }; this.holeCs.push(hc);
@@ -41,7 +41,7 @@ export class SeaSurface {
       this.meshes.push({ m, cell: size / seg }); this.group.add(m);
     }
     // marine snow: drifting specks around the camera, only visible underwater
-    const SN = 700; this.snowBase = new Float32Array(SN * 3);
+    const SN = 300; this.snowBase = new Float32Array(SN * 3);
     for (let i = 0; i < SN * 3; i++) this.snowBase[i] = Math.random();
     const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SN * 3), 3));
     this.snow = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xbfe6e0, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0.55, depthWrite: false, fog: false }));
@@ -166,7 +166,7 @@ roughnessFactor = mix(0.07, 0.85, seaFoamRough);`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 totalEmissiveRadiance += seaEmit;`);
     };
-    mat.customProgramCacheKey = () => 'sea-surface-v5';
+    mat.customProgramCacheKey = () => 'sea-surface-v6';
     return mat;
   }
 
