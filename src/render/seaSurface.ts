@@ -33,7 +33,7 @@ export class SeaSurface {
     this.floor = new THREE.Mesh(new THREE.PlaneGeometry(90000, 90000).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x07303a, fog: true }));
     this.floor.position.y = -58; this.floor.frustumCulled = false; this.group.add(this.floor);
     // [size, segments, y offset, half-size of the hole left for the finer ring inside]
-    const rings: [number, number, number, number][] = [[900, 300, 0, 0], [7000, 240, -0.2, 440], [60000, 160, -0.4, 3400]];
+    const rings: [number, number, number, number][] = [[1600, 400, 0, 0], [9000, 300, -0.2, 780], [60000, 200, -0.4, 4400]];
     for (const [size, seg, dy, hole] of rings) {
       const g = new THREE.PlaneGeometry(size, size, seg, seg); g.rotateX(-Math.PI / 2);
       const hc = { value: new THREE.Vector2() }; this.holeCs.push(hc);
@@ -107,17 +107,29 @@ vSeaH = seaH; vSeaJ = seaJ;
 vSeaW = (modelMatrix * vec4(transformed, 1.0)).xyz;`);
       sh.fragmentShader = sh.fragmentShader
         .replace('#include <common>', `#include <common>
-uniform float uTime; uniform float uAmp; uniform float uNight; uniform float uUnder; uniform sampler2D uDetail; uniform sampler2D uDepth; uniform vec2 uDepthC; uniform float uHole; uniform vec2 uHoleC;
+uniform float uTime; uniform float uAmp; uniform float uNight; uniform float uUnder; uniform sampler2D uDetail; uniform sampler2D uDepth; uniform vec2 uDepthC; uniform float uHole; uniform vec2 uHoleC; uniform float uMinL; uniform vec4 uWa[${N}]; uniform vec4 uWb[${N}];
 varying vec3 vSeaW; varying float vSeaH; varying float vSeaJ;`)
         .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 {
   // fine ripples on top of the wave shape (two scrolling layers), fading with distance so the far sea stays calm and sparkly
   vec2 p = vSeaW.xz;
   float dd = length(vSeaW - cameraPosition);
-  float nearR = 1.0 - smoothstep(40.0, 1400.0, dd);
+  float nearR = 1.0 - smoothstep(60.0, 5000.0, dd);
   vec2 r1 = texture2D(uDetail, p / 13.0 + vec2(uTime * 0.04, uTime * 0.03)).rg - 0.5;
   vec2 r2 = texture2D(uDetail, p / 4.3 - vec2(uTime * 0.07, uTime * 0.05) + 0.37).ba - 0.5;
   vec3 wn = normalize(vec3((r1.x + 0.6 * r2.x) * 0.26 * nearR, 1.0, (r1.y + 0.6 * r2.y) * 0.26 * nearR));
+  // the waves too short for this grid's vertices still shape the surface here, per pixel, so the water looks the same on every grid and at every
+  // distance (each one fades out only when it would be smaller than a pixel); in world axes east, up, north
+  vec2 enF = vec2(vSeaW.x, -vSeaW.z); vec2 fs = vec2(0.0);
+  for (int i = 0; i < ${N}; i++) {
+    vec4 a = uWa[i], b = uWb[i];
+    if (b.w >= uMinL) continue;
+    float vis = 1.0 - smoothstep(b.w * 14.0, b.w * 70.0, dd);
+    if (vis <= 0.0) continue;
+    float ph = a.z * dot(a.xy, enF) - b.x * uTime + b.y;
+    fs += a.xy * (a.z * a.w * uAmp * cos(ph) * vis);
+  }
+  wn = normalize(wn + vec3(-fs.x, 0.0, fs.y));
   normal = normalize(normal + (viewMatrix * vec4(wn.x, 0.0, wn.z, 0.0)).xyz * 0.9);
 }`)
         .replace('#include <color_fragment>', `#include <color_fragment>
@@ -154,7 +166,7 @@ roughnessFactor = mix(0.07, 0.85, seaFoamRough);`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 totalEmissiveRadiance += seaEmit;`);
     };
-    mat.customProgramCacheKey = () => 'sea-surface-v4';
+    mat.customProgramCacheKey = () => 'sea-surface-v5';
     return mat;
   }
 
