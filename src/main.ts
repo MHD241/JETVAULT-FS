@@ -32,7 +32,7 @@ import { bodyMatrix, nedToThree } from './render/coords';
 import { InputManager, loadInputSettings } from './input/input';
 import { Hud } from './ui/hud';
 import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
-import { Vec3, clamp } from './core/math';
+import { Vec3, clamp, moveToward } from './core/math';
 import { AutoTrim } from './sim/assists';
 import { SimpleControls, IS_TOUCH } from './input/simpleControls';
 import { Minimap } from './ui/minimap';
@@ -811,7 +811,11 @@ class App implements MenuHost {
     if (!this.menu.open) {
       this.simple.update(dt, sim.controls, ac);
       if (sim.def.drone) { const sp = droneSpeed(sim.controls.throttle, sim.def.drone), k = Math.round(sp); if (k !== this.lastDroneSpeed) { this.lastDroneSpeed = k; this.hud.toast(sp ? `Drone speed ${Math.round(sp * 1.944)} kt (${k} m/s)` : 'Drone motor off (keys 2-9 set the speed)'); } }
-      if (!sim.paused && this.simple.assists && !sim.def.drone) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
+      if (!sim.paused && this.simple.assists && sim.def.profile.trimSchedule && !ac.onGround && !sim.def.drone) {
+        // fixed trim per flap setting (so the stick is neutral in the middle at every flap detent); eases to the new value when the flaps move
+        const tgt = sim.def.profile.trimSchedule[Math.max(0, Math.min(sim.def.profile.trimSchedule.length - 1, Math.round(sim.controls.flapLever)))];
+        sim.controls.trim = moveToward(sim.controls.trim, tgt, 0.2 * dt * sim.timeScale);
+      } else if (!sim.paused && this.simple.assists && !sim.def.drone) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
     this.updateBuggy(dt);
     if (PRO) {

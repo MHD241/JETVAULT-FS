@@ -101,6 +101,8 @@ export interface AircraftDef {
   /** Values used when starting a flight in a given configuration. */
   profile: {
     takeoffTrim: number; takeoffFlapLever: number;
+    /** Fixed pitch trim for each flap lever position (measured: level flight at that detent's typical speed, centred stick = no pitching). Used when the beginner assists are on. */
+    trimSchedule?: number[];
     approachKias: number; approachThrottle: number; approachFlapLever: number; approachTrim: number; approachPitchDeg: number;
     cruiseKias: number; cruiseThrottle: number; idleRpm: number; approachRpm: number; cruiseRpm: number;
     /** Clearance radius needed at a parking stand, m. */

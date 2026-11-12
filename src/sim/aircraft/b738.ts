@@ -163,7 +163,8 @@ export const B738: AircraftDef = {
   stallWarnAlpha: 15,
   eye: new Vec3(14.0, -0.53, -0.82), // raised and set back a little: sees the glareshield, both displays and the wheel, like the reference view
   profile: {
-    takeoffTrim: -0.4, takeoffFlapLever: 3, // balances the nose-up thrust moment of the underslung engines at takeoff power: a centred stick climbs gently
+    takeoffTrim: -0.4, trimSchedule: [-0.291, -0.212, -0.113, -0.069, -0.004, 0.121, 0.304, 0.401, 0.506], // flaps 0,1,2,5,10,15,25,30,40 (level flight with a centred stick at 250,215,195,180,165,155,145,140,135 kt)
+    takeoffFlapLever: 3, // balances the nose-up thrust moment of the underslung engines at takeoff power: a centred stick climbs gently
     approachKias: 145, approachThrottle: 0.55, approachFlapLever: 7, approachTrim: 0.3, approachPitchDeg: 1.5,
     cruiseKias: 250, cruiseThrottle: 0.75, idleRpm: 2100, approachRpm: 6200, cruiseRpm: 8000,
     standClearance: 20,
