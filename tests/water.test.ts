@@ -14,7 +14,7 @@ describe('water', () => {
     ac.pos.z = -4; ac.vel.z = 6; ac.vel.x = 25;   // 4 m up, descending at 6 m/s, 25 m/s forward
     const alts: number[] = [];
     for (let s = 0; s < 120; s++) { run(sim, 1); alts.push(-ac.pos.z); }
-    console.log('trace', alts.slice(0, 40).map((a) => a.toFixed(1)).join(' '));
+    console.log('trace', alts.filter((_, i) => i % 3 === 0).map((a) => a.toFixed(1)).join(' '));
     const min = Math.min(...alts), last = alts[alts.length - 1];
     console.log('water: min alt', min.toFixed(2), 'final alt', last.toFixed(2), 'speed', ac.vel.len().toFixed(2));
     expect(min).toBeLessThan(0);                     // it went below the surface

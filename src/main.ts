@@ -818,7 +818,7 @@ class App implements MenuHost {
       sea.t = performance.now() / 1000; sea.amp = seaAmpFromWind(sim.weather.windSpeed);
       if (!this.seaSurface) { this.seaSurface = new SeaSurface(this.terrain.uniforms.uDetail.value as THREE.Texture); this.scene.add(this.seaSurface.group); }
       this.seaSurface.update(this.rig.camera.position, this.env.night);
-      while (ac.waterImpacts.length) { const v = ac.waterImpacts.shift()!; const p = nedToThree(ac.pos); p.y = seaHeight(ac.pos.y, ac.pos.x); if (v > 6) { this.waterFx.impact(p, v); addSurge(ac.pos.y, ac.pos.x, Math.min(1.8, v / 40)); } }
+      while (ac.waterImpacts.length) { const v = ac.waterImpacts.shift()!; const p = nedToThree(ac.pos); p.y = seaHeight(ac.pos.y, ac.pos.x); if (v > 6) { this.waterFx.impact(p, v); addSurge(ac.pos.y, ac.pos.x, Math.min(3.0, v / 30)); } }
     }
     if (PRO && !sim.paused) this.waterFx.update(dt * sim.timeScale, ac, (e, n) => this.world.landAt(e, n) === LC.WATER && this.world.terrain.heightAt(e, n) < 3, (e, n) => seaHeight(e, n));
     if (!sim.paused) this.tyreSmoke.update(dt, ac, (e, n) => this.world.terrain.heightAt(e, n));

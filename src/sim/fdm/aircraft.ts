@@ -161,6 +161,7 @@ export class Aircraft {
   private droneV = 0;
   /** Deepest submersion (m) of the airframe in water this step, and the impact speeds (m/s) of each new water entry (drained by the renderer to make splashes). */
   waterDepth = 0;
+  private floatK = 0;
   waterImpacts: number[] = [];
   gearStates: GearState[];
   contactActive: boolean[];
@@ -552,14 +553,16 @@ export class Aircraft {
         const w = this.worldPoint(p), sy = env.water(w.y, w.x);
         if (sy === null) continue;
         const dep = sy - (-w.z);                           // metres below the surface (positive = submerged)
-        if (dep > 0) { depthMax = Math.max(depthMax, dep); fSum += Math.min(dep, 2.6) / 2.0 / n; }   // buoyancy grows with depth like a real hull: equilibrium (floating) at about 2 m deep
+        if (dep > 0) { depthMax = Math.max(depthMax, dep); fSum += Math.min(dep, 3.6) / 2.0 / n; }   // buoyancy grows with depth like a real hull: equilibrium (floating) at about 2 m deep
       }
+      this.floatK += ((fSum > 0 ? 1 : 0) - this.floatK) * Math.min(1, dt * 7);   // buoyancy fades in over ~0.15 s after touching water (no sudden jolt, but no free fall either)
       if (fSum > 0) {
+        fSum *= this.floatK;
         const m = this.mass, v = this.vel, sp = v.len();
-        const up = m * 9.80665 * fSum;                      // buoyancy: exactly 1 g at the floating depth, more only if pushed deeper
+        const up = m * 9.80665 * Math.min(fSum, 1.8);                      // buoyancy: exactly 1 g at the floating depth, more only if pushed deeper
         const drag = Math.min(fSum, 1.3) * m * 0.012;       // quadratic water drag
         const lin = m * 0.45 * Math.min(fSum, 1);           // viscous drag keeps slow drift from lasting forever
-        wf = new Vec3(-drag * sp * v.x - lin * v.x, -drag * sp * v.y - lin * v.y, -up - drag * sp * v.z - m * 0.9 * v.z * Math.min(fSum, 1));          // gentle heave damping so it bobs a few times and settles
+        wf = new Vec3(-drag * sp * v.x - lin * v.x, -drag * sp * v.y - lin * v.y, -up - drag * sp * v.z - m * 2.2 * v.z * Math.min(fSum, 1));          // gentle heave damping so it bobs a few times and settles
         this.omega = this.omega.scale(1 - Math.min(0.9, 2.2 * Math.min(fSum, 1.2) * dt));
       }
       if (depthMax > 0 && this.waterDepth <= 0) this.waterImpacts.push(this.vel.len());
