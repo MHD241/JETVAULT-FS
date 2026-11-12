@@ -96,6 +96,8 @@ export interface AircraftDef {
   stallWarnAlpha: number;
   /** Pilot eye point in the body frame. */
   eye: Vec3;
+  /** Floating hull: the fuselage as a cylinder along the body x axis (metres, body frame); defaults are derived from the wingspan. */
+  hull?: { x0: number; x1: number; radius: number };
   /** Values used when starting a flight in a given configuration. */
   profile: {
     takeoffTrim: number; takeoffFlapLever: number;
@@ -161,7 +163,9 @@ export class Aircraft {
   private droneV = 0;
   /** Deepest submersion (m) of the airframe in water this step, and the impact speeds (m/s) of each new water entry (drained by the renderer to make splashes). */
   waterDepth = 0;
-  private floatK = 0;
+  /** 0..1: how much of the hull has flooded (water slowly gets in once it is afloat; faster after a hard impact and from the rear). */
+  flood = 0;
+  private floodRate = 1 / 1800;
   waterImpacts: number[] = [];
   gearStates: GearState[];
   contactActive: boolean[];
@@ -258,7 +262,7 @@ export class Aircraft {
     this.pos = new Vec3(north, east, -(h + this.def.spawnHeight));
     this.vel = new Vec3();
     this.omega = new Vec3();
-    this.crashed = false;
+    this.crashed = false; this.flood = 0; this.floodRate = 1 / 1800;
     this.crashReason = '';
     this.gearStates = this.def.gear.map(() => newGearState());
     this.contactActive = this.def.contacts.map(() => false);
@@ -292,7 +296,7 @@ export class Aircraft {
     this.pos = new Vec3(north, east, -altMSL);
     this.vel = this.q.rotate(new Vec3(tas, 0, 0));
     this.omega = new Vec3();
-    this.crashed = false;
+    this.crashed = false; this.flood = 0; this.floodRate = 1 / 1800;
     this.gearStates = this.def.gear.map(() => newGearState());
     this.contactActive = this.def.contacts.map(() => false);
   }
@@ -544,29 +548,55 @@ export class Aircraft {
       }
     }
 
-    // --- Water: the airframe floats and drags through the sea surface (the same waves that are drawn)
+    // --- Water: a real floating hull. The fuselage is a cylinder cut into stations along its length; every station feels the buoyancy of the
+    // water it displaces (circular-segment area under the live wave surface), so the aircraft floats where displaced water weighs as much as it does,
+    // pitches and rolls with the waves, and trims bow-up or tail-down by itself as the load shifts. Added to that: slamming/drag per station from
+    // its own velocity (including rotation), and slow flooding, so a ditched aircraft floats for a long time and then settles, tail first.
     let wf: Vec3 | null = null;
     if (env.water && !d.drone) {
-      const pts = [this.cg, ...d.gear.map((g) => g.attach), new Vec3(this.cg.x + 2.5, this.cg.y, this.cg.z), new Vec3(this.cg.x - 2.5, this.cg.y, this.cg.z)];
-      const n = pts.length; let depthMax = 0, fSum = 0;
-      for (const p of pts) {
-        const w = this.worldPoint(p), sy = env.water(w.y, w.x);
+      const hull = d.hull ?? { x0: this.cg.x - 0.5 * d.wingSpan, x1: this.cg.x + 0.5 * d.wingSpan, radius: 0.06 * d.wingSpan };
+      const NS = 14, dxs = (hull.x1 - hull.x0) / NS, R = hull.radius, RHO = 1025, G9 = 9.80665;
+      const zc = this.cg.z;
+      let sub = 0, subMax = -1e9, Fup = 0;
+      const Mb = new Vec3(), Fb = new Vec3();
+      let wet = false;
+      for (let i = 0; i < NS; i++) {
+        const tail = 1 - (i + 0.5) / NS;                                   // 0 at the nose, 1 at the tail
+        const pb = new Vec3(hull.x0 + (i + 0.5) * dxs, 0, zc), w = this.worldPoint(pb), sy = env.water(w.y, w.x);
         if (sy === null) continue;
-        const dep = sy - (-w.z);                           // metres below the surface (positive = submerged)
-        if (dep > 0) { depthMax = Math.max(depthMax, dep); fSum += Math.min(dep, 3.6) / 2.0 / n; }   // buoyancy grows with depth like a real hull: equilibrium (floating) at about 2 m deep
+        const h = sy - (-w.z);                                             // water surface height above this station's centre line
+        subMax = Math.max(subMax, h + R);
+        if (h <= -R) continue;
+        wet = true;
+        const hh = Math.max(-R, Math.min(R, h));
+        const A = R * R * Math.acos(-hh / R) + hh * Math.sqrt(Math.max(0, R * R - hh * hh));     // submerged cross-section (m^2)
+        const fl = Math.min(1, this.flood * (0.55 + 0.9 * tail));         // flooded fraction at this station (the tail floods first)
+        const bu = RHO * G9 * A * dxs * (1 - fl);                         // buoyancy of this slice, N
+        sub += A * dxs;
+        const width = 2 * Math.sqrt(Math.max(0, R * R - hh * hh)), wetted = Math.min(1, A / (Math.PI * R * R) * 2 + 0.05);
+        // station velocity in the world, then drag/slamming opposite to it (quadratic, on the wetted width and the immersed depth)
+        const rb = pb.sub(this.cg), vst = this.vel.add(this.q.rotate(this.omega.cross(rb)));
+        const vsp = vst.len();
+        const cd = 0.9 * (width * dxs + 0.5 * A * dxs / Math.max(R, 0.5));
+        const fd = new Vec3(-RHO * cd * vsp * vst.x * 0.5, -RHO * cd * vsp * vst.y * 0.18, -RHO * cd * vsp * vst.z * 0.5);   // sideways flow is blocked more by the hull's smooth sides than vertical
+        const fw = new Vec3(fd.x, fd.y, fd.z - bu);                     // world force (NED: up is negative z)
+        const fbody = this.q.invRotate(fw);
+        Fb.addIn(fw); Mb.addIn(rb.cross(fbody));
+        Fup += bu; void wetted; void tail;
       }
-      this.floatK += ((fSum > 0 ? 1 : 0) - this.floatK) * Math.min(1, dt * 7);   // buoyancy fades in over ~0.15 s after touching water (no sudden jolt, but no free fall either)
-      if (fSum > 0) {
-        fSum *= this.floatK;
-        const m = this.mass, v = this.vel, sp = v.len();
-        const up = m * 9.80665 * Math.min(fSum, 1.8);                      // buoyancy: exactly 1 g at the floating depth, more only if pushed deeper
-        const drag = Math.min(fSum, 1.3) * m * 0.012;       // quadratic water drag
-        const lin = m * 0.45 * Math.min(fSum, 1);           // viscous drag keeps slow drift from lasting forever
-        wf = new Vec3(-drag * sp * v.x - lin * v.x, -drag * sp * v.y - lin * v.y, -up - drag * sp * v.z - m * 2.2 * v.z * Math.min(fSum, 1));          // gentle heave damping so it bobs a few times and settles
-        this.omega = this.omega.scale(1 - Math.min(0.9, 2.2 * Math.min(fSum, 1.2) * dt));
+      if (wet) {
+        wf = Fb;
+        const lim = this.mass * G9 * 6;                                   // never more than a 6 g shove from the water
+        const fl = Fb.len(); if (fl > lim) wf = Fb.scale(lim / fl);
+        // angular damping and the buoyancy moment (applied in the body frame below)
+        M.addIn(Mb.scale(fl > lim ? lim / fl : 1));
+        this.omega = this.omega.scale(1 - Math.min(0.5, 0.35 * Math.min(1, sub / (Math.PI * R * R * (hull.x1 - hull.x0) * 0.2)) * dt));
+        // flooding: slow while it floats, quicker after a hard impact; the tail goes first
+        this.flood = Math.min(1, this.flood + dt * this.floodRate);
       }
-      if (depthMax > 0 && this.waterDepth <= 0) this.waterImpacts.push(this.vel.len());
-      this.waterDepth = depthMax;
+      if (subMax > 0 && this.waterDepth <= 0) { this.waterImpacts.push(this.vel.len()); this.floodRate = (1 / 1800) * (1 + Math.min(6, Math.max(0, this.vel.len() - 20) / 6)); }
+      this.waterDepth = Math.max(0, subMax);
+      void Fup;
     }
 
     // --- Integrate rigid body (semi-implicit Euler)

@@ -89,6 +89,7 @@ export const B738: AircraftDef = {
   ],
   wingArea: S,
   wingSpan: SPAN,
+  hull: { x0: -19.4, x1: 19.4, radius: 1.9 },   // the 737's 3.76 m diameter fuselage, nose to tail
   mac: 3.96,
   surfaces: [
     ...wing(),
@@ -162,7 +163,7 @@ export const B738: AircraftDef = {
   stallWarnAlpha: 15,
   eye: new Vec3(14.0, -0.53, -0.82), // raised and set back a little: sees the glareshield, both displays and the wheel, like the reference view
   profile: {
-    takeoffTrim: -0.6, takeoffFlapLever: 3, // balances the nose-up thrust moment of the underslung engines at takeoff power: a centred stick climbs gently
+    takeoffTrim: -0.4, takeoffFlapLever: 3, // balances the nose-up thrust moment of the underslung engines at takeoff power: a centred stick climbs gently
     approachKias: 145, approachThrottle: 0.55, approachFlapLever: 7, approachTrim: 0.3, approachPitchDeg: 1.5,
     cruiseKias: 250, cruiseThrottle: 0.75, idleRpm: 2100, approachRpm: 6200, cruiseRpm: 8000,
     standClearance: 20,
