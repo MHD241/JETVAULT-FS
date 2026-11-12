@@ -92,7 +92,7 @@ void main() {
   }
 
   private material(cell: number, hole: number, hc: { value: THREE.Vector2 }) {
-    const mat = new THREE.MeshStandardMaterial({ color: 0x0a2740, roughness: 0.07, metalness: 0.0, envMapIntensity: 0.2, side: THREE.DoubleSide });
+    const mat = new THREE.MeshStandardMaterial({ color: 0x0a2740, roughness: 0.07, metalness: 0.0, envMapIntensity: 0.12, side: THREE.DoubleSide });
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, this.uniforms);
       sh.uniforms.uHole = { value: hole }; sh.uniforms.uHoleC = hc; sh.uniforms.uSurge = this.surgeU;
@@ -167,10 +167,10 @@ float seaFoam = 0.0, seaFoamRough = 0.0; vec3 seaEmit = vec3(0.0);
   vec2 dUv = (vSeaW.xz - uDepthC) / ${DEPTH_SIZE.toFixed(1)} + 0.5;
   float dist = (dUv.x > 0.0 && dUv.x < 1.0 && dUv.y > 0.0 && dUv.y < 1.0) ? texture2D(uDepth, vec2(dUv.x, 1.0 - dUv.y)).r * 600.0 : 600.0;
   float deep = smoothstep(8.0, 380.0, dist);                          // 0 at the shore, 1 well out
-  vec3 shallowC = vec3(0.02, 0.17, 0.20), midC = vec3(0.006, 0.07, 0.14), deepC = vec3(0.002, 0.02, 0.07);
+  vec3 shallowC = vec3(0.008, 0.075, 0.095), midC = vec3(0.003, 0.03, 0.065), deepC = vec3(0.001, 0.009, 0.032);
   vec3 body = mix(shallowC, mix(midC, deepC, smoothstep(0.35, 1.0, deep)), smoothstep(0.0, 0.5, deep));
   float crestH = clamp(vSeaH / (2.2 * max(uAmp, 1.0) + 0.01) * 0.5 + 0.5, 0.0, 1.0);
-  body += vec3(0.01, 0.07, 0.06) * smoothstep(0.55, 1.0, crestH) * (0.4 + 0.6 * (1.0 - deep));   // light scattering through thin crests
+  body += vec3(0.004, 0.03, 0.026) * smoothstep(0.55, 1.0, crestH) * (0.4 + 0.6 * (1.0 - deep));   // light scattering through thin crests
   diffuseColor.rgb = body;
   // foam: where the surface folds (Jacobian < ~0.5) = breaking crests, broken up with noise, plus a surf line along shores
   float n = texture2D(uDetail, vSeaW.xz / 7.0 + uTime * 0.02).r * 0.55 + texture2D(uDetail, vSeaW.xz / 2.6 - uTime * 0.03).g * 0.45;
@@ -180,7 +180,7 @@ float seaFoam = 0.0, seaFoamRough = 0.0; vec3 seaEmit = vec3(0.0);
   float fold = smoothstep(0.62, 0.12, jac);
   float surf = (1.0 - smoothstep(4.0, 38.0, dist)) * (0.55 + 0.45 * sin(dist * 0.55 - uTime * 1.6 + n * 5.0));
   seaFoam = clamp(fold * smoothstep(0.30, 0.75, n + fold * 0.4) + surf * smoothstep(0.35, 0.8, n), 0.0, 1.0) * (1.0 - smoothstep(900.0, 6000.0, dd2));
-  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.82, 0.88, 0.92), seaFoam * 0.9);
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.55, 0.62, 0.68), seaFoam * 0.8);   // foam: grey-white, not glowing
   seaFoamRough = seaFoam;
   if (!gl_FrontFacing) {
     // seen from below: Snell's window - sky visible only within ~48.6 degrees of straight up, a mirror of the dark water outside it
@@ -193,10 +193,12 @@ float seaFoam = 0.0, seaFoamRough = 0.0; vec3 seaEmit = vec3(0.0);
 }`)
         .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 roughnessFactor = mix(0.07, 0.85, seaFoamRough);`)
+        .replace('#include <opaque_fragment>', `#include <opaque_fragment>
+gl_FragColor.rgb *= 0.55;   // dark sea: the sky/sun reflections and the lit water are all pulled down (user wanted dark water)`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 totalEmissiveRadiance += seaEmit;`);
     };
-    mat.customProgramCacheKey = () => 'sea-surface-v7';
+    mat.customProgramCacheKey = () => 'sea-surface-v9';
     return mat;
   }
 

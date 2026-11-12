@@ -19,7 +19,7 @@ export class WaterFx {
   }
   private emit(p: THREE.Vector3, v: THREE.Vector3, size: number, alpha: number, life: number) {
     if (this.ps.length > 900) return;
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex, color: new THREE.Color(2.6, 2.7, 2.8), transparent: true, depthWrite: false, opacity: alpha, fog: true }));   // over-bright so the spray reads white after tone mapping
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.tex, color: new THREE.Color(1.05, 1.2, 1.35), transparent: true, depthWrite: false, opacity: alpha, fog: true }));   // darker blue-grey spray (was over-bright white)
     s.position.copy(p); s.scale.setScalar(size); s.renderOrder = 3; this.group.add(s);
     this.ps.push({ s, v, age: 0, life, s0: size, s1: size * 2.6, a0: alpha });
   }
@@ -36,7 +36,7 @@ export class WaterFx {
     }
     for (let k = 0; k < 3; k++) {
       const g = new THREE.RingGeometry(0.85, 1, 64).rotateX(-Math.PI / 2);
-      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 2.8, 3.0), transparent: true, opacity: 0.0, depthWrite: false, side: THREE.DoubleSide, fog: true }));
+      const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 1.2, 1.4), transparent: true, opacity: 0.0, depthWrite: false, side: THREE.DoubleSide, fog: true }));
       m.position.copy(pos); m.position.y += 0.4 + 0.05 * k; m.renderOrder = 3; this.group.add(m);
       this.rings.push({ m, age: -0.5 * k, life: 5 + 3 * s, r1: 40 + 260 * s * (1 - 0.18 * k) });
     }
