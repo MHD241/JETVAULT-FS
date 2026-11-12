@@ -1,26 +1,38 @@
 // Sea state: ONE spectrum-based set of travelling waves used by BOTH the drawn water surface (render/seaSurface.ts, same numbers in GLSL)
-// and the flight model (floating, drag, splashes). 22 waves from 7 m to 420 m across a wind-driven spread of directions with random
+// and the flight model (floating, drag, splashes). 22 waves from 7 m to 420 m (snapped to two repeating tiles) across a wind-driven spread of directions with random
 // phases, steepness following a rough ocean spectrum (long swells gentle, short chop steeper). Heights in metres above sea level.
 export interface WaveDef { dx: number; dy: number; L: number; A: number; k: number; w: number; phi: number; Q: number }
 const G = 9.80665, TWO_PI = Math.PI * 2;
 export const waveOmega = (L: number) => Math.sqrt(G * TWO_PI / L);
 export const WIND_DIR = (25 * Math.PI) / 180;   // waves travel towards this heading (east-of-north not needed: (dx,dy) are east, north components)
 
-function build(n = 22): WaveDef[] {
+export interface Cascade { T: number; res: number; waves: WaveDef[] }
+/** Two repeating tiles: A (1024 m, waves >= 64 m) and B (128 m, waves 7-64 m). Every wave is snapped to a whole number of cycles per tile, so
+ * the sea can be computed once per frame into small textures (render/seaSurface.ts) with no seams, and read by every vertex and pixel. */
+const TILES = [{ T: 1024, res: 512, minL: 64 }, { T: 128, res: 256, minL: 0 }];
+function build(n = 22): Cascade[] {
   let seed = 90210; const rnd = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
-  const out: WaveDef[] = [];
+  const casc: Cascade[] = TILES.map((t) => ({ T: t.T, res: t.res, waves: [] }));
+  const seen = new Set<string>();
   for (let i = 0; i < n; i++) {
-    const t = i / (n - 1), L = 7 * Math.pow(60, t);                    // 6 m .. 420 m, geometric
-    const steep = L > 120 ? 0.016 : L > 40 ? 0.026 : 0.042;            // a*k
-    const A = (steep * (0.55 + 0.45 * rnd()) * L) / TWO_PI;
+    const t = i / (n - 1), L0 = 7 * Math.pow(60, t);                   // 7 m .. 420 m, geometric
+    const steep = L0 > 120 ? 0.016 : L0 > 40 ? 0.026 : 0.042;          // a*k
     const spread = 0.25 + 0.9 * Math.pow(1 - t, 1.5);                  // short chop comes from more directions than the long swell
-    const th = WIND_DIR + (rnd() * 2 - 1) * spread;
-    const k = TWO_PI / L;
-    out.push({ dx: Math.cos(th), dy: Math.sin(th), L, A, k, w: waveOmega(L), phi: rnd() * TWO_PI, Q: Math.min(1, 0.9 / (n * k * A)) });
+    const th = WIND_DIR + (rnd() * 2 - 1) * spread, aj = 0.55 + 0.45 * rnd(), phi = rnd() * TWO_PI;
+    const ci = L0 >= TILES[0].minL ? 0 : 1, T = TILES[ci].T;
+    let mx = Math.round((T / L0) * Math.cos(th)), my = Math.round((T / L0) * Math.sin(th));
+    if (mx === 0 && my === 0) mx = 1;
+    const key = ci + ',' + mx + ',' + my; if (seen.has(key)) continue; seen.add(key);
+    const mag = Math.hypot(mx, my), L = T / mag, k = TWO_PI / L;
+    casc[ci].waves.push({ dx: mx / mag, dy: my / mag, L, A: (steep * aj * L) / TWO_PI, k, w: waveOmega(L), phi, Q: 0 });
   }
-  return out;
+  const total = casc[0].waves.length + casc[1].waves.length;
+  for (const c of casc) for (const w of c.waves) w.Q = Math.min(1, 0.9 / (total * w.k * w.A));
+  return c2(casc);
 }
-export const WAVES: WaveDef[] = build();
+const c2 = (c: Cascade[]) => c;
+export const CASCADES: Cascade[] = build();
+export const WAVES: WaveDef[] = CASCADES.flatMap((c) => c.waves);
 export const sea = { t: 0, amp: 1 };
 /** Wave amplitude scale from the wind (knots): calm 0.3 .. gale 1.5 (a 10 kt breeze gives about 0.6: swells under 1.5 m). */
 export const seaAmpFromWind = (windKt: number) => Math.min(1.5, 0.28 + windKt * 0.035);
