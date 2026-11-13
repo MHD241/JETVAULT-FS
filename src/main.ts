@@ -814,7 +814,7 @@ class App implements MenuHost {
       if (!sim.paused && this.simple.assists && sim.def.profile.trimModel && !ac.onGround && !sim.def.drone) {
         // neutral-stick trim for the flap setting, the speed and the thrust (the underslung engines pitch the nose up with power); it follows smoothly
         const tgt = trimFor(sim.def.profile, sim.controls.flapLever, ac.cas / KT, sim.controls.throttle);
-        if (tgt !== null) sim.controls.trim = moveToward(sim.controls.trim, tgt, 0.35 * dt * sim.timeScale);
+        if (tgt !== null) sim.controls.trim = moveToward(sim.controls.trim, clamp(tgt + (sim.def.profile.trimModel?.bias ?? 0), -1, 1), 0.35 * dt * sim.timeScale);
       } else if (!sim.paused && this.simple.assists && !sim.def.drone) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
     this.updateBuggy(dt);
