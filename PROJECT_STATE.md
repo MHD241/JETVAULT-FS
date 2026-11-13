@@ -838,3 +838,7 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 
 ## Update 147 — 737 trim a little lower
 - User: perfect, just a little lower trim. Added `trimModel.bias = -0.05` (about half a degree of elevator, slightly nose-down) to the airborne neutral trim, applied in `main.ts` on top of `trimFor()`. One number to change (`B738.profile.trimModel.bias`): more negative = lower. Tests unchanged (they check the unbiased model). 118 tests pass; not flown by hand.
+
+## Update 148 — Water particles on impact
+- `waterFx.ts`: a droplet system added to the splash. A water entry now throws 500-5300 individual droplets (more with speed): a crown of fast ones outward and a column of slower ones upward, each with its own velocity, gravity, air drag and life (2-7 s); one Points draw call, pool of 9000. Where a droplet falls back to the live sea surface (`seaHeight`) it can leave a short-lived speck of foam (pool of 600, 1.6 s fade). Skimming spray also throws droplets now. Sprite puffs, the column and the expanding rings from before stay underneath.
+- Headless drop of a 737 from 14 m: speckled water dome and ring visible at impact. Not checked: cost of 9000 droplets on a weak GPU (CPU loop over the whole pool every frame), droplet size at distance (I raised it to 0.9 after the screenshot, unseen), sound.
