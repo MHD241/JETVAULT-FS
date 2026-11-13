@@ -44,7 +44,9 @@ export class SimpleControls {
 
   constructor(canvas: HTMLElement) {
     window.addEventListener('keydown', (e) => {
-      if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
+      { const t = e.target as HTMLInputElement | null, tag = t?.tagName;   // only real text fields swallow the keys; a focused slider or button (left over from the menu) must not
+        if (tag === 'TEXTAREA' || tag === 'SELECT' || (tag === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes(t!.type))) return;
+        if (tag === 'INPUT' || tag === 'BUTTON') t!.blur(); }
       if (!this.keys.has(e.code)) {
         const d = /^Digit([1-9])$/.exec(e.code);
         if (d) this.setThrottle((Number(d[1]) - 1) / 8); // 1 = idle ... 9 = full

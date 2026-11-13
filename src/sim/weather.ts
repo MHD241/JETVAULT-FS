@@ -51,6 +51,7 @@ export const DEFAULT_WEATHER: WeatherSettings = {
   timeOfDay: 13,
   dayOfYear: 172,
   realTime: PRO,
+  timeRate: 1,
 };
 
 /** Extra milliseconds added to the real clock by running it faster than real time (see advanceClock). */

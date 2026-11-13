@@ -323,7 +323,7 @@ export class Menu {
       Wind, gusts, turbulence, temperature and pressure act on the flight model; cloud, visibility and rain are visual (rain also wets the runway).</p>`;
     const form = document.createElement('div'); form.className = 'jv-form';
     const range = (k: keyof WeatherSettings, label: string, min: number, max: number, step: number, unit: string) => {
-      form.insertAdjacentHTML('beforeend', `<label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${w[k]}" data-k="${k}"><span class="val">${w[k]} ${unit}</span>`);
+      form.insertAdjacentHTML('beforeend', `<label>${label}</label><input type="range" min="${min}" max="${max}" step="${step}" value="${w[k] ?? (k === 'timeRate' ? 1 : '')}" data-k="${k}"><span class="val">${w[k] ?? (k === 'timeRate' ? 1 : '')} ${unit}</span>`);
     };
     range('windDirection', 'Wind direction (from, true)', 0, 359, 1, '°');
     range('windSpeed', 'Wind speed', 0, 40, 1, 'kt');

@@ -61,9 +61,26 @@ export class AutoTrim {
   }
 }
 
-/** Neutral-stick trim for an aircraft with a trim model (the 737): depends on the flap lever, the speed (kt) and the throttle. */
-export function trimFor(profile: { trimModel?: { t0: number[]; kr: number[]; s: number[]; b: number } }, lever: number, kt: number, thr: number): number | null {
+/**
+ * Trim for an aircraft with a trim model (the 737): a FIXED value per flap detent (neutral at that detent's reference speed) plus a thrust term.
+ * It deliberately does NOT follow the current speed: trimming "neutral at the speed you have now" removes the aircraft's own speed stability
+ * (slower -> more nose-up trim -> slower still), which was climbing the 737 into stalls. With a fixed trim, slowing down makes the nose drop
+ * and speeding up makes it rise, as in a real aircraft, and the pilot flies the speed with the stick.
+ */
+export function trimFor(profile: { trimModel?: { c0: number[]; c1: number[] } }, lever: number, _kt: number, thr: number): number | null {
   const m = profile.trimModel; if (!m) return null;
-  const i = Math.max(0, Math.min(m.t0.length - 1, Math.round(lever))), v = Math.max(kt, 90), inv = 1 / (v * v);
-  return clamp(m.t0[i] + m.s[i] * (inv - 1 / (m.kr[i] * m.kr[i])) - (m.b * (thr - 0.5)) * inv, -1, 1);
+  const i = Math.max(0, Math.min(m.c0.length - 1, Math.round(lever)));
+  return clamp(m.c0[i] + m.c1[i] * thr, -1, 1);
+}
+
+/**
+ * Stall guard for the trim assist (beginner assists only, trim channel only, the stick is never touched): when the angle of attack gets within
+ * 3 degrees of the stall-warning angle, the trim target is pulled nose-down in proportion, so an unattended aircraft recovers instead of
+ * holding the nose up until it stalls. Returns the amount to subtract from the trim target (0 when the angle of attack is fine).
+ */
+export function stallGuardTrim(ac: Aircraft): number {
+  if (ac.onGround || ac.def.glider || ac.def.drone) return 0;
+  const warn = ac.def.stallWarnAlpha - 0.15 * (ac.flap / DEG);
+  const excess = ac.alpha / DEG - (warn - 3);
+  return excess > 0 ? Math.min(0.8, 0.18 * excess) : 0;
 }

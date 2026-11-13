@@ -33,7 +33,7 @@ import { InputManager, loadInputSettings } from './input/input';
 import { Hud } from './ui/hud';
 import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
 import { Vec3, clamp, moveToward, KT } from './core/math';
-import { AutoTrim, trimFor } from './sim/assists';
+import { AutoTrim, trimFor, stallGuardTrim } from './sim/assists';
 import { advanceClock } from './sim/weather';
 import { SimpleControls, IS_TOUCH } from './input/simpleControls';
 import { Minimap } from './ui/minimap';
@@ -539,9 +539,10 @@ class App implements MenuHost {
     this.started = true;
     this.rig.setMode(this.startView, ac);
     this.menu.hide();
+    (document.activeElement as HTMLElement | null)?.blur?.();
     this.renderer.domElement.focus();
   }
-  resume() { this.sim.paused = false; this.menu.hide(); }
+  resume() { this.sim.paused = false; this.menu.hide(); (document.activeElement as HTMLElement | null)?.blur?.(); this.renderer.domElement.focus(); }
   canResume() { return this.started && !this.sim.aircraft.crashed; }
   applyWeather(w: WeatherSettings) { this.weather = w; this.sim.setWeather(w); this.hud?.toast('Weather applied'); }
   applyGraphics(g: GraphicsSettings) {
@@ -724,6 +725,16 @@ class App implements MenuHost {
     });
   }
 
+  /** True when (east, north) is on a runway strip (centreline within half the width plus 25 m): no marshal and no pushback there. */
+  private onRunwayStrip(E: number, N: number): boolean {
+    for (const rw of this.world.airport.runways) {
+      const [a, b] = rw.ends, dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((E - a.x) * dx + (N - a.y) * dy) / L2));
+      if (Math.hypot(E - (a.x + t * dx), N - (a.y + t * dy)) < rw.width / 2 + 25) return true;
+    }
+    return false;
+  }
+
   /** Stand marshal: picks the gate you are heading for, stands in front of it and signals; the HUD line says the same in words. */
   private updateMarshal(dt: number) {
     const ac = this.sim.aircraft, fig = this.marshalFig;
@@ -732,6 +743,7 @@ class App implements MenuHost {
     if (!active) { hide(); return; }
     const datum = ac.worldPoint(new Vec3(0, 0, 0));
     const E = datum.y, N = datum.x, hdg = ac.euler[2];
+    if (this.onRunwayStrip(E, N)) { hide(); return; }
     const gs = Math.hypot(ac.vel.x, ac.vel.y);
     this.marshalPick -= dt;
     if (this.marshalPick <= 0) {
@@ -824,7 +836,7 @@ class App implements MenuHost {
       if (!sim.paused && this.simple.assists && sim.def.profile.trimModel && !ac.onGround && !sim.def.drone) {
         // neutral-stick trim for the flap setting, the speed and the thrust (the underslung engines pitch the nose up with power); it follows smoothly
         const tgt = trimFor(sim.def.profile, sim.controls.flapLever, ac.cas / KT, sim.controls.throttle);
-        if (tgt !== null) sim.controls.trim = moveToward(sim.controls.trim, clamp(tgt + (sim.def.profile.trimModel?.bias ?? 0), -1, 1), 0.35 * dt * sim.timeScale);
+        if (tgt !== null) { const guard = stallGuardTrim(ac); sim.controls.trim = moveToward(sim.controls.trim, clamp(tgt + (sim.def.profile.trimModel?.bias ?? 0) - guard, -1, 1), (guard > 0 ? 1.2 : 0.35) * dt * sim.timeScale); }
       } else if (!sim.paused && this.simple.assists && !sim.def.drone) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
     this.updateBuggy(dt);
@@ -873,7 +885,7 @@ class App implements MenuHost {
       pa.setXYZ(0, a.x, a.y, a.z); pa.setXYZ(1, b.x, b.y, b.z); pa.needsUpdate = true;
     }
     this.vario.update(!!ac.def.glider && !this.menu.open && !sim.paused && !ac.crashed, -ac.vel.z, dt);
-    const showPush = !this.menu.open && !ac.crashed && ((ac.def.retractableGear && ac.onGround && (this.pushing || Math.hypot(ac.vel.x, ac.vel.y) < 0.5)) || this.retrieving);
+    const dpt = ac.worldPoint(new Vec3(0, 0, 0)), showPush = !this.menu.open && !ac.crashed && ((ac.def.retractableGear && ac.onGround && (this.pushing || (Math.hypot(ac.vel.x, ac.vel.y) < 0.5 && !this.onRunwayStrip(dpt.y, dpt.x)))) || this.retrieving);
     this.pushBtn.style.display = showPush ? 'block' : 'none';
     if (showPush) this.pushBtn.textContent = this.retrieving ? 'LEAVE THE BUGGY' : this.pushing ? 'FINISHED - BACK TO AIRCRAFT' : 'START PUSHBACK';
     const showPark = !this.menu.open && !ac.crashed && ac.onGround && !this.pushing && !ac.def.glider;

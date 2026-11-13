@@ -164,9 +164,8 @@ export const B738: AircraftDef = {
   eye: new Vec3(14.0, -0.53, -0.82), // raised and set back a little: sees the glareshield, both displays and the wheel, like the reference view
   profile: {
     takeoffTrim: -0.4,
-    // measured with the flight model (levels at thr 0.5): trim at the reference speed, how it changes with 1/V^2, and the thrust term (about 25000 kt^2 per unit throttle)
-    trimModel: { t0: [-0.291, -0.212, -0.113, -0.069, -0.004, 0.121, 0.304, 0.401, 0.506], kr: [250, 215, 195, 180, 165, 155, 145, 140, 135], s: [38000, 34000, 30000, 25000, 23000, 21000, 18500, 17500, 16500], b: 25000, bias: -0.05 },
-    trimSchedule: [-0.291, -0.212, -0.113, -0.069, -0.004, 0.121, 0.304, 0.401, 0.506], // flaps 0,1,2,5,10,15,25,30,40 (level flight with a centred stick at 250,215,195,180,165,155,145,140,135 kt)
+    // measured with the flight model over 25 s runs at each detent's reference speed (the trim that keeps the pitch steadiest with no stall warning) at 30/60/100 % throttle, then fitted: trim = c0 + c1 * throttle
+    trimModel: { c0: [-0.041, -0.041, 0.12, 0.258, 0.258, 0.377, 0.557, 0.676, 0.557], c1: [-0.568, -0.568, -0.716, -0.986, -0.986, -1.122, -1.405, -1.541, -1.405], bias: -0.03 },
     takeoffFlapLever: 3, // balances the nose-up thrust moment of the underslung engines at takeoff power: a centred stick climbs gently
     approachKias: 145, approachThrottle: 0.55, approachFlapLever: 7, approachTrim: 0.3, approachPitchDeg: 1.5,
     cruiseKias: 250, cruiseThrottle: 0.75, idleRpm: 2100, approachRpm: 6200, cruiseRpm: 8000,

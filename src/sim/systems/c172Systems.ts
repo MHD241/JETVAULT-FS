@@ -189,7 +189,7 @@ export class C172Systems {
     const rate = (altM - this.prevAlt) / Math.max(dt, 1e-3);
     this.prevAlt = altM;
     this.vsiState = approach(this.vsiState, rate, 1.6, dt);
-    ind.vsiFpm = clamp(this.vsiState / FT * 60, -2000, 2000);
+    ind.vsiFpm = clamp(this.vsiState / FT * 60, -9999, 9999);   // the 737's tape and the digital readout go well beyond the C172 dial's +-2000
 
     // Attitude indicator: erects toward true attitude when spun up; topples when not
     if (this.attGyroSpin > 0.6) {
