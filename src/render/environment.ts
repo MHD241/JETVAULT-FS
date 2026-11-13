@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { CloudField } from './cloudField';
-import { WeatherSettings, CloudCover } from '../sim/weather';
+import { clockNow, WeatherSettings, CloudCover } from '../sim/weather';
 import { EGPH_ORIGIN } from '../world/geo';
 import { FT } from '../core/math';
 
@@ -23,6 +23,36 @@ export function sunPosition(lat: number, lon: number, day: number, utcHours: num
   const el = Math.asin(sinEl);
   const az = Math.atan2(-Math.sin(H), Math.tan(decl) * Math.cos(phi) - Math.sin(phi) * Math.cos(H));
   return { elevation: el / d2r, azimuth: ((az / d2r) + 360) % 360 };
+}
+
+/** Moon position (low-precision ephemeris, good to about a degree), illuminated fraction and whether it is waxing, for an observer at lat/lon at UTC time ms. */
+export function moonPosition(lat: number, lon: number, ms: number) {
+  const d2r = Math.PI / 180, d = ms / 86400000 + 2440587.5 - 2451545.0;
+  const L = 218.316 + 13.176396 * d, M = 134.963 + 13.064993 * d, F = 93.272 + 13.22935 * d;
+  const lam = (L + 6.289 * Math.sin(M * d2r)) * d2r, bet = 5.128 * Math.sin(F * d2r) * d2r, eps = 23.4397 * d2r;
+  const ra = Math.atan2(Math.sin(lam) * Math.cos(eps) - Math.tan(bet) * Math.sin(eps), Math.cos(lam));
+  const dec = Math.asin(Math.sin(bet) * Math.cos(eps) + Math.cos(bet) * Math.sin(eps) * Math.sin(lam));
+  const lst = (280.16 + 360.9856235 * d + lon) * d2r, H = lst - ra, phi = lat * d2r;
+  const el = Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H));
+  const az = Math.atan2(-Math.sin(H), Math.tan(dec) * Math.cos(phi) - Math.sin(phi) * Math.cos(H));
+  const g = 357.528 + 0.9856003 * d, sunLon = (280.46 + 0.9856474 * d + 1.915 * Math.sin(g * d2r) + 0.02 * Math.sin(2 * g * d2r)) * d2r;
+  const elong = lam - sunLon;
+  return { elevation: el / d2r, azimuth: ((az / d2r) + 360) % 360, illum: (1 - Math.cos(elong)) / 2, waxing: Math.sin(elong) > 0 };
+}
+
+function moonCanvas(illum: number, waxing: boolean) {
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const g = cv.getContext('2d')!, c = 64, R = 58;
+  g.translate(c, c); if (!waxing) g.scale(-1, 1);
+  g.fillStyle = 'rgba(46,52,64,0.55)'; g.beginPath(); g.arc(0, 0, R, 0, Math.PI * 2); g.fill();        // the unlit side, faint earthshine
+  g.save(); g.beginPath(); g.arc(0, 0, R, 0, Math.PI * 2); g.clip();
+  g.fillStyle = '#efecdf'; g.beginPath(); g.arc(0, 0, R, -Math.PI / 2, Math.PI / 2, false); g.fill();    // lit right half
+  const k = 1 - 2 * illum;                                                                               // crescent: >0, gibbous: <0
+  g.fillStyle = k > 0 ? 'rgba(46,52,64,0.9)' : '#efecdf'; g.beginPath(); g.ellipse(0, 0, Math.max(0.5, Math.abs(k) * R), R, 0, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(120,118,110,0.35)';                                                               // a few maria
+  for (const [x, y, r] of [[-14, -16, 13], [10, -6, 10], [-6, 14, 12], [20, 18, 7]] as [number, number, number][]) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
+  g.restore();
+  return cv;
 }
 
 export class EnvironmentRenderer {
@@ -54,6 +84,9 @@ export class EnvironmentRenderer {
   /** Lighting calibration (exposed for tuning). */
   /** Visible sun: a hot core and a wide glow, billboarded far away; clouds (drawn later) cover it. */
   private sunCore!: THREE.Sprite;
+  moon!: THREE.Sprite; private moonKey = '';
+  /** Moon elevation (deg) and illuminated fraction, for the night ambient light and the sky. */
+  moonElevation = -90; moonIllum = 0;
   private sunGlow!: THREE.Sprite; // wide halo: no longer shown (glow/bloom look removed)
   tune = { sun: 3.6, hemi: 0.3, env: 0.3, exposure: 0.45 };
   private noise: Uint8Array;
@@ -112,6 +145,7 @@ export class EnvironmentRenderer {
     this.sunGlow = mk(disc([[0, 'rgba(255,248,225,0.55)'], [0.1, 'rgba(255,238,195,0.4)'], [0.22, 'rgba(255,222,165,0.1)'], [0.5, 'rgba(255,205,140,0.012)'], [1, 'rgba(255,190,120,0)']]), 5);
     this.sunCore = mk(disc([[0, 'rgba(255,255,250,1)'], [0.9, 'rgba(255,251,238,1)'], [0.97, 'rgba(255,242,210,0.9)'], [1, 'rgba(255,236,190,0)']]), 5);
     this.sunCore.material.blending = THREE.NormalBlending;   // a solid, clearly bounded disc (additive blending made it vanish into the bright sky)
+    this.moon = mk(new THREE.CanvasTexture(moonCanvas(0.5, true)), 5); this.moon.material.blending = THREE.NormalBlending; this.moon.visible = false;
     this.hemi = new THREE.HemisphereLight(0xbfd6ff, 0x4a4a3a, 0.6);
     scene.add(this.hemi);
     this.fog = new THREE.FogExp2(0xc8d4e2, 0.00004);
@@ -196,9 +230,11 @@ export class EnvironmentRenderer {
     return t * t * (3 - 2 * t);
   }
 
-  update(w: WeatherSettings, simTime: number, cam: THREE.Vector3, focus: THREE.Vector3) {
-    const utc = (w.timeOfDay + simTime / 3600) % 24;
-    const sp = sunPosition(EGPH_ORIGIN.lat, EGPH_ORIGIN.lon, w.dayOfYear, utc);
+  update(w: WeatherSettings, simTime: number, cam: THREE.Vector3, focus: THREE.Vector3, where: { lat: number; lon: number } = { lat: EGPH_ORIGIN.lat, lon: EGPH_ORIGIN.lon }) {
+    const clk = clockNow(w, simTime);
+    const sp = sunPosition(where.lat, where.lon, clk.day, clk.utc);       // the sun at the place the aircraft actually is
+    const mp = moonPosition(where.lat, where.lon, clk.ms);
+    this.moonElevation = mp.elevation; this.moonIllum = mp.illum;
     this.sunElevation = sp.elevation;
     const el = (sp.elevation * Math.PI) / 180, az = (sp.azimuth * Math.PI) / 180;
     this.sunDir.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el));
@@ -228,6 +264,19 @@ export class EnvironmentRenderer {
       }
     }
 
+    {
+      // the moon: real position and phase for this place and time; a billboard far away (drawn over the clouds like the sun), phase redrawn when it changes
+      const D = 200000, mel = (mp.elevation * Math.PI) / 180, maz = (mp.azimuth * Math.PI) / 180;
+      const mdir = new THREE.Vector3(Math.sin(maz) * Math.cos(mel), Math.sin(mel), -Math.cos(maz) * Math.cos(mel));
+      const key = Math.round(mp.illum * 60) + (mp.waxing ? 'w' : 'n');
+      if (key !== this.moonKey) { this.moonKey = key; const tx = new THREE.CanvasTexture(moonCanvas(mp.illum, mp.waxing)); tx.colorSpace = THREE.SRGBColorSpace; const m = this.moon.material as THREE.SpriteMaterial; m.map?.dispose(); m.map = tx; m.needsUpdate = true; }
+      const vis = THREE.MathUtils.smoothstep(mp.elevation, -1.5, 2);
+      this.moon.position.copy(cam).addScaledVector(mdir, D);
+      this.moon.scale.setScalar(2 * D * Math.tan((6.0 * Math.PI) / 360));     // drawn about 12x its real size so it reads clearly as a moon, like the big sun
+      (this.moon.material as THREE.SpriteMaterial).opacity = vis * (0.3 + 0.7 * THREE.MathUtils.smoothstep(-sp.elevation, -2, 8)) * (1 - 0.55 * overcast);
+      this.moon.visible = vis > 0.01;
+    }
+
     // night factor from solar elevation (civil twilight)
     this.night = THREE.MathUtils.smoothstep(-sp.elevation, -2, 10);
     const dayLight = THREE.MathUtils.smoothstep(sp.elevation, -4, 12);
@@ -238,7 +287,8 @@ export class EnvironmentRenderer {
     this.sun.intensity = this.tune.sun * sunVis;
     this.sun.position.copy(focus).addScaledVector(this.sunDir, 1200);
     this.sun.target.position.copy(focus);
-    this.hemi.intensity = (0.4 + 0.6 * dayLight) * this.tune.hemi; // moonlit / skyglow floor so the ground is not pitch black
+    const moonGlow = Math.max(0, Math.sin((mp.elevation * Math.PI) / 180)) * mp.illum * (1 - dayLight);   // a bright moon lifts the night a little
+    this.hemi.intensity = (0.4 + 0.6 * dayLight + 0.9 * moonGlow) * this.tune.hemi; // moonlit / skyglow floor so the ground is not pitch black
     this.hemi.color.setRGB(0.62 + 0.2 * overcast, 0.72 + 0.12 * overcast, 0.9);
     this.hemi.groundColor.setRGB(0.3, 0.28, 0.22);
 

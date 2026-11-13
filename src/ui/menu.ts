@@ -333,12 +333,15 @@ export class Menu {
     range('temperatureC', 'Temperature (field)', -20, 35, 1, '°C');
     range('qnh', 'QNH', 960, 1050, 1, 'hPa');
     range('rain', 'Rain', 0, 1, 0.05, '');
-    range('timeOfDay', 'Time (UTC)', 0, 23.75, 0.25, 'h');
-    range('dayOfYear', 'Day of year', 1, 365, 1, '');
+    form.insertAdjacentHTML('beforeend', `<label>Real time (sun and moon match where you fly)</label><input type="checkbox" data-k="realTime" ${w.realTime ? 'checked' : ''}><span></span>`);
+    range('timeOfDay', 'Time (UTC) - used when real time is off', 0, 23.75, 0.25, 'h');
+    range('dayOfYear', 'Day of year - used when real time is off', 1, 365, 1, '');
     form.addEventListener('input', (e) => {
       const t = e.target as HTMLInputElement;
       const k = t.dataset.k as keyof WeatherSettings;
+      if (t.type === 'checkbox') { (w as any)[k] = t.checked; return; }
       (w as any)[k] = t.tagName === 'SELECT' ? t.value : parseFloat(t.value);
+      if (k === 'timeOfDay' || k === 'dayOfYear') { w.realTime = false; const cb = form.querySelector('input[data-k="realTime"]') as HTMLInputElement | null; if (cb) cb.checked = false; }
       const span = t.nextElementSibling as HTMLElement;
       if (span && t.tagName !== 'SELECT') span.textContent = `${t.value} ${span.textContent!.split(' ').slice(1).join(' ')}`;
     });
@@ -347,10 +350,10 @@ export class Menu {
     const ap = document.createElement('button'); ap.className = 'jv-btn'; ap.textContent = 'APPLY';
     ap.onclick = () => this.host.applyWeather({ ...w, source: 'manual' });
     const presets: [string, Partial<WeatherSettings>][] = [
-      ['Clear day', { windSpeed: 5, gustSpeed: 0, turbulence: 0.1, visibility: 100000, cloudCover: 'FEW', rain: 0, timeOfDay: 13 }],
+      ['Clear day', { windSpeed: 5, gustSpeed: 0, turbulence: 0.1, visibility: 100000, cloudCover: 'FEW', rain: 0, timeOfDay: 13, realTime: false }],
       ['Scottish showers', { windDirection: 250, windSpeed: 16, gustSpeed: 26, turbulence: 0.45, visibility: 8000, cloudCover: 'BKN', cloudBaseFt: 1800, rain: 0.5 }],
       ['Low cloud and fog', { windSpeed: 3, gustSpeed: 0, turbulence: 0.05, visibility: 800, cloudCover: 'OVC', cloudBaseFt: 600, rain: 0.1 }],
-      ['Night', { timeOfDay: 23, cloudCover: 'FEW', visibility: 30000, rain: 0 }],
+      ['Night', { realTime: false, timeOfDay: 23, cloudCover: 'FEW', visibility: 30000, rain: 0 }],
     ];
     act.appendChild(ap);
     for (const [name, p] of presets) {

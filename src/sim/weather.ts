@@ -1,5 +1,6 @@
 import { Vec3, rng, gauss, clamp, FT, KT, DEG } from '../core/math';
 import { AtmosphereConditions, T0_STD } from './atmosphere';
+import { PRO } from '../config';
 
 export type CloudCover = 'SKC' | 'FEW' | 'SCT' | 'BKN' | 'OVC';
 
@@ -29,6 +30,8 @@ export interface WeatherSettings {
   timeOfDay: number;
   /** Day of year 1..366 for sun position. */
   dayOfYear: number;
+  /** PRO: use the real clock; the sun and moon then follow the real date/time at the place the aircraft is (timeOfDay/dayOfYear are ignored). */
+  realTime?: boolean;
 }
 
 export const DEFAULT_WEATHER: WeatherSettings = {
@@ -45,7 +48,18 @@ export const DEFAULT_WEATHER: WeatherSettings = {
   rain: 0,
   timeOfDay: 13,
   dayOfYear: 172,
+  realTime: PRO,
 };
+
+/** The simulated clock: real UTC now (real-time mode) or the chosen day/time advancing with the sim. */
+export function clockNow(w: WeatherSettings, simTime: number): { ms: number; utc: number; day: number } {
+  if (w.realTime) {
+    const ms = Date.now(), d = new Date(ms), y0 = Date.UTC(d.getUTCFullYear(), 0, 0);
+    return { ms, utc: (ms / 3600000) % 24, day: Math.floor((ms - y0) / 86400000) };
+  }
+  const utc = (w.timeOfDay + simTime / 3600) % 24;
+  return { ms: Date.UTC(new Date().getUTCFullYear(), 0, 1) + (w.dayOfYear - 1) * 86400000 + utc * 3600000, utc, day: w.dayOfYear };
+}
 
 /** Converts surface weather to atmosphere model conditions (field elevation in m). */
 export function atmosphereFromWeather(w: WeatherSettings, fieldElev: number): AtmosphereConditions {

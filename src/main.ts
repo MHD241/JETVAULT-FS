@@ -49,6 +49,7 @@ import { WorldEditor } from './studio/worldEditor';
 import { loadCityPack } from './render/cityPack';
 import { FOCUS_MODE, airportVisible, FOCUS_AIRCRAFT, PRO } from './config';
 import { generateCity } from './world/city';
+import { LocalProjection, EGPH_ORIGIN } from './world/geo';
 import { LC } from './world/world';
 import { loadCustomDesign } from './render/cockpitCustom';
 import { STUDIO_ORIGIN } from './studio/parts';
@@ -800,6 +801,14 @@ class App implements MenuHost {
 
 
   // ---------------------------------------------------------------- frame
+  private geoProj = new LocalProjection(EGPH_ORIGIN.lat, EGPH_ORIGIN.lon);
+  private whereCache = { e: 1e9, n: 1e9, lat: EGPH_ORIGIN.lat, lon: EGPH_ORIGIN.lon };
+  /** Latitude/longitude of the aircraft (focus point), refreshed only when it has moved 200 m: the sun and moon are computed for this place. */
+  private whereAmI(focus: THREE.Vector3) {
+    const e = focus.x, n = -focus.z, c = this.whereCache;
+    if (Math.hypot(e - c.e, n - c.n) > 200) { const ll = this.geoProj.inverse(e, n); c.e = e; c.n = n; c.lat = ll.lat; c.lon = ll.lon; }
+    return { lat: c.lat, lon: c.lon };
+  }
   private frame() {
     const now = performance.now();
     const dt = Math.min((now - this.lastT) / 1000, 0.1);
@@ -949,7 +958,7 @@ class App implements MenuHost {
     this.model.setCockpitView(inCockpit);
     this.cockpit.root.visible = inCockpit;
     const focus = nedToThree(ac.pos);
-    this.env.update(sim.weather, sim.simTime, cam.position, focus);
+    this.env.update(sim.weather, sim.simTime, cam.position, focus, this.whereAmI(focus));
     if (PRO) {
       // under the sea surface: blue-green murk, short visibility
       const under = this.world.landAt(cam.position.x, -cam.position.z) === LC.WATER && this.world.terrain.heightAt(cam.position.x, -cam.position.z) < 3 && cam.position.y < seaHeight(cam.position.x, -cam.position.z);

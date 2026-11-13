@@ -7,7 +7,7 @@
 // The numbers are engineering estimates in the range gliding texts quote (core 1.5-4 m/s,
 // 100-250 m radius, boundary layer 1-2 km); there is no real weather data behind them.
 
-import { WeatherSettings, WindModel, CloudCover } from './weather';
+import { WeatherSettings, WindModel, CloudCover, clockNow } from './weather';
 
 const CELL = 1700;
 const COVER: Record<CloudCover, number> = { SKC: 0, FEW: 0.18, SCT: 0.4, BKN: 0.7, OVC: 0.97 };
@@ -33,7 +33,7 @@ export class LiftField {
   /** Sun strength 0..1 from the local time of day (Scottish latitude, mid-season). */
   sunStrength(): number {
     const w = this.weather();
-    const t = w.timeOfDay;
+    const t = clockNow(w, 0).utc;
     const s = Math.max(0, Math.sin((Math.PI * (t - 7)) / 11));
     return s * (1 - 0.55 * COVER[w.cloudCover]);
   }

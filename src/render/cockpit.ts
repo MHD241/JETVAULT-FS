@@ -3,6 +3,7 @@
 // FlightControls / Autopilot state that the simulation actually uses.
 
 import * as THREE from 'three';
+import { clockNow } from '../sim/weather';
 import { Simulation } from '../sim/simulation';
 import { MagSwitch } from '../sim/fdm/piston';
 import { FuelSelector, FlightControls } from '../sim/controls';
@@ -285,7 +286,7 @@ export class Cockpit {
     }
     // clock / OAT
     drawBezel(g, L.clock[0], L.clock[1], L.r * 0.8);
-    const tod = sim.weather.timeOfDay + sim.simTime / 3600;
+    const tod = clockNow(sim.weather, sim.simTime).utc;
     const hh = Math.floor(tod) % 24, mm = Math.floor((tod % 1) * 60);
     label(g, `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`, L.clock[0], L.clock[1] - 10, 30, '#9fe0ff');
     label(g, `OAT ${ind.oatC.toFixed(0)}°C`, L.clock[0], L.clock[1] + 26, 18, '#9fe0ff');
