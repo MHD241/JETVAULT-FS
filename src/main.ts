@@ -251,6 +251,8 @@ class App implements MenuHost {
     this.cableLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]), new THREE.LineBasicMaterial({ color: 0xffc830 }));
     this.cableLine.frustumCulled = false; this.cableLine.visible = false;
     this.scene.add(this.cableLine);
+    window.addEventListener('keydown', (e) => { if (e.code === 'F3' && !e.repeat) { e.preventDefault(); this.togglePerf(); } });
+    if (new URLSearchParams(location.search).has('perf')) this.togglePerf();
     this.pushBtn = document.createElement('button');
     this.pushBtn.className = 'jv-bridge';
     this.pushBtn.style.cssText = 'display:none;top:112px';
@@ -577,9 +579,14 @@ class App implements MenuHost {
     if (ev === 'gear' && ac.def.retractableGear) { c.gearDown = !c.gearDown; this.hud.toast(c.gearDown ? 'Gear down' : 'Gear up'); }
     if (ev === 'gear' && !ac.def.retractableGear) this.hud.toast('Fixed landing gear');
     if (ev === 'flaps') {
-      const det = ac.def.controls.flapDetents;
-      c.flapLever = (Math.round(c.flapLever) + 1) % det.length;
-      this.hud.toast(`Flaps ${Math.round((det[c.flapLever] * 180) / Math.PI)}`);
+      const det = ac.def.controls.flapDetents, lim = ac.def.profile.flapLimitKt;
+      const next = (Math.round(c.flapLever) + 1) % det.length, kt = ac.cas / KT;
+      if (lim && next > Math.round(c.flapLever) && kt > lim[next] + 3) {   // extending flaps above the speed limit for that setting is refused, as the real flap load relief would
+        this.hud.toast(`Flaps ${Math.round((det[next] * 180) / Math.PI)} refused: ${Math.round(kt)} kt is above the ${lim[next]} kt limit`);
+      } else {
+        c.flapLever = next;
+        this.hud.toast(`Flaps ${Math.round((det[c.flapLever] * 180) / Math.PI)}`);
+      }
     }
     if (ev === 'spoilers') { c.speedbrake = c.speedbrake > 0.5 ? 0 : 1; this.hud.toast(c.speedbrake ? 'Spoilers extended' : 'Spoilers retracted'); }
     if (ev === 'bridge') {
@@ -776,6 +783,14 @@ class App implements MenuHost {
     fig.pose(sig, this.marshalT);
     this.marshalEl.style.display = 'block';
     this.marshalEl.textContent = dist > 70 ? `MARSHAL: stand ahead, ${Math.round(dist)} m` : call.text;
+  }
+
+  /** F3 (or ?perf): the performance readout (FPS, frame time, draw calls, triangles, physics time). */
+  private togglePerf() {
+    if (this.perfEl) { this.perfEl.remove(); this.perfEl = null; return; }
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:10px;bottom:70px;z-index:40;background:#000a;color:#9fe0ff;font:12px/1.35 ui-monospace,Menlo,monospace;padding:8px 10px;border-radius:6px;white-space:pre;pointer-events:none';
+    document.body.appendChild(el); this.perfEl = el;
   }
 
   private finishPushback() {

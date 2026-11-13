@@ -165,6 +165,7 @@ export const B738: AircraftDef = {
   profile: {
     takeoffTrim: -0.4,
     // measured with the flight model over 25 s runs at each detent's reference speed (the trim that keeps the pitch steadiest with no stall warning) at 30/60/100 % throttle, then fitted: trim = c0 + c1 * throttle
+    flapLimitKt: [999, 250, 250, 250, 210, 200, 190, 175, 162],   // 737-800: flaps 1-5 up to 250 kt, 10 to 210, 15 to 200, 25 to 190, 30 to 175, 40 to 162
     trimModel: { c0: [-0.041, -0.041, 0.12, 0.258, 0.258, 0.377, 0.557, 0.676, 0.557], c1: [-0.568, -0.568, -0.716, -0.986, -0.986, -1.122, -1.405, -1.541, -1.405], bias: -0.03 },
     takeoffFlapLever: 3, // balances the nose-up thrust moment of the underslung engines at takeoff power: a centred stick climbs gently
     approachKias: 145, approachThrottle: 0.55, approachFlapLever: 7, approachTrim: 0.3, approachPitchDeg: 1.5,

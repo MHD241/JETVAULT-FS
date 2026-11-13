@@ -182,7 +182,17 @@ export class B737Cockpit {
     this.detail = m;
   }
 
-  update(dt: number, _night: number) {
+  /** Soft warm flight-deck light for night flying (the cabin lights a real crew turns up): it brightens as it gets dark, off in daylight. */
+  private deckLight: THREE.PointLight | null = null;
+  private deckLight2: THREE.PointLight | null = null;
+
+  update(dt: number, night: number) {
+    if (!this.deckLight) {
+      this.deckLight = new THREE.PointLight(0xffd9a8, 0, 4.5, 1.4); this.deckLight.position.set(14.3, -0.45, -1.05);
+      this.deckLight2 = new THREE.PointLight(0xb8d0ff, 0, 3.5, 1.6); this.deckLight2.position.set(14.9, 0.45, -0.55);   // cooler panel wash
+      this.root.add(this.deckLight, this.deckLight2);
+    }
+    this.deckLight.intensity = night * 5.5; this.deckLight2!.intensity = night * 3.0;
     const c = this.sim.controls;
     const eff = this.sim.autopilot.effectiveControls(c);
     if (this.detail) this.detail.update(dt, c, eff);

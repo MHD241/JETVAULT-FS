@@ -436,8 +436,8 @@ export class AirportRenderer {
       const dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy);
       const ux = dx / L, uy = dy / L, px = uy, py = -ux;
       const off = rw.width / 2 + 1.5;
-      for (let m = 0; m <= L; m += 60) {
-        for (const s of [-1, 1]) add(a.x + ux * m + px * off * s, a.y + uy * m + py * off * s, [1, 0.95, 0.8]);
+      for (let m = 0; m <= L; m += PRO ? 30 : 60) {
+        for (const s of [-1, 1]) add(a.x + ux * m + px * off * s, a.y + uy * m + py * off * s, [1, 0.95, 0.8], PRO ? 2.2 : 1, PRO ? 0.15 : 0, 0.35);   // pro: edge lights bigger, faintly visible even before dark
       }
       // threshold (green) and runway end (red) bars at both ends, including displaced thresholds
       for (const [end, dir] of [[a, 1], [b, -1]] as const) {
@@ -466,7 +466,7 @@ export class AirportRenderer {
           for (let l = -half; l <= half + 1e-6; l += step) if (Math.abs(l) > 2.5) at(m, l, W, 1.8, 0.5);
         }
         // runway centreline lights and touchdown-zone bars
-        for (let m = 0; m <= L; m += 15) add(end.x + ux * dir * m, end.y + uy * dir * m, W, 0.9, 0, 0.3);
+        for (let m = 0; m <= L; m += 15) add(end.x + ux * dir * m, end.y + uy * dir * m, W, 1.7, 0, 0.3);
         for (let m = 60; m <= 900; m += 60) for (const sgn of [-1, 1]) for (const l of [5.5, 7, 8.5]) add(tx + ux * dir * m + px * sgn * l, ty + uy * dir * m + py * sgn * l, W, 0.9, 0, 0.3);
         }
       }
