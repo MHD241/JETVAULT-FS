@@ -3,6 +3,7 @@
 
 import * as THREE from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CloudField } from './cloudField';
 import { clockNow, WeatherSettings, CloudCover } from '../sim/weather';
 import { EGPH_ORIGIN } from '../world/geo';
@@ -85,7 +86,9 @@ export class EnvironmentRenderer {
   /** Visible sun: a hot core and a wide glow, billboarded far away; clouds (drawn later) cover it. */
   private sunCore!: THREE.Sprite; get sunCoreSprite() { return this.sunCore; }
   private twiU = { value: 0 }; private sunDU = { value: new THREE.Vector3(0, 1, 0) };
-  moon!: THREE.Sprite; private moonKey = '';
+  /** The sun as a real 3D sphere ("The Sun" by tamminen, CC BY 4.0), drawn at the sun's true position; the soft sprites are its halo. */
+  sunBody: THREE.Group | null = null;
+  moon!: THREE.Sprite; moonBody: THREE.Group | null = null; private moonKey = '';
   /** Moon elevation (deg) and illuminated fraction, for the night ambient light and the sky. */
   moonElevation = -90; moonIllum = 0;
   private sunGlow!: THREE.Sprite; // wide halo: no longer shown (glow/bloom look removed)
@@ -146,6 +149,33 @@ export class EnvironmentRenderer {
     this.sunGlow = mk(disc([[0, 'rgba(255,248,225,0.55)'], [0.1, 'rgba(255,238,195,0.4)'], [0.22, 'rgba(255,222,165,0.1)'], [0.5, 'rgba(255,205,140,0.012)'], [1, 'rgba(255,190,120,0)']]), 5);
     this.sunCore = mk(disc([[0, 'rgba(255,250,225,1)'], [0.10, 'rgba(255,246,205,1)'], [0.135, 'rgba(255,236,170,0.95)'], [0.165, 'rgba(255,214,120,0.35)'], [0.2, 'rgba(255,190,90,0.34)'], [0.34, 'rgba(255,160,70,0.2)'], [0.6, 'rgba(255,130,55,0.07)'], [1, 'rgba(255,110,40,0)']]), 5);   // like the reference: a crisp small bright sun with a tight orange halo
     this.moon = mk(new THREE.CanvasTexture(moonCanvas(0.5, true)), 5); this.moon.material.blending = THREE.NormalBlending; this.moon.visible = false;
+    new GLTFLoader().load('./models/the_sun.glb', (g) => {
+      // keep the largest sphere only, as an unlit glowing body (no lighting, no fog, no tone-mapping: it is the light source)
+      let best: THREE.Mesh | null = null, br = 0;
+      g.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.geometry.computeBoundingSphere(); const r = m.geometry.boundingSphere!.radius * Math.max(...m.getWorldScale(new THREE.Vector3()).toArray()); if (r > br) { br = r; best = m; } } });
+      if (!best) return;
+      const b = best as THREE.Mesh; b.geometry.computeBoundingSphere();
+      const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.78, 0.4), toneMapped: false, fog: false, depthWrite: false, transparent: true });
+      const mesh = new THREE.Mesh(b.geometry, mat); mesh.renderOrder = 6; mesh.frustumCulled = false;
+      const grp = new THREE.Group(); grp.add(mesh); (grp as THREE.Group & { unit?: number }).unit = 1 / b.geometry.boundingSphere!.radius;
+      grp.visible = false; scene.add(grp); this.sunBody = grp;
+    }, undefined, (e) => { console.warn('sun model not loaded', e); });
+    // the moon as a real textured sphere ("Moon" by Akshat, CC BY 4.0; geometry from the model, its photo texture), lit by the sun's real direction
+    // in a small shader, so the phase you see is the true one; it keeps the same face towards the viewer, like the real moon
+    new GLTFLoader().load('./models/moon.glb', (g) => {
+      let geo: THREE.BufferGeometry | null = null;
+      g.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && !geo) geo = m.geometry; });
+      if (!geo) return;
+      const tx = new THREE.TextureLoader().load('./models/moon.jpg'); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4;
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { uTex: { value: tx }, uSun: { value: new THREE.Vector3(0, 1, 0) }, uOp: { value: 1 } },
+        vertexShader: 'varying vec2 vUv; varying vec3 vN; void main() { vUv = uv; vN = normalize(mat3(modelMatrix) * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+        fragmentShader: 'uniform sampler2D uTex; uniform vec3 uSun; uniform float uOp; varying vec2 vUv; varying vec3 vN; void main() { vec3 c = texture2D(uTex, vUv).rgb; float l = clamp(dot(normalize(vN), normalize(uSun)), 0.0, 1.0); l = smoothstep(0.0, 0.55, l); vec3 col = c * (0.035 + 1.9 * l) * vec3(1.0, 0.97, 0.9); gl_FragColor = vec4(col, uOp); }',
+        transparent: true, depthWrite: false, fog: false,
+      });
+      const mesh = new THREE.Mesh(geo, mat); mesh.renderOrder = 6; mesh.frustumCulled = false;
+      const grp = new THREE.Group(); grp.add(mesh); grp.visible = false; scene.add(grp); this.moonBody = grp;
+    }, undefined, (e) => { console.warn('moon model not loaded', e); });
     this.hemi = new THREE.HemisphereLight(0xbfd6ff, 0x4a4a3a, 0.6);
     scene.add(this.hemi);
     this.fog = new THREE.FogExp2(0xc8d4e2, 0.00004);
@@ -264,6 +294,13 @@ export class EnvironmentRenderer {
         m.opacity = Math.min(1, vis * k * (1 - 0.65 * overcast));
         s.visible = vis > 0.01;
       }
+      if (this.sunBody) {
+        // the 3D sun: about 5 degrees across when it is high, swelling a little as it sets; yellow-white when high, deep orange at the horizon
+        const gr = this.sunBody, u = (gr as THREE.Group & { unit?: number }).unit ?? 1, ang = 4.2 + 3.4 * grow;
+        gr.position.copy(cam).addScaledVector(this.sunDir, D); gr.scale.setScalar(u * D * Math.tan((ang * Math.PI) / 360));
+        const mm = (gr.children[0] as THREE.Mesh).material as THREE.MeshBasicMaterial; mm.color.setRGB(4.0, 3.6 - 1.4 * low, 2.6 - 1.9 * low);   // over-bright: the grade and tone-mapping pass brings it down to a white-yellow sun mm.opacity = Math.min(1, vis * (1 - 0.5 * overcast));
+        gr.visible = vis > 0.01;
+      }
     }
 
     {
@@ -276,7 +313,14 @@ export class EnvironmentRenderer {
       this.moon.position.copy(cam).addScaledVector(mdir, D);
       this.moon.scale.setScalar(2 * D * Math.tan((6.0 * Math.PI) / 360));     // drawn about 12x its real size so it reads clearly as a moon, like the big sun
       (this.moon.material as THREE.SpriteMaterial).opacity = vis * (0.3 + 0.7 * THREE.MathUtils.smoothstep(-sp.elevation, -2, 8)) * (1 - 0.55 * overcast);
-      this.moon.visible = vis > 0.01;
+      this.moon.visible = vis > 0.01 && !this.moonBody;
+      if (this.moonBody) {
+        const gr = this.moonBody, mm = (gr.children[0] as THREE.Mesh).material as THREE.ShaderMaterial;
+        gr.position.copy(cam).addScaledVector(mdir, D); gr.scale.setScalar(D * Math.tan((5.5 * Math.PI) / 360));     // about 11x its real size so it reads clearly
+        gr.lookAt(cam);                                                                                              // the same face always towards the viewer
+        mm.uniforms.uSun.value.copy(this.sunDir); mm.uniforms.uOp.value = vis * (0.3 + 0.7 * THREE.MathUtils.smoothstep(-sp.elevation, -2, 8)) * (1 - 0.55 * overcast);
+        gr.visible = vis > 0.01;
+      }
     }
 
     // night factor from solar elevation (civil twilight)
