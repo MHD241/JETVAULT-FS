@@ -83,7 +83,7 @@ export class EnvironmentRenderer {
   inCloud = 0;
   /** Lighting calibration (exposed for tuning). */
   /** Visible sun: a hot core and a wide glow, billboarded far away; clouds (drawn later) cover it. */
-  private sunCore!: THREE.Sprite;
+  private sunCore!: THREE.Sprite; get sunCoreSprite() { return this.sunCore; }
   private twiU = { value: 0 }; private sunDU = { value: new THREE.Vector3(0, 1, 0) };
   moon!: THREE.Sprite; private moonKey = '';
   /** Moon elevation (deg) and illuminated fraction, for the night ambient light and the sky. */
@@ -144,8 +144,7 @@ export class EnvironmentRenderer {
       m.renderOrder = order; m.frustumCulled = false; scene.add(m); return m;
     };
     this.sunGlow = mk(disc([[0, 'rgba(255,248,225,0.55)'], [0.1, 'rgba(255,238,195,0.4)'], [0.22, 'rgba(255,222,165,0.1)'], [0.5, 'rgba(255,205,140,0.012)'], [1, 'rgba(255,190,120,0)']]), 5);
-    this.sunCore = mk(disc([[0, 'rgba(255,255,250,1)'], [0.9, 'rgba(255,251,238,1)'], [0.97, 'rgba(255,242,210,0.9)'], [1, 'rgba(255,236,190,0)']]), 5);
-    this.sunCore.material.blending = THREE.NormalBlending;   // a solid, clearly bounded disc (additive blending made it vanish into the bright sky)
+    this.sunCore = mk(disc([[0, 'rgba(255,240,205,0.7)'], [0.12, 'rgba(255,226,175,0.62)'], [0.3, 'rgba(255,205,140,0.38)'], [0.52, 'rgba(255,185,115,0.16)'], [0.75, 'rgba(255,170,100,0.05)'], [1, 'rgba(255,160,90,0)']]), 5);   // a soft shine: no edge anywhere
     this.moon = mk(new THREE.CanvasTexture(moonCanvas(0.5, true)), 5); this.moon.material.blending = THREE.NormalBlending; this.moon.visible = false;
     this.hemi = new THREE.HemisphereLight(0xbfd6ff, 0x4a4a3a, 0.6);
     scene.add(this.hemi);
@@ -256,8 +255,8 @@ export class EnvironmentRenderer {
       const D = 200000, vis = THREE.MathUtils.smoothstep(sp.elevation, -3.2, 0.5);
       const low = 1 - THREE.MathUtils.smoothstep(sp.elevation, 2, 25);
       // the disc is small high in the sky (5 deg) and swells as it sinks (up to 13 deg at the horizon, like the real sun looks) until it has set
-      const grow = 1 - THREE.MathUtils.smoothstep(sp.elevation, 0, 35), discAng = 4 + 9 * Math.pow(grow, 1.4), glowAng = 20 + 30 * grow;
-      for (const [s, ang, k] of [[this.sunCore, discAng, 2.0], [this.sunGlow, glowAng, 1.2 - 0.75 * grow]] as [THREE.Sprite, number, number][]) {
+      const grow = 1 - THREE.MathUtils.smoothstep(sp.elevation, 0, 35), discAng = 16 + 34 * grow, glowAng = 40 + 70 * grow;
+      for (const [s, ang, k] of [[this.sunCore, discAng * 1.5, 1.5], [this.sunGlow, glowAng, 0.55 + 0.25 * grow]] as [THREE.Sprite, number, number][]) {
         s.position.copy(cam).addScaledVector(this.sunDir, D);
         s.scale.setScalar(2 * D * Math.tan((ang * Math.PI) / 360));
         const m = s.material as THREE.SpriteMaterial;

@@ -862,3 +862,7 @@ Data rebuild (optional, needs network): `python3 tools/fetch_overture.py && pyth
 
 ## Update 152 — Sun disc smaller at sunrise/sunset
 - User: too big at sunrise and sunset. Disc now 4 deg high up, growing to only 13 deg at the horizon (was 5 -> 30); glow 20 -> 50 deg (was 22 -> 82). Not re-seen: my last test frame looked away from the sun, so the new size is set by the numbers only (13 deg is still about 25x the real sun, as before it was about 60x). If still too big, lower the 9 in `discAng` (environment.ts).
+
+## Update 153 — The sun is a soft shine, not a disc
+- User: the sun is a large shine, not a disc. The sun sprite had a solid bright centre with a visible edge; replaced with an edge-less radial glow (alpha falls smoothly from 0.7 at the centre to 0 at the rim, no hard ring and no hot dot), sized 24-75 deg (grows as it sets) at 1.5x strength, plus the wide glow sprite (40-110 deg, 0.55-0.8). The screen glare and golden-hour sky glow from updates 150-151 stay.
+- Verified only partially: an earlier frame showed a soft glow around the sun with a small hard white dot in the middle; I removed that dot afterwards but could not frame the sun again in the headless camera (three tries), so the final look is NOT seen. Please send a screenshot if it is wrong (too faint/too strong/too big).
