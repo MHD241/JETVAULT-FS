@@ -334,6 +334,7 @@ export class Menu {
     range('qnh', 'QNH', 960, 1050, 1, 'hPa');
     range('rain', 'Rain', 0, 1, 0.05, '');
     form.insertAdjacentHTML('beforeend', `<label>Real time (sun and moon match where you fly)</label><input type="checkbox" data-k="realTime" ${w.realTime ? 'checked' : ''}><span></span>`);
+    range('timeRate', 'Clock speed (1 = real time; try 300 to watch a sunrise)', 1, 3600, 1, 'x');
     range('timeOfDay', 'Time (UTC) - used when real time is off', 0, 23.75, 0.25, 'h');
     range('dayOfYear', 'Day of year - used when real time is off', 1, 365, 1, '');
     form.addEventListener('input', (e) => {

@@ -34,6 +34,7 @@ import { Hud } from './ui/hud';
 import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
 import { Vec3, clamp, moveToward, KT } from './core/math';
 import { AutoTrim, trimFor } from './sim/assists';
+import { advanceClock } from './sim/weather';
 import { SimpleControls, IS_TOUCH } from './input/simpleControls';
 import { Minimap } from './ui/minimap';
 import { LoadedPatch } from './world/world';
@@ -958,6 +959,7 @@ class App implements MenuHost {
     this.model.setCockpitView(inCockpit);
     this.cockpit.root.visible = inCockpit;
     const focus = nedToThree(ac.pos);
+    if (!sim.paused) advanceClock(sim.weather, dt);
     this.env.update(sim.weather, sim.simTime, cam.position, focus, this.whereAmI(focus));
     if (PRO) {
       // under the sea surface: blue-green murk, short visibility

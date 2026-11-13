@@ -32,6 +32,8 @@ export interface WeatherSettings {
   dayOfYear: number;
   /** PRO: use the real clock; the sun and moon then follow the real date/time at the place the aircraft is (timeOfDay/dayOfYear are ignored). */
   realTime?: boolean;
+  /** Clock speed: 1 = real time; 60 = a minute per second, etc. (the sun then moves visibly). */
+  timeRate?: number;
 }
 
 export const DEFAULT_WEATHER: WeatherSettings = {
@@ -51,13 +53,17 @@ export const DEFAULT_WEATHER: WeatherSettings = {
   realTime: PRO,
 };
 
+/** Extra milliseconds added to the real clock by running it faster than real time (see advanceClock). */
+export const clockShift = { ms: 0 };
+export function advanceClock(w: WeatherSettings, dt: number) { const r = w.timeRate ?? 1; if (r !== 1) clockShift.ms += (r - 1) * dt * 1000; }
+
 /** The simulated clock: real UTC now (real-time mode) or the chosen day/time advancing with the sim. */
 export function clockNow(w: WeatherSettings, simTime: number): { ms: number; utc: number; day: number } {
   if (w.realTime) {
-    const ms = Date.now(), d = new Date(ms), y0 = Date.UTC(d.getUTCFullYear(), 0, 0);
+    const ms = Date.now() + clockShift.ms, d = new Date(ms), y0 = Date.UTC(d.getUTCFullYear(), 0, 0);
     return { ms, utc: (ms / 3600000) % 24, day: Math.floor((ms - y0) / 86400000) };
   }
-  const utc = (w.timeOfDay + simTime / 3600) % 24;
+  const utc = (w.timeOfDay + (simTime * (w.timeRate ?? 1) + clockShift.ms / 1000) / 3600) % 24;
   return { ms: Date.UTC(new Date().getUTCFullYear(), 0, 1) + (w.dayOfYear - 1) * 86400000 + utc * 3600000, utc, day: w.dayOfYear };
 }
 

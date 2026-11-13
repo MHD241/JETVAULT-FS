@@ -84,6 +84,7 @@ export class EnvironmentRenderer {
   /** Lighting calibration (exposed for tuning). */
   /** Visible sun: a hot core and a wide glow, billboarded far away; clouds (drawn later) cover it. */
   private sunCore!: THREE.Sprite;
+  private twiU = { value: 0 }; private sunDU = { value: new THREE.Vector3(0, 1, 0) };
   moon!: THREE.Sprite; private moonKey = '';
   /** Moon elevation (deg) and illuminated fraction, for the night ambient light and the sky. */
   moonElevation = -90; moonIllum = 0;
@@ -97,10 +98,10 @@ export class EnvironmentRenderer {
     this.sky.scale.setScalar(400000);
     // deep-blue zenith fading to a pale hazy horizon (the stock atmosphere model alone is washed out after tone mapping)
     this.sky.material.onBeforeCompile = (sh) => {
-      sh.uniforms.uSpace = this.spaceU;
-      sh.fragmentShader = 'uniform float uSpace;\n' + sh.fragmentShader;
+      sh.uniforms.uSpace = this.spaceU; sh.uniforms.uTwi = this.twiU; sh.uniforms.uSunD = this.sunDU;
+      sh.fragmentShader = 'uniform float uSpace; uniform float uTwi; uniform vec3 uSunD;\n' + sh.fragmentShader;
       sh.fragmentShader = sh.fragmentShader.replace('gl_FragColor = vec4( texColor, 1.0 );',
-        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.07, 0.30, 1.6), smoothstep(0.0, 0.2, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n // thinning atmosphere: black overhead, a bright blue limb stays along the horizon\n float yRaw = normalize(vWorldPosition - cameraPosition).y;\n texColor *= pow(1.0 - uSpace * smoothstep(0.0, 0.3, skyE), 4.0) * mix(1.0, 0.22, uSpace) * (1.0 - uSpace * (1.0 - smoothstep(-0.05, 0.0, yRaw)));\n texColor += vec3(0.10, 0.28, 0.95) * 0.7 * uSpace * exp(-abs(yRaw + 0.01) * 22.0);   // the blue atmosphere limb\n gl_FragColor = vec4( texColor, 1.0 );');
+        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.07, 0.30, 1.6), smoothstep(0.0, 0.2, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n // thinning atmosphere: black overhead, a bright blue limb stays along the horizon\n float yRaw = normalize(vWorldPosition - cameraPosition).y;\n texColor *= pow(1.0 - uSpace * smoothstep(0.0, 0.3, skyE), 4.0) * mix(1.0, 0.22, uSpace) * (1.0 - uSpace * (1.0 - smoothstep(-0.05, 0.0, yRaw)));\n texColor += vec3(0.10, 0.28, 0.95) * 0.7 * uSpace * exp(-abs(yRaw + 0.01) * 22.0);   // the blue atmosphere limb\n // sunrise / sunset: a warm band along the horizon on the sun side (orange at the horizon, pink above, blue-purple on the far side)\n vec3 vd = normalize(vWorldPosition - cameraPosition); float toSun = max(dot(normalize(vec3(vd.x, 0.0, vd.z)), normalize(vec3(uSunD.x, 0.0, uSunD.z))), 0.0);\n float band = exp(-max(vd.y, 0.0) * 5.0) * (0.25 + 0.75 * pow(toSun, 3.0)), halo = pow(max(dot(vd, uSunD), 0.0), 8.0) * exp(-max(vd.y, 0.0) * 2.5);\n texColor = mix(texColor, texColor * 0.55 + vec3(1.15, 0.45, 0.18) * band * 0.8 + vec3(1.2, 0.6, 0.25) * halo * 0.7, uTwi * (1.0 - uSpace));\n texColor += vec3(0.32, 0.12, 0.28) * uTwi * smoothstep(0.1, 0.5, vd.y) * (1.0 - toSun) * 0.25;\n gl_FragColor = vec4( texColor, 1.0 );');
     };
     this.sky.material.depthWrite = false;
     scene.add(this.sky);
@@ -283,7 +284,10 @@ export class EnvironmentRenderer {
     this.sunShine = THREE.MathUtils.smoothstep(sp.elevation, -1, 6) * (1 - 0.75 * overcast);
     const sunVis = dayLight * (1 - 0.4 * overcast); // thin overcast still casts clear shadows
     const warm = THREE.MathUtils.smoothstep(sp.elevation, 0, 25);
-    this.sun.color.setRGB(1, 0.72 + 0.28 * warm, 0.5 + 0.5 * warm);
+    // twilight strength: peaks as the sun crosses the horizon (golden hour just above, afterglow just below), zero at midday and deep night
+    const twi = Math.exp(-Math.pow((sp.elevation - 1) / 7, 2)) * (1 - 0.7 * overcast);
+    this.twiU.value = twi; this.sunDU.value.copy(this.sunDir);
+    this.sun.color.setRGB(1, 0.50 + 0.50 * warm, 0.22 + 0.78 * warm);   // deep orange at the horizon, white at noon
     this.sun.intensity = this.tune.sun * sunVis;
     this.sun.position.copy(focus).addScaledVector(this.sunDir, 1200);
     this.sun.target.position.copy(focus);
@@ -312,7 +316,7 @@ export class EnvironmentRenderer {
     const vis = Math.max(50, Math.min(w.visibility, 120000) * (1 - 0.97 * inCloud));
     this.fog.density = Math.sqrt(3) / vis * 0.7 * (1 - 0.92 * this.space); // no thick haze in thin air
     const fogBright = 0.25 + 0.75 * dayLight;
-    this.fog.color.setRGB(0.56 * fogBright, 0.70 * fogBright, 0.90 * fogBright).lerp(new THREE.Color(0.8, 0.8, 0.82).multiplyScalar(fogBright), overcast * 0.6 + inCloud);
+    this.fog.color.setRGB(0.56 * fogBright, 0.70 * fogBright, 0.90 * fogBright).lerp(new THREE.Color(0.95, 0.55, 0.38).multiplyScalar(fogBright * 0.9), twi * 0.65).lerp(new THREE.Color(0.8, 0.8, 0.82).multiplyScalar(fogBright), overcast * 0.6 + inCloud);
     this.lightLevel = Math.max(this.night, w.visibility < 5000 ? 1 : 0, overcast * 0.4);
 
     // clouds: scattered 3D puff cumulus below overcast, flat noise layers for overcast
