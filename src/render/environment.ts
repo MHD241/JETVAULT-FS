@@ -101,7 +101,7 @@ export class EnvironmentRenderer {
       sh.uniforms.uSpace = this.spaceU; sh.uniforms.uTwi = this.twiU; sh.uniforms.uSunD = this.sunDU;
       sh.fragmentShader = 'uniform float uSpace; uniform float uTwi; uniform vec3 uSunD;\n' + sh.fragmentShader;
       sh.fragmentShader = sh.fragmentShader.replace('gl_FragColor = vec4( texColor, 1.0 );',
-        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.07, 0.30, 1.6), smoothstep(0.0, 0.2, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n // thinning atmosphere: black overhead, a bright blue limb stays along the horizon\n float yRaw = normalize(vWorldPosition - cameraPosition).y;\n texColor *= pow(1.0 - uSpace * smoothstep(0.0, 0.3, skyE), 4.0) * mix(1.0, 0.22, uSpace) * (1.0 - uSpace * (1.0 - smoothstep(-0.05, 0.0, yRaw)));\n texColor += vec3(0.10, 0.28, 0.95) * 0.7 * uSpace * exp(-abs(yRaw + 0.01) * 22.0);   // the blue atmosphere limb\n // sunrise / sunset: a warm band along the horizon on the sun side (orange at the horizon, pink above, blue-purple on the far side)\n vec3 vd = normalize(vWorldPosition - cameraPosition); float toSun = max(dot(normalize(vec3(vd.x, 0.0, vd.z)), normalize(vec3(uSunD.x, 0.0, uSunD.z))), 0.0);\n float band = exp(-max(vd.y, 0.0) * 5.0) * (0.25 + 0.75 * pow(toSun, 3.0)), halo = pow(max(dot(vd, uSunD), 0.0), 8.0) * exp(-max(vd.y, 0.0) * 2.5);\n texColor = mix(texColor, texColor * 0.55 + vec3(1.15, 0.45, 0.18) * band * 0.8 + vec3(1.2, 0.6, 0.25) * halo * 0.7, uTwi * (1.0 - uSpace));\n texColor += vec3(0.32, 0.12, 0.28) * uTwi * smoothstep(0.1, 0.5, vd.y) * (1.0 - toSun) * 0.25;\n gl_FragColor = vec4( texColor, 1.0 );');
+        'float skyE = clamp(normalize(vWorldPosition - cameraPosition).y, 0.0, 1.0);\n texColor *= mix(vec3(1.0), vec3(0.07, 0.30, 1.6), smoothstep(0.0, 0.2, skyE)); texColor = mix(texColor, texColor * vec3(0.9,0.95,1.0), smoothstep(0.0, 0.1, skyE));\n // thinning atmosphere: black overhead, a bright blue limb stays along the horizon\n float yRaw = normalize(vWorldPosition - cameraPosition).y;\n texColor *= pow(1.0 - uSpace * smoothstep(0.0, 0.3, skyE), 4.0) * mix(1.0, 0.22, uSpace) * (1.0 - uSpace * (1.0 - smoothstep(-0.05, 0.0, yRaw)));\n texColor += vec3(0.10, 0.28, 0.95) * 0.7 * uSpace * exp(-abs(yRaw + 0.01) * 22.0);   // the blue atmosphere limb\n // sunrise / sunset: a warm band along the horizon on the sun side (orange at the horizon, pink above, blue-purple on the far side)\n vec3 vd = normalize(vWorldPosition - cameraPosition); float toSun = max(dot(normalize(vec3(vd.x, 0.0, vd.z)), normalize(vec3(uSunD.x, 0.0, uSunD.z))), 0.0);\n float band = exp(-max(vd.y, 0.0) * 5.0) * (0.25 + 0.75 * pow(toSun, 3.0)), halo = pow(max(dot(vd, uSunD), 0.0), 8.0) * exp(-max(vd.y, 0.0) * 2.5);\n vec3 pinkTop = vec3(0.95, 0.35, 0.45) * smoothstep(0.02, 0.35, vd.y) * (1.0 - smoothstep(0.35, 0.8, vd.y));\n texColor = mix(texColor, texColor * 0.45 + vec3(1.35, 0.5, 0.15) * band + vec3(1.4, 0.65, 0.25) * halo * 0.9 + pinkTop * (0.35 + 0.65 * toSun) * 0.75, uTwi * (1.0 - uSpace));\n texColor += vec3(0.32, 0.12, 0.28) * uTwi * smoothstep(0.1, 0.5, vd.y) * (1.0 - toSun) * 0.25;\n gl_FragColor = vec4( texColor, 1.0 );');
     };
     this.sky.material.depthWrite = false;
     scene.add(this.sky);
@@ -253,13 +253,15 @@ export class EnvironmentRenderer {
     this.sky.position.copy(cam);
     {
       // sun disc: 1.6 deg core, ~22 deg glow; hidden below the horizon, dimmer and warmer when low or overcast
-      const D = 200000, vis = THREE.MathUtils.smoothstep(sp.elevation, -2, 1.5);
+      const D = 200000, vis = THREE.MathUtils.smoothstep(sp.elevation, -3.2, 0.5);
       const low = 1 - THREE.MathUtils.smoothstep(sp.elevation, 2, 25);
-      for (const [s, ang, k] of [[this.sunCore, 14, 2.0], [this.sunGlow, 50, 1.2]] as [THREE.Sprite, number, number][]) {
+      // the disc is small high in the sky (5 deg) and swells as it sinks (up to 30 deg at the horizon, like the real sun looks) until it has set
+      const grow = 1 - THREE.MathUtils.smoothstep(sp.elevation, 0, 35), discAng = 5 + 25 * Math.pow(grow, 1.4), glowAng = 22 + 60 * grow;
+      for (const [s, ang, k] of [[this.sunCore, discAng, 2.0], [this.sunGlow, glowAng, 1.2 - 0.75 * grow]] as [THREE.Sprite, number, number][]) {
         s.position.copy(cam).addScaledVector(this.sunDir, D);
         s.scale.setScalar(2 * D * Math.tan((ang * Math.PI) / 360));
         const m = s.material as THREE.SpriteMaterial;
-        m.color.setRGB(1.6, 1.5 - 0.25 * low, 1.25 - 0.45 * low);   // over-bright so the disc reads white-hot, warmer when low
+        m.color.setRGB(1.6, 1.5 - 0.75 * low, 1.25 - 1.0 * low);   // white-hot high up, glowing orange-red as it sets
         m.opacity = Math.min(1, vis * k * (1 - 0.65 * overcast));
         s.visible = vis > 0.01;
       }
@@ -281,18 +283,19 @@ export class EnvironmentRenderer {
     // night factor from solar elevation (civil twilight)
     this.night = THREE.MathUtils.smoothstep(-sp.elevation, -2, 10);
     const dayLight = THREE.MathUtils.smoothstep(sp.elevation, -4, 12);
-    this.sunShine = THREE.MathUtils.smoothstep(sp.elevation, -1, 6) * (1 - 0.75 * overcast);
-    const sunVis = dayLight * (1 - 0.4 * overcast); // thin overcast still casts clear shadows
+    const twi = Math.min(1, 1.25 * Math.exp(-Math.pow((sp.elevation - 2) / 9, 2))) * (1 - 0.6 * overcast);   // golden hour: from about 15 degrees down to civil twilight
+    this.sunShine = THREE.MathUtils.smoothstep(sp.elevation, -1, 6) * (1 - 0.75 * overcast) * (1 - 0.8 * twi);   // the screen glare is mostly switched off at sunset: the sky glow and the big disc do the work
+    const sunVis = THREE.MathUtils.smoothstep(sp.elevation, -1.5, 5) * (1 - 0.4 * overcast);   // stays strong right down to the horizon, so golden-hour shadows are crisp and long // thin overcast still casts clear shadows
     const warm = THREE.MathUtils.smoothstep(sp.elevation, 0, 25);
     // twilight strength: peaks as the sun crosses the horizon (golden hour just above, afterglow just below), zero at midday and deep night
-    const twi = Math.exp(-Math.pow((sp.elevation - 1) / 7, 2)) * (1 - 0.7 * overcast);
     this.twiU.value = twi; this.sunDU.value.copy(this.sunDir);
     this.sun.color.setRGB(1, 0.50 + 0.50 * warm, 0.22 + 0.78 * warm);   // deep orange at the horizon, white at noon
     this.sun.intensity = this.tune.sun * sunVis;
     this.sun.position.copy(focus).addScaledVector(this.sunDir, 1200);
     this.sun.target.position.copy(focus);
     const moonGlow = Math.max(0, Math.sin((mp.elevation * Math.PI) / 180)) * mp.illum * (1 - dayLight);   // a bright moon lifts the night a little
-    this.hemi.intensity = (0.4 + 0.6 * dayLight + 0.9 * moonGlow) * this.tune.hemi; // moonlit / skyglow floor so the ground is not pitch black
+    this.hemi.intensity = (0.4 + 0.6 * dayLight + 0.9 * moonGlow + 1.2 * twi) * this.tune.hemi;
+    this.hemi.color.setRGB(0.75, 0.84, 1.0).lerp(new THREE.Color(1.0, 0.62, 0.42), Math.min(1, twi * 1.1));   // warm sky light on the ground at golden hour // moonlit / skyglow floor so the ground is not pitch black
     this.hemi.color.setRGB(0.62 + 0.2 * overcast, 0.72 + 0.12 * overcast, 0.9);
     this.hemi.groundColor.setRGB(0.3, 0.28, 0.22);
 
