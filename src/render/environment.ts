@@ -255,8 +255,8 @@ export class EnvironmentRenderer {
       // sun disc: 1.6 deg core, ~22 deg glow; hidden below the horizon, dimmer and warmer when low or overcast
       const D = 200000, vis = THREE.MathUtils.smoothstep(sp.elevation, -3.2, 0.5);
       const low = 1 - THREE.MathUtils.smoothstep(sp.elevation, 2, 25);
-      // the disc is small high in the sky (5 deg) and swells as it sinks (up to 30 deg at the horizon, like the real sun looks) until it has set
-      const grow = 1 - THREE.MathUtils.smoothstep(sp.elevation, 0, 35), discAng = 5 + 25 * Math.pow(grow, 1.4), glowAng = 22 + 60 * grow;
+      // the disc is small high in the sky (5 deg) and swells as it sinks (up to 13 deg at the horizon, like the real sun looks) until it has set
+      const grow = 1 - THREE.MathUtils.smoothstep(sp.elevation, 0, 35), discAng = 4 + 9 * Math.pow(grow, 1.4), glowAng = 20 + 30 * grow;
       for (const [s, ang, k] of [[this.sunCore, discAng, 2.0], [this.sunGlow, glowAng, 1.2 - 0.75 * grow]] as [THREE.Sprite, number, number][]) {
         s.position.copy(cam).addScaledVector(this.sunDir, D);
         s.scale.setScalar(2 * D * Math.tan((ang * Math.PI) / 360));
