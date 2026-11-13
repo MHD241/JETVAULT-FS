@@ -251,12 +251,15 @@ export class AirportRenderer {
     this.lightMat = new THREE.ShaderMaterial({
       uniforms: { uLevel: { value: 1 }, uScale: { value: 1 }, uTime: { value: 0 } },
       vertexShader: `
+        #include <common>
+        #include <logdepthbuf_pars_vertex>
         attribute vec3 color; attribute float size; attribute float always; attribute float fl;
         uniform float uLevel; uniform float uScale; uniform float uTime;
         varying vec3 vColor; varying float vA;
         void main() {
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
           gl_Position = projectionMatrix * mv;
+          #include <logdepthbuf_vertex>
           float d = -mv.z;
           float lvl = max(uLevel, always);
           // fl > 0: sequenced flasher ('rabbit') on the approach centreline; fl = distance from the threshold / 900 m, the flash runs toward the runway twice a second
@@ -267,8 +270,11 @@ export class AirportRenderer {
           gl_PointSize = clamp(size * uScale * 900.0 / max(d, 1.0), 1.5, 24.0) * (0.35 + 0.65 * lvl) * (fl > 0.0 ? (0.4 + 0.6 * fx) : 1.0);
         }`,
       fragmentShader: `
+        #include <common>
+        #include <logdepthbuf_pars_fragment>
         varying vec3 vColor; varying float vA;
         void main() {
+          #include <logdepthbuf_fragment>
           vec2 p = gl_PointCoord - 0.5;
           float r = length(p);
           float core = smoothstep(0.5, 0.0, r);

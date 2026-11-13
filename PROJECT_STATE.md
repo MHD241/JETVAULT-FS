@@ -896,3 +896,6 @@ CHANGED BUT NOT VERIFIED VISUALLY:
 NOT DONE / OPEN:
 - Bug 7 chase camera clipping into the tail (no repro), bug 9 near-centre mouse rolled to 50 deg on first take-off (not reproduced; the assist layer and trim are different from the build tested, so retest).
 - Full-power approach-configuration pitch-up (go-around transient) in the flight model; slow turns (about 1 deg/s) and 700 fpm loss in banked turns; improvement 10 (buildings, trees); the 1.7M-triangle cockpit and PCFSoftShadow / pbrSpecularGlossiness console warnings; real-GPU frame rate (about 20 fps in the report).
+
+## Update 157 — Runway lights no longer under the ground
+- User: the runway lights are under the ground. Cause (not the heights: the terrain is flat at the runway, 0.05 m): the airfield light shader (`airportMesh.ts lightMat`) did not use the log-depth chunks, but the renderer runs a logarithmic depth buffer, so the lights' depth did not match the ground's and the ground won the depth test (worse with distance). Fixed by adding `logdepthbuf_*` includes to both shaders (same as the cloud shader). Verified in a headless night frame on runway 24: edge lights, centreline, threshold bars and approach lights all visible above the pavement. Also covers the earlier "lights invisible at 0.08-0.12 m" symptom. Pushed to the working branch only (main still a6f717c).
