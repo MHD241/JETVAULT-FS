@@ -902,6 +902,3 @@ NOT DONE / OPEN:
 
 ## Standing rule (user, 14 Nov 2026)
 Always merge/push to `main` straight away once tests pass and watch the deploy (rerun `gh run rerun <id> --failed -R MHD241/JETVAULT-FS` if it times out); do not wait for approval and do not make the user check. This replaces the "preview before deploy" rule used in update 156. Update 157 (runway lights log-depth fix) deployed successfully as 83e374f.
-
-## Update 158 — Removed the lights on the floor
-- User: remove the lights on the floor. Interpreted as the in-pavement lights I added: runway centreline lights (every 15 m), touchdown-zone bars, and the green taxiway centreline lights. Removed (`airportMesh.ts`). Kept: runway edge lights, threshold and end bars, approach lights, PAPI, blue taxiway edge lights. If you meant the edge lights too, say so.
