@@ -899,3 +899,6 @@ NOT DONE / OPEN:
 
 ## Update 157 — Runway lights no longer under the ground
 - User: the runway lights are under the ground. Cause (not the heights: the terrain is flat at the runway, 0.05 m): the airfield light shader (`airportMesh.ts lightMat`) did not use the log-depth chunks, but the renderer runs a logarithmic depth buffer, so the lights' depth did not match the ground's and the ground won the depth test (worse with distance). Fixed by adding `logdepthbuf_*` includes to both shaders (same as the cloud shader). Verified in a headless night frame on runway 24: edge lights, centreline, threshold bars and approach lights all visible above the pavement. Also covers the earlier "lights invisible at 0.08-0.12 m" symptom. Pushed to the working branch only (main still a6f717c).
+
+## Standing rule (user, 14 Nov 2026)
+Always merge/push to `main` straight away once tests pass and watch the deploy (rerun `gh run rerun <id> --failed -R MHD241/JETVAULT-FS` if it times out); do not wait for approval and do not make the user check. This replaces the "preview before deploy" rule used in update 156. Update 157 (runway lights log-depth fix) deployed successfully as 83e374f.
