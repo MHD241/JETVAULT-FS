@@ -135,6 +135,7 @@ export class Menu {
       lifting-surface aerodynamics, a piston engine and propeller model, and spring-damper landing gear on real terrain.
       The Cessna 172S model is validated against its Pilot's Operating Handbook in an automated test suite.</p>
       <h3>Data and licences</h3><p>${h.attribution.map((a) => `${a}`).join('<br>')}</p>
+      <p>"Jetway" 3D model by <a href="https://skfb.ly/oUZou" target="_blank" rel="noopener" style="color:#8ab4ff">vishnevsky.yaroslav</a> on Sketchfab, licensed <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:#8ab4ff">CC BY 4.0</a>.</p>
       <p>"Moon" 3D model by <a href="https://skfb.ly/6TwGU" target="_blank" rel="noopener" style="color:#8ab4ff">Akshat</a> on Sketchfab, licensed <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:#8ab4ff">CC BY 4.0</a>.</p>
       <p>"The Sun" 3D model by <a href="https://skfb.ly/oy8RZ" target="_blank" rel="noopener" style="color:#8ab4ff">tamminen</a> on Sketchfab, licensed <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:#8ab4ff">CC BY 4.0</a>.</p>
       <p>Boeing 737-800 (American Airlines) 3D model by <a href="https://www.cgtrader.com/designers/boy737?utm_source=credit&amp;utm_source=credit_item_page" target="_blank" rel="noopener" style="color:#8ab4ff">boy737</a> on CGTrader. Scaled, repositioned and converted to glTF.</p>
