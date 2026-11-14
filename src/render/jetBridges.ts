@@ -29,15 +29,20 @@ const toward = (v: number, t: number, step: number) => (Math.abs(t - v) <= step 
 const tubeCol = new THREE.Color(0.40, 0.44, 0.50), dark = new THREE.Color(0.10, 0.12, 0.15), light = new THREE.Color(0.80, 0.82, 0.85), yellow = new THREE.Color(0.95, 0.75, 0.08);
 
 /** The "Jetway" model (vishnevsky.yaroslav, CC BY 4.0), split into rigged parts. Model frame: the bridge runs along +z from the rotunda (z about 0) to the cab centre (z about 21.6), y up. */
-interface ModelParts { rotunda: { g: THREE.BufferGeometry; m: THREE.Material }[]; arm: { g: THREE.BufferGeometry; m: THREE.Material }[]; tel: { g: THREE.BufferGeometry; m: THREE.Material }[]; col: { g: THREE.BufferGeometry; m: THREE.Material }[] }
+interface ModelParts { cab: { g: THREE.BufferGeometry; m: THREE.Material }[]; rotunda: { g: THREE.BufferGeometry; m: THREE.Material }[]; arm: { g: THREE.BufferGeometry; m: THREE.Material }[]; tel: { g: THREE.BufferGeometry; m: THREE.Material }[]; col: { g: THREE.BufferGeometry; m: THREE.Material }[] }
 const MODEL_LEN0 = 21.6, MODEL_FLOOR0 = 5.4;
-interface Rig { swing: THREE.Group; arm: THREE.Group; tel: THREE.Group; col: THREE.Group; wall: number }
+/** The cab hinges on the end of the tunnel (model z = HINGE_Z) and its flat front face is CAB_L ahead of the hinge: it turns to lie flat against the fuselage at the door. */
+const HINGE_Z = 20.3, CAB_L = 2.7;
+const wrapA = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+interface Rig { swing: THREE.Group; arm: THREE.Group; tel: THREE.Group; cab: THREE.Group; col: THREE.Group; wall: number }
 
 interface Bridge {
   group: THREE.Group; tube: THREE.Mesh | null; end: THREE.Mesh | null; rig?: Rig;
   px: number; pz: number; base: number; restYaw: number;
   yaw: number; len: number; floor: number;
   connected: boolean;
+  /** Absolute world yaw the cab face points along (toward the fuselage) and how much of it is applied (0 stowed .. 1 docked). */
+  cabAbs: number; cabBlend: number;
 }
 
 export class JetBridges {
@@ -55,8 +60,8 @@ export class JetBridges {
     this.group.name = 'jet bridges';
     new GLTFLoader().load('./models/jetway.glb', (g) => {
       g.scene.updateMatrixWorld(true);
-      const P: ModelParts = { rotunda: [], arm: [], tel: [], col: [] };
-      const roleOf: Record<string, keyof ModelParts> = { SM_Jetway2_0: 'rotunda', SM_Jetway_1: 'arm', SM_Jetway4_5: 'tel', SM_Jetway3_6: 'tel', SM_JetwayGlass_7: 'tel', SM_Jetway1_2: 'col', SM_Jetway6_3: 'col', SM_Jetway5_4: 'col' };
+      const P: ModelParts = { rotunda: [], arm: [], tel: [], col: [], cab: [] };
+      const roleOf: Record<string, keyof ModelParts> = { SM_Jetway2_0: 'rotunda', SM_Jetway_1: 'arm', SM_Jetway4_5: 'tel', SM_Jetway3_6: 'cab', SM_JetwayGlass_7: 'cab', SM_Jetway1_2: 'col', SM_Jetway6_3: 'col', SM_Jetway5_4: 'col' };
       g.scene.traverse((o) => {
         const m = o as THREE.Mesh; if (!m.isMesh) return;
         let n: THREE.Object3D | null = m, role: keyof ModelParts | undefined;
@@ -100,18 +105,20 @@ export class JetBridges {
         const wallG = new THREE.Group(); wallG.rotation.y = ang; const wallM = new THREE.Group(); wallM.rotation.y = Math.PI / 2; wallG.add(wallM); wallM.position.y = FLOOR - MODEL_FLOOR0;
         mk(P.rotunda, wallM);
         const swing = new THREE.Group(), m = new THREE.Group(); m.rotation.y = Math.PI / 2; swing.add(m);
-        const arm = new THREE.Group(), tel = new THREE.Group(), col = new THREE.Group();
+        const arm = new THREE.Group(), tel = new THREE.Group(), cab = new THREE.Group(), col = new THREE.Group();
         mk(P.arm, arm, -MODEL_FLOOR0); mk(P.tel, tel, -MODEL_FLOOR0); mk(P.col, col);
+        for (const { g, m: mt } of P.cab) { const mesh = new THREE.Mesh(g, mt); mesh.castShadow = true; mesh.receiveShadow = true; mesh.position.set(0, -MODEL_FLOOR0, -HINGE_Z); cab.add(mesh); }
+        cab.position.z = HINGE_Z; tel.add(cab);          // the cab turns about the end of the tunnel
         arm.add(tel); m.add(arm, col);
         group.add(wallG, swing);
-        rig = { swing, arm, tel, col, wall: ang };
+        rig = { swing, arm, tel, cab, col, wall: ang };
       } else {
         tube = new THREE.Mesh(tubeGeo, mat); end = new THREE.Mesh(endGeo, mat);
         tube.castShadow = end.castShadow = true;
         group.add(tube, end);
       }
       this.group.add(group);
-      const br: Bridge = { group, tube, end, rig, px: best.px, pz: -best.py, base, restYaw, yaw: restYaw, len: this.restLen, floor: FLOOR, connected: false };
+      const br: Bridge = { group, tube, end, rig, px: best.px, pz: -best.py, base, restYaw, yaw: restYaw, len: this.restLen, floor: FLOOR, connected: false, cabAbs: restYaw, cabBlend: 0 };
       this.pose(br);
       this.bridges.push(br);
       mine.push(br);
@@ -150,7 +157,8 @@ export class JetBridges {
       const r = b.rig, ext = b.len - MODEL_LEN0, pitch = Math.atan2(b.floor - FLOOR, b.len);
       r.swing.rotation.y = b.yaw;
       r.arm.position.y = FLOOR; r.arm.rotation.x = -pitch;      // the tunnel pivots at the rotunda end and tilts up or down to the door height
-      r.tel.position.z = ext;                                    // the inner tunnel and cab slide out of the main tunnel
+      r.tel.position.z = ext;
+      r.cab.rotation.y = wrapA(b.cabAbs - b.yaw) * b.cabBlend;   // docked: the cab face is turned flat against the fuselage                                    // the inner tunnel and cab slide out of the main tunnel
       const zc = 14.2 + ext, top = FLOOR - (MODEL_FLOOR0 - 5.0) + zc * Math.tan(pitch);   // underside of the tunnel at the column
       r.col.position.z = ext; r.col.scale.y = Math.max(0.3, top / 4.64);
       return;
@@ -222,13 +230,23 @@ export class JetBridges {
         const c = this.clearance(ac, cx, cz);
         if (c < 5) tLen = Math.max(this.minLen, this.restLen - (5 - c) * 3);
       }
+      let tBlend = 0;
       if (b.connected) {
         const D = this.door(ac);
-        const dx = D.x - b.px, dz = D.z - b.pz;
+        // outward (left) direction at the door, horizontal
+        const L = nedToThree(ac.worldPoint(new Vec3(DOOR_BODY.x, DOOR_BODY.y - 1, DOOR_BODY.z)));
+        let nx = L.x - D.x, nz = L.z - D.z; const nl = Math.hypot(nx, nz) || 1; nx /= nl; nz /= nl;
+        const lc = CAB_L + 0.1;                                   // the cab face lands on the skin at the door, with a small rubber gap
+        const hx = D.x + nx * lc, hz = D.z + nz * lc;            // where the cab hinge must be
+        const dx = hx - b.px, dz = hz - b.pz;
         tYaw = Math.atan2(-dz, dx);
-        tLen = Math.max(this.minLen, Math.min(this.maxLen, Math.hypot(dx, dz) - 2.2));
+        tLen = Math.max(this.minLen, Math.min(this.maxLen, Math.hypot(dx, dz) + (MODEL_LEN0 - HINGE_Z)));
         tFloor = Math.max(2.4, D.y - b.base - (DOOR_SILL_ABOVE_GROUND > 0 ? 0.9 : 0));
+        b.cabAbs = Math.atan2(nz, -nx);                           // the cab points along -n (towards the fuselage)
+        tBlend = 1;
       }
+      const dBlend = toward(b.cabBlend, tBlend, 0.5 * dt) - b.cabBlend;
+      if (dBlend !== 0) { b.cabBlend += dBlend; this.pose(b); }
       if (b.yaw === tYaw && b.len === tLen && b.floor === tFloor) continue;
       b.yaw = b.yaw + toward(0, wrap(tYaw - b.yaw), 0.3 * dt);
       b.len = toward(b.len, tLen, 2.5 * dt);
