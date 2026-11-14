@@ -10,14 +10,17 @@ const U = '/root/.claude/uploads/6d0491ca-5ad0-5833-9ea8-60236238eee9/';
 const CFG = {
   a350: { file: U + 'af552d17-a350_v5.glb', length: 73.79, budget: 110000, spawn: 7.2 },
   a340: { file: U + 'd455ea20-lufthansa_airbus_a340-600.glb', length: 75.36, budget: 60000, spawn: 6.9 },
+  a320_cockpit: { file: '/tmp/claude-0/cp/a320_cockpit_2.glb', length: 37.57, budget: 200000, spawn: 3.8, cockpit: true },
   a320: { file: U + '2e0aa408-airbus_a320-200.glb', length: 37.57, budget: 100000, spawn: 3.8 },
 };
 const id = process.argv[2], c = CFG[id]; if (!c) throw new Error('unknown id');
-const { j, prims, image } = readGlb(c.file);
+let { j, prims, image } = readGlb(c.file);
+if (c.cockpit) prims = prims.filter((_, i) => i >= 7 && i <= 68);   // flight-deck parts only (the airframe, gear and cabin shell are left out)
 // bounds, scale, nose direction (the tallest part, the fin, is at the tail end)
 const B = { min: [1e9, 1e9, 1e9], max: [-1e9, -1e9, -1e9] }; let finX = 0, finY = -1e9;
 for (const p of prims) for (let k = 0; k < p.pos.length; k += 3) { for (let a = 0; a < 3; a++) { B.min[a] = Math.min(B.min[a], p.pos[k + a]); B.max[a] = Math.max(B.max[a], p.pos[k + a]); } if (p.pos[k + 1] > finY) { finY = p.pos[k + 1]; finX = p.pos[k]; } }
-const cx = (B.min[0] + B.max[0]) / 2, cz = (B.min[2] + B.max[2]) / 2, scale = c.length / (B.max[0] - B.min[0]);
+if (c.cockpit) { B.min = [-4.3356, -0.9936, 0]; B.max = [4.335, 1.9567, 9.112]; }
+const cx = (B.min[0] + B.max[0]) / 2, cz = (B.min[2] + B.max[2]) / 2, scale = c.length / (c.cockpit ? 9.112 : B.max[0] - B.min[0]);
 const sign = finX > cx ? -1 : 1;   // fin at +x -> nose at -x -> flip
 console.log(id, 'scale', scale.toFixed(4), 'nose', sign > 0 ? '+x' : '-x', 'size m', ((B.max[0] - B.min[0]) * scale).toFixed(1), ((B.max[1] - B.min[1]) * scale).toFixed(1), ((B.max[2] - B.min[2]) * scale).toFixed(1));
 let totalTris = 0; for (const p of prims) totalTris += p.idx.length / 3;
@@ -28,6 +31,12 @@ for (const p of prims) {
   const n = p.pos.length / 3, P = new Float32Array(p.pos.length), N = p.nrm ? new Float32Array(p.pos.length) : null;
   for (let k = 0; k < n; k++) {
     const X = p.pos[3 * k] - cx, Y = p.pos[3 * k + 1] - B.min[1], Z = p.pos[3 * k + 2] - cz;
+    if (c.cockpit) {   // model: x right, y up, nose at -z  ->  body: x nose (centred), y right, z down
+      const mx = p.pos[3 * k], my = p.pos[3 * k + 1], mz = p.pos[3 * k + 2];
+      P[3 * k] = (c.length / 2) - mz * scale; P[3 * k + 1] = mx * scale; P[3 * k + 2] = c.spawn - (my - B.min[1]) * scale;
+      if (N) { N[3 * k] = -p.nrm[3 * k + 2]; N[3 * k + 1] = p.nrm[3 * k]; N[3 * k + 2] = -p.nrm[3 * k + 1]; }
+      continue;
+    }
     P[3 * k] = sign * X * scale; P[3 * k + 1] = sign * Z * scale; P[3 * k + 2] = c.spawn - Y * scale;
     if (N) { N[3 * k] = sign * p.nrm[3 * k]; N[3 * k + 1] = sign * p.nrm[3 * k + 2]; N[3 * k + 2] = -p.nrm[3 * k + 1]; }
   }
@@ -35,7 +44,9 @@ for (const p of prims) {
   let idx = p.idx; const tris = idx.length / 3;
   if (ratio < 1 && tris > 300) {
     const target = Math.max(300 * 3, Math.floor(tris * ratio) * 3);
-    const [ni] = MeshoptSimplifier.simplify(idx, P, 3, target, 0.02); idx = ni;
+    let src = idx;
+    if (c.cockpit) { const rep = new Int32Array(n), seen = new Map(); for (let v = 0; v < n; v++) { const key = Math.round(P[3 * v] * 2000) + ',' + Math.round(P[3 * v + 1] * 2000) + ',' + Math.round(P[3 * v + 2] * 2000); let r = seen.get(key); if (r === undefined) { r = v; seen.set(key, v); } rep[v] = r; } src = Uint32Array.from(idx, (v) => rep[v]); }
+    const [ni] = MeshoptSimplifier.simplify(src, P, 3, target, c.cockpit ? 0.05 : 0.02); idx = ni;
   }
   // compact
   const remap = new Int32Array(n).fill(-1); let m = 0; for (const v of idx) if (remap[v] < 0) remap[v] = m++;

@@ -46,7 +46,7 @@ function scaleJet(s: Spec): AircraftDef {
 export const A320: AircraftDef = scaleJet({
   id: 'a320', name: 'Airbus A320-200', k: 0.994, emptyMass: 42600, mtom: 78000, refMass: 62000, payload: 11000, payloadMax: 19000, fuelLitres: 24210,
   engines: [{ pos: new Vec3(5.9, -5.0, 2.2), thrust: 165000 }, { pos: new Vec3(5.9, 5.0, 2.2), thrust: 165000 }],
-  hull: { halfLength: 18.5, radius: 1.98 }, spawnHeight: 3.8, eye: new Vec3(13.2, -0.5, -0.85), doorBody: new Vec3(11.6, -1.98, 0),
+  hull: { halfLength: 18.5, radius: 1.98 }, spawnHeight: 3.8, eye: new Vec3(15.4, -0.45, -1.5), doorBody: new Vec3(11.6, -1.98, 0),
   limits: { vne: 350, vno: 350, vfe: 177, vs0: 108, vs1: 132 }, flapLimitKt: [999, 230, 215, 200, 190, 185, 180, 177, 177], approachKias: 138, cruiseKias: 250, standClearance: 20,
 });
 

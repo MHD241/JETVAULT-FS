@@ -455,7 +455,7 @@ class App implements MenuHost {
         .catch((e) => console.warn('737 model not loaded, using the procedural one', e));
     }
     if (this.sim.def.id === 'drone') (this.model as DarterModel).root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.MeshPhysicalMaterial | undefined; if (m && m.color && m.color.getHex() === 0xe9edf2) m.color.set(0xffc81e); }); // safety yellow
-    this.cockpit = bigJet ? new AirlinerCockpit() : this.sim.def.id === 'drone' ? new DroneCockpit(this.sim) : glider ? new GliderCockpit(this.sim) : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
+    this.cockpit = bigJet ? new AirlinerCockpit(this.sim.def.id) : this.sim.def.id === 'drone' ? new DroneCockpit(this.sim) : glider ? new GliderCockpit(this.sim) : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
     // the detailed flight deck (86 MB, 1.75 M triangles) is only fetched the first time the cockpit view is used
     this.pendingDetail = jet && this.graphics.renderScale > 0.5 ? () => (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e)) : null;
     this.aircraftGroup.add(this.model.root, this.cockpit.root);
