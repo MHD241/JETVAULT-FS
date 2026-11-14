@@ -22,6 +22,7 @@ export async function buildPack(base: string, id: string, doubleSided = false): 
         map: m.map ? tex(m.map) : null, color: m.map ? 0xffffff : new THREE.Color().setRGB(m.color[0], m.color[1], m.color[2], THREE.LinearSRGBColorSpace),
         metalness: Math.min(m.metal, 0.4), roughness: Math.max(m.rough, 0.35), transparent: glass, opacity: glass ? Math.max(0.35, m.opacity) : 1, side: glass || doubleSided ? THREE.DoubleSide : THREE.FrontSide,
       });
+      if (doubleSided && !glass) { mat.metalness = 0; mat.roughness = Math.max(mat.roughness, 0.75); mat.envMapIntensity = 0.15; mat.userData.envI = 0.15; } // flight deck: the outdoor sky reflection turned everything blue
       const mesh = new THREE.Mesh(g, mat); mesh.castShadow = !glass; mesh.receiveShadow = true;
       out.add(mesh);
     }

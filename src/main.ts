@@ -466,7 +466,7 @@ class App implements MenuHost {
       if (jet) this.rig.eye.set(14.0, -0.53, -0.78); // the seat of the full flight-deck model (cockpitFull.ts)
       if (jet) { const my = loadCustomDesign(); if (my?.eye) this.rig.eye.set(STUDIO_ORIGIN.x + my.eye[0], my.eye[2], STUDIO_ORIGIN.z - my.eye[1]); } // eye placed in the Cockpit Studio // was 14.47,-0.93: that put the eye through the window frame of the real deck model
       this.rig.chaseDist = jet ? 60 : bigJet ? 22 + 1.6 * this.sim.def.wingSpan : glider ? 24 : 16;
-      this.rig.headPitch = jet ? -0.17 : -0.2;
+      this.rig.headPitch = jet ? -0.17 : bigJet ? -0.03 : -0.2;
       if (jet) { this.rig.fovCockpit = 76; this.rig.camera.fov = this.rig.mode === 'cockpit' ? 76 : this.rig.camera.fov; this.rig.camera.updateProjectionMatrix(); }
       if (jet) this.rig.wingCam.set(-6, -21, -2.5); else if (glider) this.rig.wingCam.set(-0.5, -9.5, -1.0); else this.rig.wingCam.set(-1.2, -6.6, -1.6);
     }
