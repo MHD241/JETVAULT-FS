@@ -178,7 +178,7 @@ export class JetBridges {
 
   /** Door centre in three.js world coordinates. */
   private door(ac: Aircraft) {
-    return nedToThree(ac.worldPoint(DOOR_BODY));
+    return nedToThree(ac.worldPoint(ac.def.profile.doorBody ?? DOOR_BODY));
   }
 
   private nearest(ac: Aircraft): { b: Bridge; d: number } | null {
@@ -234,7 +234,7 @@ export class JetBridges {
       if (b.connected) {
         const D = this.door(ac);
         // outward (left) direction at the door, horizontal
-        const L = nedToThree(ac.worldPoint(new Vec3(DOOR_BODY.x, DOOR_BODY.y - 1, DOOR_BODY.z)));
+        const db = ac.def.profile.doorBody ?? DOOR_BODY, L = nedToThree(ac.worldPoint(new Vec3(db.x, db.y - 1, db.z)));
         let nx = L.x - D.x, nz = L.z - D.z; const nl = Math.hypot(nx, nz) || 1; nx /= nl; nz /= nl;
         const lc = CAB_L + 0.1;                                   // the cab face lands on the skin at the door, with a small rubber gap
         const hx = D.x + nx * lc, hz = D.z + nz * lc;            // where the cab hinge must be

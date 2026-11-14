@@ -111,6 +111,8 @@ export interface AircraftDef {
     cruiseKias: number; cruiseThrottle: number; idleRpm: number; approachRpm: number; cruiseRpm: number;
     /** Clearance radius needed at a parking stand, m. */
     standClearance: number;
+    /** Centre of the forward-left passenger door on the skin, body frame (the jet bridge docks here); defaults to the 737's. */
+    doorBody?: Vec3;
   };
   gear: GearDef[];
   contacts: ContactPointDef[];

@@ -135,6 +135,7 @@ export class Menu {
       lifting-surface aerodynamics, a piston engine and propeller model, and spring-damper landing gear on real terrain.
       The Cessna 172S model is validated against its Pilot's Operating Handbook in an automated test suite.</p>
       <h3>Data and licences</h3><p>${h.attribution.map((a) => `${a}`).join('<br>')}</p>
+      <p>"A350 V5" by <a href="https://skfb.ly/pINtM" target="_blank" rel="noopener" style="color:#8ab4ff">Newbie99999993</a>, "Lufthansa Airbus A340-600" by <a href="https://skfb.ly/pGwVB" target="_blank" rel="noopener" style="color:#8ab4ff">Dave Love SketchFab</a> and "Airbus A320-200" by <a href="https://sketchfab.com/3d-models/airbus-a320-200-02470bf974e645f78f5d9385a333e9e0" target="_blank" rel="noopener" style="color:#8ab4ff">Dlourine</a> (Sketchfab), all licensed <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:#8ab4ff">CC BY 4.0</a>; converted and reduced for the game.</p>
       <p>"Jetway" 3D model by <a href="https://skfb.ly/oUZou" target="_blank" rel="noopener" style="color:#8ab4ff">vishnevsky.yaroslav</a> on Sketchfab, licensed <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:#8ab4ff">CC BY 4.0</a>.</p>
       <p>"Moon" 3D model by <a href="https://skfb.ly/6TwGU" target="_blank" rel="noopener" style="color:#8ab4ff">Akshat</a> on Sketchfab, licensed <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:#8ab4ff">CC BY 4.0</a>.</p>
       <p>"The Sun" 3D model by <a href="https://skfb.ly/oy8RZ" target="_blank" rel="noopener" style="color:#8ab4ff">tamminen</a> on Sketchfab, licensed <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:#8ab4ff">CC BY 4.0</a>.</p>
@@ -265,6 +266,9 @@ export class Menu {
       glider: 'Unpowered 17 m two-seater, ~32:1 glide · winch launch · thermals and ridge lift · airbrakes',
       darter: 'FICTIONAL 6 m rocket glider built for the bungee launch (N at a launch point): Mach 1 in seconds, then a fast glide · wave drag above Mach 0.9',
       b738: '2 x CFM56-7B26 (117 kN) · glass PFD/ND · flaps, slats, spoilers, reversers, retractable gear',
+      a320: '2 x CFM56-5B4 · the A320-200 (model by Dlourine) · outside view only, no flight-deck model yet',
+      a340: '4 x Trent 556 · the Lufthansa A340-600 (model by Dave Love SketchFab) · outside view only, no flight-deck model yet',
+      a350: '2 x Trent XWB · the A350-1000 (model by Newbie99999993) · outside view only, no flight-deck model yet',
     };
     for (const d of this.host.aircraftDefs) {
       const c = document.createElement('div');
@@ -276,7 +280,6 @@ export class Menu {
       c.onclick = () => { this.host.selectAircraft(d.id); this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; this.render(); };
       grid.appendChild(c);
     }
-    grid.insertAdjacentHTML('beforeend', `<div class="jv-card" style="opacity:.45;cursor:default"><b>Airbus A320</b><span>Planned</span></div>`);
     s.appendChild(grid);
   }
 

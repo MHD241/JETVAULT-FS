@@ -5,6 +5,8 @@ import { loadWorld, World, LandCover } from './world/world';
 import { Simulation, SpawnKind } from './sim/simulation';
 import { C172 } from './sim/aircraft/c172';
 import { B738 } from './sim/aircraft/b738';
+import { A320, A340, A350 } from './sim/aircraft/airliners';
+import { AirlinerModel, AirlinerCockpit } from './render/airlinerModel';
 import { GLIDER } from './sim/aircraft/glider';
 import { DARTER } from './sim/aircraft/darter';
 import { DRONE } from './sim/aircraft/drone';
@@ -134,9 +136,9 @@ class App implements MenuHost {
   private marshalT = 0;
   private contactShadow!: THREE.Mesh;
   private streamTimer = 0;
-  model!: C172Model | B737Model | GliderModel | DarterModel;
-  cockpit!: Cockpit | B737Cockpit | GliderCockpit | DroneCockpit;
-  aircraftDefs: AircraftDef[] = FOCUS_MODE ? [B738, DRONE] : [C172, B738, GLIDER, DARTER, DRONE];
+  model!: C172Model | B737Model | GliderModel | DarterModel | AirlinerModel;
+  cockpit!: Cockpit | B737Cockpit | GliderCockpit | DroneCockpit | AirlinerCockpit;
+  aircraftDefs: AircraftDef[] = FOCUS_MODE ? [B738, A320, A340, A350, DRONE] : [C172, B738, A320, A340, A350, GLIDER, DARTER, DRONE];
   env!: EnvironmentRenderer;
   rig!: CameraRig;
   debug!: DebugView;
@@ -441,8 +443,10 @@ class App implements MenuHost {
     if (this.cockpit) this.aircraftGroup.remove(this.cockpit.root);
     const jet = this.sim.def.id === 'b738';
     const glider = !!this.sim.def.glider;
-    this.model = this.sim.def.id === 'darter' || this.sim.def.id === 'drone' ? new DarterModel(this.sim.def.id === 'drone') : glider ? new GliderModel() : jet ? new B737Model() : new C172Model();
+    const bigJet = !!this.sim.def.turbofans && !jet;   // the A320 / A340 / A350 (converted models, no cockpit model)
+    this.model = bigJet ? new AirlinerModel(this.sim.def.id) :  this.sim.def.id === 'darter' || this.sim.def.id === 'drone' ? new DarterModel(this.sim.def.id === 'drone') : glider ? new GliderModel() : jet ? new B737Model() : new C172Model();
     if (this.model instanceof GliderModel && !new URLSearchParams(location.search).has('oldglider')) this.model.loadGlb('./models/glider_underpoly.bin').catch((e) => console.warn('glider model not loaded, using the procedural one', e));
+    if (this.model instanceof AirlinerModel) this.model.load().catch((e) => console.warn('airliner model not loaded', e));
     if (this.model instanceof B737Model) {
       const m = this.model;
       const q = new URLSearchParams(location.search);
@@ -451,7 +455,7 @@ class App implements MenuHost {
         .catch((e) => console.warn('737 model not loaded, using the procedural one', e));
     }
     if (this.sim.def.id === 'drone') (this.model as DarterModel).root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.MeshPhysicalMaterial | undefined; if (m && m.color && m.color.getHex() === 0xe9edf2) m.color.set(0xffc81e); }); // safety yellow
-    this.cockpit = this.sim.def.id === 'drone' ? new DroneCockpit(this.sim) : glider ? new GliderCockpit(this.sim) : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
+    this.cockpit = bigJet ? new AirlinerCockpit() : this.sim.def.id === 'drone' ? new DroneCockpit(this.sim) : glider ? new GliderCockpit(this.sim) : jet ? new B737Cockpit(this.sim, this.world.airport) : new Cockpit(this.sim);
     // the detailed flight deck (86 MB, 1.75 M triangles) is only fetched the first time the cockpit view is used
     this.pendingDetail = jet && this.graphics.renderScale > 0.5 ? () => (this.cockpit as B737Cockpit).useDetailed('./models/cockpit737').catch((e) => console.warn('detailed 737 cockpit not loaded, using the simple one', e)) : null;
     this.aircraftGroup.add(this.model.root, this.cockpit.root);
@@ -461,7 +465,7 @@ class App implements MenuHost {
       // No changes to aircraft physics or world coordinates.
       if (jet) this.rig.eye.set(14.0, -0.53, -0.78); // the seat of the full flight-deck model (cockpitFull.ts)
       if (jet) { const my = loadCustomDesign(); if (my?.eye) this.rig.eye.set(STUDIO_ORIGIN.x + my.eye[0], my.eye[2], STUDIO_ORIGIN.z - my.eye[1]); } // eye placed in the Cockpit Studio // was 14.47,-0.93: that put the eye through the window frame of the real deck model
-      this.rig.chaseDist = jet ? 60 : glider ? 24 : 16;
+      this.rig.chaseDist = jet ? 60 : bigJet ? 22 + 1.6 * this.sim.def.wingSpan : glider ? 24 : 16;
       this.rig.headPitch = jet ? -0.17 : -0.2;
       if (jet) { this.rig.fovCockpit = 76; this.rig.camera.fov = this.rig.mode === 'cockpit' ? 76 : this.rig.camera.fov; this.rig.camera.updateProjectionMatrix(); }
       if (jet) this.rig.wingCam.set(-6, -21, -2.5); else if (glider) this.rig.wingCam.set(-0.5, -9.5, -1.0); else this.rig.wingCam.set(-1.2, -6.6, -1.6);
@@ -476,7 +480,13 @@ class App implements MenuHost {
     this.sim = new Simulation(this.world, def, this.weather);
     this.sim.paused = true; // the new aircraft is not placed until a start position is chosen
     this.payload = def.stations.map((st) => st.mass);
-    this.fuelFraction = id === 'b738' ? [0.45, 0.45] : [1, 1];
+{
+      // jets start with a sensible load: payload as set, fuel for about 85 % of the maximum takeoff mass (the 737 keeps its 45 %)
+      const d = this.sim.def; let f = 1;
+      if (id === 'b738') f = 0.45;
+      else if (d.turbofans) { const fuelKg = d.tanks.reduce((a, t) => a + t.capacity, 0) * 0.8, pay = d.stations.reduce((a, t) => a + t.mass, 0); f = Math.max(0.2, Math.min(1, (0.85 * d.maxTakeoffMass - d.emptyMass - pay) / fuelKg)); }
+      this.fuelFraction = [f, f];
+    }
     this.sim.lift.strength = 1;
     this.buildAircraftVisuals();
   }
