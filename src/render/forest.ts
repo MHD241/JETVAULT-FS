@@ -37,6 +37,33 @@ export class Forest {
     this.group.name = 'forest';
   }
 
+  private apBoxC: { a: number; c: number; d: number; f: number } | null = null;
+  private get apBox() { return this.apBoxC ??= (() => { const b = this.world.airport.boundary; let a = 1e9, c = -1e9, d = 1e9, f = -1e9; for (const [x, y] of b) { a = Math.min(a, x); c = Math.max(c, x); d = Math.min(d, y); f = Math.max(f, y); } return { a, c, d, f }; })(); }
+  /** True inside the airport fence polygon, within 120 m outside it, or within 220 m of any runway (so no trees by the runway, taxiways, aprons or terminal). */
+  private inAirport(e: number, n: number): boolean {
+    const bb = this.apBox, m = 120;
+    if (e > bb.a - m && e < bb.c + m && n > bb.d - m && n < bb.f + m) {
+      const poly = this.world.airport.boundary; let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i], [xj, yj] = poly[j];
+        if ((yi > n) !== (yj > n) && e < ((xj - xi) * (n - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+      if (inside) return true;
+      // outside the polygon but near its edge: distance to the polygon edges
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [x0, y0] = poly[j], [x1, y1] = poly[i], dx = x1 - x0, dy = y1 - y0, L2 = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((e - x0) * dx + (n - y0) * dy) / L2));
+        if (Math.hypot(e - (x0 + t * dx), n - (y0 + t * dy)) < m) return true;
+      }
+    }
+    for (const rw of this.world.airport.runways) {
+      const [a, b] = rw.ends, dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((e - a.x) * dx + (n - a.y) * dy) / L2));
+      if (Math.hypot(e - (a.x + t * dx), n - (a.y + t * dy)) < 220) return true;
+    }
+    return false;
+  }
+
   /** Re-centre when the camera has moved far enough. */
   update(cam: THREE.Vector3) {
     if (Math.hypot(cam.x - this.cx, cam.z - this.cz) < 450) return;
@@ -54,7 +81,7 @@ export class Forest {
       const dense = lc === LC.TREE;
       if (!dense && !(lc === LC.SHRUB && hash(i, j, 9) < 0.25) && !(lc === LC.BUILT && hash(i, j, 9) < 0.06)) continue;
       if (dense && hash(i, j, 3) > 0.9) continue; // small clearings
-      if (this.world.isPaved(e, n)) continue;
+      if (this.world.isPaved(e, n) || this.inAirport(e, n)) continue;   // no trees anywhere in the airport space
       const hgt = this.world.terrain.heightAt(e, n);
       if (hgt < 1.2) continue;
       const kind = hash(i >> 3, j >> 3, 4) < 0.55 ? hash(i, j, 5) < 0.85 : hash(i, j, 5) < 0.2; // stands of the same species
