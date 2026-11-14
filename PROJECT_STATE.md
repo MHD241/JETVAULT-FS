@@ -902,3 +902,8 @@ NOT DONE / OPEN:
 
 ## Standing rule (user, 14 Nov 2026)
 Always merge/push to `main` straight away once tests pass and watch the deploy (rerun `gh run rerun <id> --failed -R MHD241/JETVAULT-FS` if it times out); do not wait for approval and do not make the user check. This replaces the "preview before deploy" rule used in update 156. Update 157 (runway lights log-depth fix) deployed successfully as 83e374f.
+
+## Update 158 (corrected) — Lights restored; floor "squares" are the runway paint; 737 trim lower
+- I wrongly removed the in-pavement runway centreline / touchdown-zone / taxiway centreline lights (update 158 first version, commit 37509d7); reverted in 06213c4 (the user wanted them kept).
+- The "random light squares on the floor": in the user's night screenshot they are the runway markings (threshold stripes, the "06"), which glow blue against the black asphalt. `airportMesh.ts`: painted-marking materials are dimmed at night (multiplier 1 - 0.78 * lightLevel), so they read as dark paint. NOT seen on screen (my headless night frame did not refresh); if the squares are something else (the orange dashes? the white blobs?), say which.
+- 737 trim "way too high": `trimModel.bias` -0.03 -> -0.12 (about 1 degree more nose-down elevator in the assist). Tests unchanged and pass (122); not flown by hand. One number to adjust: `B738.profile.trimModel.bias`.

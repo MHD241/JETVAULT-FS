@@ -15,7 +15,10 @@ const OVERLAY_PX = 4096;
  * nothing, and the terrain mesh at distance is coarser than the real ground, so the paint sank out of sight. Pull the
  * painted fragments slightly towards the camera in depth instead (about 0.4 m at 100 m, growing with distance).
  */
+/** Painted-marking materials: dimmed at night so the white paint does not glow blue against the dark asphalt like lit squares on the floor. */
+const paintMats: THREE.MeshStandardMaterial[] = [];
 function paintOnTop<T extends THREE.Material>(mat: T): T {
+  if ((mat as unknown as THREE.MeshStandardMaterial).isMeshStandardMaterial) paintMats.push(mat as unknown as THREE.MeshStandardMaterial);
   mat.onBeforeCompile = (sh) => {
     sh.fragmentShader = sh.fragmentShader.replace('#include <logdepthbuf_fragment>', '#include <logdepthbuf_fragment>\n#ifdef USE_LOGDEPTHBUF\n gl_FragDepth -= 3.5e-4;\n#endif');
   };
@@ -539,6 +542,7 @@ export class AirportRenderer {
   update(eye: THREE.Vector3, lightLevel: number, pixelScale: number) {
     this.lightLevel = lightLevel;
     this.lightMat.uniforms.uLevel.value = lightLevel;
+    { const k = 1 - 0.78 * Math.min(1, lightLevel); for (const m of paintMats) m.color.setScalar(k); }
     this.lightMat.uniforms.uScale.value = pixelScale;
     this.lightMat.uniforms.uTime.value = performance.now() / 1000;
     for (const p of this.papi) {
