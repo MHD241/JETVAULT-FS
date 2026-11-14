@@ -848,7 +848,9 @@ class App implements MenuHost {
     if (!this.menu.open) {
       this.simple.update(dt, sim.controls, ac);
       if (sim.def.drone) { const sp = droneSpeed(sim.controls.throttle, sim.def.drone), k = Math.round(sp); if (k !== this.lastDroneSpeed) { this.lastDroneSpeed = k; this.hud.toast(sp ? `Drone speed ${Math.round(sp * 1.944)} kt (${k} m/s)` : 'Drone motor off (keys 2-9 set the speed)'); } }
-      if (!sim.paused && this.simple.assists && sim.def.profile.trimModel && !ac.onGround && !sim.def.drone) {
+      if (!sim.paused && this.simple.assists && sim.def.profile.fixedTrim !== undefined && !sim.def.drone) {
+        sim.controls.trim = sim.def.profile.fixedTrim;   // the trim stays at the set value (0 = neutral), on the ground and in the air
+      } else if (!sim.paused && this.simple.assists && sim.def.profile.trimModel && !ac.onGround && !sim.def.drone) {
         // neutral-stick trim for the flap setting, the speed and the thrust (the underslung engines pitch the nose up with power); it follows smoothly
         const tgt = trimFor(sim.def.profile, sim.controls.flapLever, ac.cas / KT, sim.controls.throttle);
         if (tgt !== null) { const guard = stallGuardTrim(ac); sim.controls.trim = moveToward(sim.controls.trim, clamp(tgt + (sim.def.profile.trimModel?.bias ?? 0) - guard, -1, 1), (guard > 0 ? 1.2 : 0.35) * dt * sim.timeScale); }

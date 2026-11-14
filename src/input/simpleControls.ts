@@ -142,10 +142,10 @@ export class SimpleControls {
       // an airliner has heavier controls, so its stick travel is scaled down (more so at speed on the ground)
       const jet = !!ac.def.turbofans;
       const tx = this.mouse.active ? dz(this.mouse.x, 0.1) : 0, ty = this.mouse.active ? dz(this.mouse.y, 0.1) : 0;
-      const a = 1 - Math.exp(-dt / (jet ? 0.16 : 0.09));
+      const a = 1 - Math.exp(-dt / (jet ? 0.10 : 0.09));
       this.mouseSmooth.x += (tx - this.mouseSmooth.x) * a; this.mouseSmooth.y += (ty - this.mouseSmooth.y) * a;
-      const g = jet ? 1.0 : 1.15, auth = jet ? 0.8 : 1;
-      pitch = expo(this.mouseSmooth.y * g) * auth; roll = expo(this.mouseSmooth.x * g) * auth;
+      const g = jet ? 1.1 : 1.15, auth = 1;
+      pitch = expo(this.mouseSmooth.y * g) * auth * (jet ? 1.55 : 1); roll = expo(this.mouseSmooth.x * g) * auth;   // a jet's pitch stick is 1.55x livelier: the 737 should not feel like a heavy airliner
     }
     // touch: with the stick released in the air, gently level the wings (aileron input only)
     const stickFree = IS_TOUCH ? Math.abs(this.joy.x) < 0.05 : Math.abs(roll) < 0.03;

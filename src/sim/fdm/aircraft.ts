@@ -104,6 +104,8 @@ export interface AircraftDef {
     /** Trim for the beginner assist: a fixed value per flap detent plus a thrust term (the underslung engines pitch the nose up with power): trim = c0[flap] + c1[flap] * throttle. Not a function of speed (that would remove the aircraft's own speed stability). */
     /** Maximum speed (kt) at which each flap detent may be selected (indexed like flapDetents). */
     flapLimitKt?: number[];
+    /** If set, the beginner assists hold the pitch trim at exactly this value (0 = neutral) instead of any automatic trimming. */
+    fixedTrim?: number;
     trimModel?: { c0: number[]; c1: number[]; /** pilot preference added to the neutral trim (negative = slightly nose-down) */ bias?: number };
     approachKias: number; approachThrottle: number; approachFlapLever: number; approachTrim: number; approachPitchDeg: number;
     cruiseKias: number; cruiseThrottle: number; idleRpm: number; approachRpm: number; cruiseRpm: number;

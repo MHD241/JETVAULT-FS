@@ -115,7 +115,7 @@ export const B738: AircraftDef = {
     // flap lever detents 0,1,2,5,10,15,25,30,40 (flap angle equals the detent in degrees)
     flapDetents: [0, 1, 2, 5, 10, 15, 25, 30, 40].map((d) => d * DEG),
     flapRate: 3.0 * DEG, // ~13 s from 0 to 40 (real flaps take roughly 20-30 s; shortened on request)
-    surfaceTau: 0.15,
+    surfaceTau: 0.09,
   },
   fuselage: { pos: new Vec3(-1.0, 0, 0), dragArea: 1.55, sideArea: 125, planArea: 120, munkVolume: 340, munkVolumeYaw: 350 },
   turbofans: [
@@ -163,7 +163,7 @@ export const B738: AircraftDef = {
   stallWarnAlpha: 15,
   eye: new Vec3(14.0, -0.53, -0.82), // raised and set back a little: sees the glareshield, both displays and the wheel, like the reference view
   profile: {
-    takeoffTrim: -0.4,
+    takeoffTrim: 0, fixedTrim: 0,   // user: trim at 0 (neutral), no automatic trimming;
     // measured with the flight model over 25 s runs at each detent's reference speed (the trim that keeps the pitch steadiest with no stall warning) at 30/60/100 % throttle, then fitted: trim = c0 + c1 * throttle
     flapLimitKt: [999, 250, 250, 250, 210, 200, 190, 175, 162],   // 737-800: flaps 1-5 up to 250 kt, 10 to 210, 15 to 200, 25 to 190, 30 to 175, 40 to 162
     trimModel: { c0: [-0.041, -0.041, 0.12, 0.258, 0.258, 0.377, 0.557, 0.676, 0.557], c1: [-0.568, -0.568, -0.716, -0.986, -0.986, -1.122, -1.405, -1.541, -1.405], bias: -0.12 },
