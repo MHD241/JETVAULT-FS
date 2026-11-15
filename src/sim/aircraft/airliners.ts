@@ -65,3 +65,11 @@ export const A350: AircraftDef = scaleJet({
   hull: { halfLength: 36.9, radius: 2.98 }, spawnHeight: 7.2, eye: new Vec3(34.15, -0.55, -1.4), doorBody: new Vec3(28.4, -2.98, 0),
   limits: { vne: 340, vno: 340, vfe: 190, vs0: 112, vs1: 138 }, flapLimitKt: [999, 250, 235, 220, 205, 195, 190, 185, 180], approachKias: 140, cruiseKias: 285, standClearance: 40,
 });
+
+/** Boeing C-17A Globemaster III (4 x Pratt & Whitney F117, about 180 kN; span 51.75 m, length 53.04 m, wing area 353 m^2, MTOW 265 t, OEW about 128 t). ESTIMATE: the 737's aerodynamics scaled up (its blown flaps are not modelled), so it is heavier-handed to slow down than the real one. */
+export const C17: AircraftDef = scaleJet({
+  id: 'c17', name: 'Boeing C-17A Globemaster III', k: 1.7, emptyMass: 128100, mtom: 265350, refMass: 200000, payload: 20000, payloadMax: 77500, fuelLitres: 128000, fuelUnusable: 300,
+  engines: [-14.2, -8.4, 8.4, 14.2].map((y) => ({ pos: new Vec3(Math.abs(y) > 10 ? 3.0 : 4.5, y, 2.6), thrust: 180000 })),
+  hull: { halfLength: 26, radius: 2.9 }, spawnHeight: 6.4, eye: new Vec3(23.7, -0.65, 1.35), doorBody: new Vec3(17.5, -2.8, 0),
+  limits: { vne: 350, vno: 350, vfe: 205, vs0: 110, vs1: 130 }, flapLimitKt: [999, 250, 235, 225, 215, 210, 205, 205, 205], approachKias: 138, cruiseKias: 280, standClearance: 40,
+});

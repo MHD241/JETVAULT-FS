@@ -3,12 +3,12 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { loadEGPH, newSim, run, kt, TestPilot, CALM_ISA } from './helpers';
 import { World } from '../src/world/world';
 import { DEG, FT, clamp } from '../src/core/math';
-import { A320, A340, A350 } from '../src/sim/aircraft/airliners';
+import { A320, A340, A350, C17 } from '../src/sim/aircraft/airliners';
 
 let world: World;
 beforeAll(async () => { world = await loadEGPH(); });
 
-for (const [def, vr, name] of [[A320, 140, 'A320'], [A340, 160, 'A340-600'], [A350, 155, 'A350-1000']] as const) {
+for (const [def, vr, name] of [[A320, 140, 'A320'], [A340, 160, 'A340-600'], [A350, 155, 'A350-1000'], [C17, 145, 'C-17A']] as const) {
   describe(name, () => {
     it('rests on its gear at a stand (nose gear carries 5-15 % of the weight), no crash', () => {
       const sim = newSim(world, CALM_ISA, def);

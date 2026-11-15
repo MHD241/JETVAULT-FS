@@ -5,7 +5,7 @@ import { loadWorld, World, LandCover } from './world/world';
 import { Simulation, SpawnKind } from './sim/simulation';
 import { C172 } from './sim/aircraft/c172';
 import { B738 } from './sim/aircraft/b738';
-import { A320, A340, A350 } from './sim/aircraft/airliners';
+import { A320, A340, A350, C17 } from './sim/aircraft/airliners';
 import { AirlinerModel, AirlinerCockpit } from './render/airlinerModel';
 import { GLIDER } from './sim/aircraft/glider';
 import { DARTER } from './sim/aircraft/darter';
@@ -138,7 +138,7 @@ class App implements MenuHost {
   private streamTimer = 0;
   model!: C172Model | B737Model | GliderModel | DarterModel | AirlinerModel;
   cockpit!: Cockpit | B737Cockpit | GliderCockpit | DroneCockpit | AirlinerCockpit;
-  aircraftDefs: AircraftDef[] = FOCUS_MODE ? [B738, A320, A340, A350, DRONE] : [C172, B738, A320, A340, A350, GLIDER, DARTER, DRONE];
+  aircraftDefs: AircraftDef[] = FOCUS_MODE ? [B738, A320, A340, A350, C17, DRONE] : [C172, B738, A320, A340, A350, C17, GLIDER, DARTER, DRONE];
   env!: EnvironmentRenderer;
   rig!: CameraRig;
   debug!: DebugView;

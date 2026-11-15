@@ -11,16 +11,24 @@ const CFG = {
   a350: { file: U + 'af552d17-a350_v5.glb', length: 73.79, budget: 110000, spawn: 7.2 },
   a340: { file: U + 'd455ea20-lufthansa_airbus_a340-600.glb', length: 75.36, budget: 60000, spawn: 6.9 },
   a320_cockpit: { file: '/tmp/claude-0/cp/a320_cockpit_2.glb', length: 37.57, budget: 200000, spawn: 3.8, cockpit: true },
+  // C-17A: y up, nose at -z. The flight deck and the cargo-hold lining are a second pack (the airframe is hidden in the cockpit view).
+  c17: { file: '/tmp/claude-0/c17/c-17a_globemaster_iii.glb', length: 53.04, budget: 400000, spawn: 6.4, yup: true, skip: 'interior' },
+  c17_cockpit: { file: '/tmp/claude-0/c17/c-17a_globemaster_iii.glb', length: 53.04, budget: 400000, spawn: 6.4, yup: true, only: 'interior' },
   a320: { file: U + '2e0aa408-airbus_a320-200.glb', length: 37.57, budget: 100000, spawn: 3.8 },
 };
 const id = process.argv[2], c = CFG[id]; if (!c) throw new Error('unknown id');
 let { j, prims, image } = readGlb(c.file);
+const INTERIOR = new Set([...Array.from({ length: 30 }, (_, i) => 28 + i), 17, 72, 76, 79, 80, 81, 82, 83, 84, 85, 86]);
+const allPrims = prims;
+if (c.only === 'interior') prims = prims.filter((_, i) => INTERIOR.has(i));
+if (c.skip === 'interior') prims = prims.filter((_, i) => !INTERIOR.has(i));
 if (c.cockpit) prims = prims.filter((_, i) => i >= 7 && i <= 68);   // flight-deck parts only (the airframe, gear and cabin shell are left out)
 // bounds, scale, nose direction (the tallest part, the fin, is at the tail end)
 const B = { min: [1e9, 1e9, 1e9], max: [-1e9, -1e9, -1e9] }; let finX = 0, finY = -1e9;
 for (const p of prims) for (let k = 0; k < p.pos.length; k += 3) { for (let a = 0; a < 3; a++) { B.min[a] = Math.min(B.min[a], p.pos[k + a]); B.max[a] = Math.max(B.max[a], p.pos[k + a]); } if (p.pos[k + 1] > finY) { finY = p.pos[k + 1]; finX = p.pos[k]; } }
 if (c.cockpit) { B.min = [-4.3356, -0.9936, 0]; B.max = [4.335, 1.9567, 9.112]; }
-const cx = (B.min[0] + B.max[0]) / 2, cz = (B.min[2] + B.max[2]) / 2, scale = c.length / (c.cockpit ? 9.112 : B.max[0] - B.min[0]);
+if (c.yup) { B.min = [1e9, 1e9, 1e9]; B.max = [-1e9, -1e9, -1e9]; for (const p of allPrims) for (let k = 0; k < p.pos.length; k += 3) for (let a = 0; a < 3; a++) { B.min[a] = Math.min(B.min[a], p.pos[k + a]); B.max[a] = Math.max(B.max[a], p.pos[k + a]); } }
+const cx = (B.min[0] + B.max[0]) / 2, cz = (B.min[2] + B.max[2]) / 2, scale = c.length / (c.yup ? B.max[2] - B.min[2] : c.cockpit ? 9.112 : B.max[0] - B.min[0]);
 const sign = finX > cx ? -1 : 1;   // fin at +x -> nose at -x -> flip
 console.log(id, 'scale', scale.toFixed(4), 'nose', sign > 0 ? '+x' : '-x', 'size m', ((B.max[0] - B.min[0]) * scale).toFixed(1), ((B.max[1] - B.min[1]) * scale).toFixed(1), ((B.max[2] - B.min[2]) * scale).toFixed(1));
 let totalTris = 0; for (const p of prims) totalTris += p.idx.length / 3;
@@ -31,9 +39,9 @@ for (const p of prims) {
   const n = p.pos.length / 3, P = new Float32Array(p.pos.length), N = p.nrm ? new Float32Array(p.pos.length) : null;
   for (let k = 0; k < n; k++) {
     const X = p.pos[3 * k] - cx, Y = p.pos[3 * k + 1] - B.min[1], Z = p.pos[3 * k + 2] - cz;
-    if (c.cockpit) {   // model: x right, y up, nose at -z  ->  body: x nose (centred), y right, z down
+    if (c.cockpit || c.yup) {   // model: x right, y up, nose at -z  ->  body: x nose (centred), y right, z down
       const mx = p.pos[3 * k], my = p.pos[3 * k + 1], mz = p.pos[3 * k + 2];
-      P[3 * k] = (c.length / 2) - mz * scale; P[3 * k + 1] = mx * scale; P[3 * k + 2] = c.spawn - (my - B.min[1]) * scale;
+      P[3 * k] = (c.length / 2) - (mz - B.min[2]) * scale; P[3 * k + 1] = mx * scale; P[3 * k + 2] = c.spawn - (my - B.min[1]) * scale;
       if (N) { N[3 * k] = -p.nrm[3 * k + 2]; N[3 * k + 1] = p.nrm[3 * k]; N[3 * k + 2] = -p.nrm[3 * k + 1]; }
       continue;
     }
