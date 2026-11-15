@@ -43,7 +43,7 @@ export class AirlinerModel {
 
 /** No flight-deck model for these airliners: the cockpit view is an outside view from the pilot's eye with the airframe hidden. */
 /** Where the supplied A320 flight deck sits in each airliner's body frame (offset from its A320 position). The A340 has no deck of its own: it gets the A320's (same Airbus layout) moved to its longer nose. */
-const DECK_AT: Record<string, [number, number, number]> = { a320: [0, 0, 0], a340: [18.9, 0, -0.3] };
+const DECK_AT: Record<string, [number, number, number]> = { a320: [0, 0, 0], a340: [18.9, 0, -0.3], a350: [18.1, 0, -0.35] };
 export class AirlinerCockpit {
   readonly root = new THREE.Group(); private started = false;
   /** the flight deck is only fetched when the cockpit view is first used; only the A320 has one (the supplied deck, airframe cut away) */

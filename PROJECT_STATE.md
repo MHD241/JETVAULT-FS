@@ -936,3 +936,5 @@ The supplied "a320_cockpit_2" model (Lufthansa A320neo, full aircraft) is used f
 
 ## Update 165 – A340 flight deck, deck lighting
 A340 uses the supplied A320 flight deck (same Airbus layout; no free A340-600 deck found), offset (+18.9, 0, -0.3) to its longer nose (`DECK_AT` in `airlinerModel.ts`), eye (34.95, -0.55, -1.35). Deck materials are almost fully texture self-lit (emissive = map, colour x0.25, intensity 0.8 day / 0.35 night) because the game's blue sky light tinted them blue in Safari; sky reflection off. A350 still outside view only. Unverified in Safari: the final colour.
+
+Update 166: A350 also uses the A320 flight deck, offset (+18.1, 0, -0.35), eye (34.15, -0.55, -1.4). Not yet rendered in-game (same mechanism as the A340, which was).

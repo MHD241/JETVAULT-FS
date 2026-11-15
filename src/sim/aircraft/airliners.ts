@@ -62,6 +62,6 @@ export const A340: AircraftDef = scaleJet({
 export const A350: AircraftDef = scaleJet({
   id: 'a350', name: 'Airbus A350-1000', k: 1.887, emptyMass: 155000, mtom: 322000, refMass: 245000, payload: 40000, payloadMax: 75000, fuelLitres: 158000, fuelUnusable: 300,
   engines: [{ pos: new Vec3(11.5, -10.4, 3.3), thrust: 390000 }, { pos: new Vec3(11.5, 10.4, 3.3), thrust: 390000 }],
-  hull: { halfLength: 36.9, radius: 2.98 }, spawnHeight: 7.2, eye: new Vec3(29.4, -0.7, -1.4), doorBody: new Vec3(28.4, -2.98, 0),
+  hull: { halfLength: 36.9, radius: 2.98 }, spawnHeight: 7.2, eye: new Vec3(34.15, -0.55, -1.4), doorBody: new Vec3(28.4, -2.98, 0),
   limits: { vne: 340, vno: 340, vfe: 190, vs0: 112, vs1: 138 }, flapLimitKt: [999, 250, 235, 220, 205, 195, 190, 185, 180], approachKias: 140, cruiseKias: 285, standClearance: 40,
 });
