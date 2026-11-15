@@ -944,3 +944,6 @@ New aircraft `c17` (list: 737, A320, A340, A350, C-17, drone). Model "C-17A Glob
 
 ## Update 168 – golden-hour sky colour
 The golden-hour sky went violet/magenta: the sky shader's strong blue boost + pink term + purple term mixed to magenta. Now (`environment.ts`, sky `onBeforeCompile`): peach instead of pink, no purple term, the horizon band gold-orange, and the upper sky pulled to a steel blue (0.16, 0.38, 0.74) scaled by the twilight strength. Verified in renders facing and away from the sun at 19.8 h and 20.4 h UTC (June). Note: earlier test builds silently failed (a raw line break inside the GLSL string) so the first screenshots were of an old build; always check the build time in the corner of a screenshot. Not tuned: cloud colour at sunset (peach, fine), sunrise (same code path, not separately viewed).
+
+## Update 171 – flight assist and autopilot REMOVED
+The user wanted a better handling FEEL (like GeoFS), not an assist. Both assist commits (0cc6a23, 4d87807) were reverted: no fly-by-wire, no spring-back mouse, no autopilot, no V/A keys. Controls are back to the plain mouse-position stick. Still open: the handling feel itself (the jets feel hard to control; ideas not yet done: more pitch/roll damping and self-stability in the flight model, quicker and lag-free surface response, lighter stick gains for the big jets).
