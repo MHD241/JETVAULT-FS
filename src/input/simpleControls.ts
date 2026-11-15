@@ -25,8 +25,8 @@ export class SimpleControls {
   /** Spring-back mouse stick used by the fly-by-wire law: mouse MOVEMENT deflects it, it returns to centre when the mouse stops. */
   private rel = { x: 0, y: 0 };
   readonly fbw = new FlyByWire();
-  /** Optional fly-by-wire flight assist for the jets (key V, OFF by default): the stick position commands a pitch rate / bank angle, the centre holds the flight path and wings level. */
-  fbwOn = (() => { try { return localStorage.getItem('jetvault.fbw') === '1'; } catch { return false; } })();   // OFF by default: the plain stick is the normal mode, V turns the assist on
+  /** Fly-by-wire flight assist for the jets: mouse = spring-back stick (rate / bank command), released = hold the flight path and wings level (key V turns it off). */
+  fbwOn = (() => { try { return localStorage.getItem('jetvault.fbw') !== '0'; } catch { return true; } })();
   setFbw(on: boolean) { this.fbwOn = on; try { localStorage.setItem('jetvault.fbw', on ? '1' : '0'); } catch { /* ignore */ } }
   private statusEl: HTMLDivElement | null = null;
   private noteT = 0;
@@ -69,7 +69,7 @@ export class SimpleControls {
         if (e.code === 'KeyN') this.events.push('bungee');
         if (e.code === 'KeyK') this.events.push('park');
         if (e.code === 'Escape') this.events.push('menu');
-        if (e.code === 'KeyV') { this.setFbw(!this.fbwOn); this.say(this.fbwOn ? 'Flight assist ON: stick = pitch rate / bank, centre holds the flight path and level wings' : 'Flight assist OFF: direct stick (mouse position)'); }
+        if (e.code === 'KeyV') { this.setFbw(!this.fbwOn); this.say(this.fbwOn ? 'Flight assist ON: mouse movement steers, release holds the flight path' : 'Flight assist OFF: direct stick (mouse position)'); }
         if (e.code === 'KeyA') this.events.push('ap');
         if (e.code === 'BracketRight') { this.fbw.adjust('alt', 1); this.say(`Autopilot altitude ${Math.round(this.fbw.ap.alt / 0.3048)} ft`); }
         if (e.code === 'BracketLeft') { this.fbw.adjust('alt', -1); this.say(`Autopilot altitude ${Math.round(this.fbw.ap.alt / 0.3048)} ft`); }
@@ -146,6 +146,7 @@ export class SimpleControls {
     if (!ac.def.turbofans) { this.say('The autopilot is for the jets'); return; }
     if (this.fbw.ap.on) { this.fbw.disengageAp(); this.say('Autopilot OFF'); return; }
     if (ac.onGround || ac.agl < 30) { this.say('The autopilot needs the aircraft airborne'); return; }
+    if (!this.fbwOn) this.setFbw(true);
     this.fbw.engageAp(ac); this.fbw.ap.autothrottle = true;
     this.say(`Autopilot ON: ${Math.round(this.fbw.ap.alt / 0.3048)} ft, heading ${this.hdgDeg()}, ${Math.round(this.fbw.ap.spd / 0.514444)} kt.  [ ] altitude, , . heading, - = speed, A off`);
   }
@@ -206,7 +207,8 @@ export class SimpleControls {
     let fbwTook = false;
     if (ac.def.turbofans && !drone && !this.tugMode && (this.fbwOn || this.fbw.ap.on)) {
       if (ac.onGround && this.fbw.ap.on) this.fbw.disengageAp();
-      const sp = clamp(pitch, -1, 1), sr = clamp(roll, -1, 1);   // the mouse POSITION (as in the plain stick) commands the rate / bank: hold it above or below the centre to keep descending or climbing
+      const expo2 = (v: number) => { const x = clamp(v, -1, 1); return 0.4 * x + 0.6 * x * x * x; };
+      const sp = IS_TOUCH ? pitch : expo2(this.rel.y * 1.6), sr = IS_TOUCH ? roll : expo2(this.rel.x * 1.6);
       const wasOn = this.fbw.ap.on;
       fbwTook = this.fbw.update(dt, ac, sp, sr, c, clamp(pitch, -1, 1));
       if (wasOn && !this.fbw.ap.on && this.fbw.apCancelled) { this.fbw.apCancelled = false; this.say('Autopilot OFF (stick)'); }
