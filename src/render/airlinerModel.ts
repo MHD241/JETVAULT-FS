@@ -22,7 +22,7 @@ export async function buildPack(base: string, id: string, doubleSided = false): 
         map: m.map ? tex(m.map) : null, color: m.map ? 0xffffff : new THREE.Color().setRGB(m.color[0], m.color[1], m.color[2], THREE.LinearSRGBColorSpace),
         metalness: Math.min(m.metal, 0.4), roughness: Math.max(m.rough, 0.35), transparent: glass, opacity: glass ? Math.max(0.35, m.opacity) : 1, side: glass || doubleSided ? THREE.DoubleSide : THREE.FrontSide,
       });
-      if (doubleSided && !glass) { mat.metalness = 0; mat.roughness = Math.max(mat.roughness, 0.75); mat.envMapIntensity = 0.15; mat.userData.envI = 0.15; mat.emissive.set(0xffffff); mat.emissiveMap = mat.map; mat.color.multiplyScalar(0.6); mat.userData.deck = true; } // flight deck: the outdoor sky reflection turned everything blue
+      if (doubleSided && !glass) { mat.metalness = 0; mat.roughness = Math.max(mat.roughness, 0.75); mat.envMapIntensity = 0.15; mat.userData.envI = 0.15; mat.emissive.set(0xffffff); mat.emissiveMap = mat.map; mat.color.multiplyScalar(0.25); mat.userData.deck = true; } // flight deck: the outdoor sky reflection turned everything blue
       const mesh = new THREE.Mesh(g, mat); mesh.castShadow = !glass; mesh.receiveShadow = true;
       out.add(mesh);
     }
@@ -48,7 +48,7 @@ export class AirlinerCockpit {
   constructor(private id = '') {}
   update(_dt: number, night: number) {
     // the deck is lit by the game's blue sky light only; a texture-coloured self-light keeps its real colours (dimmer at night)
-    this.root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (m && m.userData?.deck) m.emissiveIntensity = 0.55 - 0.3 * night; });
+    this.root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (m && m.userData?.deck) m.emissiveIntensity = 0.8 - 0.45 * night; });
     if (this.started || this.id !== 'a320') return;
     this.started = true;
     buildPack('./models/airliners/', 'a320_cockpit', true).then((g) => this.root.add(g)).catch((e) => console.warn('A320 flight deck not loaded', e));
