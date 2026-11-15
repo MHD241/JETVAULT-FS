@@ -436,7 +436,7 @@ export class Menu {
     <tr><td>Throttle</td><td><kbd>1</kbd> idle ... <kbd>9</kbd> full (jets and piston); in the tug, <kbd>1</kbd> = stop, <kbd>9</kbd> = fastest</td></tr>
     <tr><td>Rudder / steering</td><td><kbd>&larr;</kbd> <kbd>&rarr;</kbd></td></tr>
     <tr><td>Brakes (hold)</td><td><kbd>Space</kbd></td></tr>
-    <tr><td>Jets: flight assist</td><td><kbd>V</kbd> on/off. On: move the mouse to steer (it springs back), let go and the plane holds its flight path and levels the wings</td></tr>
+    <tr><td>Jets: flight assist</td><td><kbd>V</kbd> on/off (off by default). On: the mouse commands the pitch rate and bank, the centre holds the flight path and levels the wings</td></tr>
     <tr><td>Jets: autopilot</td><td><kbd>A</kbd> on/off (airborne) · <kbd>[</kbd> <kbd>]</kbd> altitude · <kbd>,</kbd> <kbd>.</kbd> heading · <kbd>-</kbd> <kbd>=</kbd> speed · a number key = manual throttle · a firm mouse move cancels it</td></tr>
     <tr><td>Parking brake</td><td><kbd>K</kbd> or the PARK BRAKE button</td></tr>
     <tr><td>Flaps (cycle)</td><td><kbd>F</kbd></td></tr>
