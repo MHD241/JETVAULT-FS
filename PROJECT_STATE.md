@@ -933,3 +933,6 @@ Always merge/push to `main` straight away once tests pass and watch the deploy (
 
 ## Update 164 – A320 flight deck
 The supplied "a320_cockpit_2" model (Lufthansa A320neo, full aircraft) is used for its flight deck only: parts 7–68 (panels, seats, glareshield, pedestal), airframe/gear/cabin cut away, scaled ×4.123 into the A320 body frame (`tools/airliners/convert.mjs a320_cockpit`, ~384k triangles, 9.7 MB + 8 textures). `AirlinerCockpit('a320')` fetches it the first time the cockpit view is used; eye at (15.4, -0.45, -1.5). A340/A350 still have the outside view only. Unverified: flying with it, frame rate on a real GPU, instrument screens (the deck is static – no live displays yet).
+
+## Update 165 – A340 flight deck, deck lighting
+A340 uses the supplied A320 flight deck (same Airbus layout; no free A340-600 deck found), offset (+18.9, 0, -0.3) to its longer nose (`DECK_AT` in `airlinerModel.ts`), eye (34.95, -0.55, -1.35). Deck materials are almost fully texture self-lit (emissive = map, colour x0.25, intensity 0.8 day / 0.35 night) because the game's blue sky light tinted them blue in Safari; sky reflection off. A350 still outside view only. Unverified in Safari: the final colour.

@@ -42,6 +42,8 @@ export class AirlinerModel {
 }
 
 /** No flight-deck model for these airliners: the cockpit view is an outside view from the pilot's eye with the airframe hidden. */
+/** Where the supplied A320 flight deck sits in each airliner's body frame (offset from its A320 position). The A340 has no deck of its own: it gets the A320's (same Airbus layout) moved to its longer nose. */
+const DECK_AT: Record<string, [number, number, number]> = { a320: [0, 0, 0], a340: [18.9, 0, -0.3] };
 export class AirlinerCockpit {
   readonly root = new THREE.Group(); private started = false;
   /** the flight deck is only fetched when the cockpit view is first used; only the A320 has one (the supplied deck, airframe cut away) */
@@ -49,8 +51,9 @@ export class AirlinerCockpit {
   update(_dt: number, night: number) {
     // the deck is lit by the game's blue sky light only; a texture-coloured self-light keeps its real colours (dimmer at night)
     this.root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (m && m.userData?.deck) m.emissiveIntensity = 0.8 - 0.45 * night; });
-    if (this.started || this.id !== 'a320') return;
+    const at = DECK_AT[this.id]; if (this.started || !at) return;
     this.started = true;
+    this.root.position.set(at[0], at[1], at[2]);
     buildPack('./models/airliners/', 'a320_cockpit', true).then((g) => this.root.add(g)).catch((e) => console.warn('A320 flight deck not loaded', e));
   }
 }
