@@ -297,6 +297,7 @@ class App implements MenuHost {
     this.scene.add(this.debug.group);
     this.input = new InputManager(loadInputSettings(), this.renderer.domElement);
     this.simple = new SimpleControls(this.renderer.domElement);
+    this.simple.onSay = (t) => this.hud?.toast(t, 4);
     if (IS_TOUCH) {
       // phones / tablets: lighter rendering
       this.graphics = { ...this.graphics, renderScale: Math.min(this.graphics.renderScale, 0.75), shadows: false, buildingDistanceKm: 5, terrainDetail: 0.7 };
@@ -598,6 +599,7 @@ class App implements MenuHost {
         this.hud.toast(`Flaps ${Math.round((det[c.flapLever] * 180) / Math.PI)}`);
       }
     }
+    if (ev === 'ap') { this.simple.toggleAp(ac); }
     if (ev === 'spoilers') { c.speedbrake = c.speedbrake > 0.5 ? 0 : 1; this.hud.toast(c.speedbrake ? 'Spoilers extended' : 'Spoilers retracted'); }
     if (ev === 'bridge') {
       const msg = this.jetBridges.toggle(ac);

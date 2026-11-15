@@ -6,13 +6,14 @@
 // Assists (always on): rudder coordination / ground heading hold via the pedals, and
 // auto-trim when the stick is centred. They move controls only, not the aircraft.
 
+import { FlyByWire } from '../sim/fbw';
 import { FlightControls } from '../sim/controls';
 import { Aircraft } from '../sim/fdm/aircraft';
 import { clamp } from '../core/math';
 
 export const IS_TOUCH = typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0) && matchMedia('(pointer: coarse)').matches;
 
-export type SimpleEvent = 'gear' | 'flaps' | 'spoilers' | 'camera' | 'menu' | 'bridge' | 'park' | 'push' | 'launch' | 'bungee';
+export type SimpleEvent = 'ap' | 'gear' | 'flaps' | 'spoilers' | 'camera' | 'menu' | 'bridge' | 'park' | 'push' | 'launch' | 'bungee';
 
 export class SimpleControls {
   private keys = new Set<string>();
@@ -21,6 +22,14 @@ export class SimpleControls {
   private joy = { x: 0, y: 0 };
   private joySmooth = { x: 0, y: 0 };
   private mouseSmooth = { x: 0, y: 0 };
+  /** Spring-back mouse stick used by the fly-by-wire law: mouse MOVEMENT deflects it, it returns to centre when the mouse stops. */
+  private rel = { x: 0, y: 0 };
+  readonly fbw = new FlyByWire();
+  /** Fly-by-wire flight assist for the jets: mouse = spring-back stick (rate / bank command), released = hold the flight path and wings level (key V turns it off). */
+  fbwOn = (() => { try { return localStorage.getItem('jetvault.fbw') !== '0'; } catch { return true; } })();
+  setFbw(on: boolean) { this.fbwOn = on; try { localStorage.setItem('jetvault.fbw', on ? '1' : '0'); } catch { /* ignore */ } }
+  private statusEl: HTMLDivElement | null = null;
+  private noteT = 0;
   private knobEl: HTMLDivElement | null = null;
   private touchBrake = false;
   private pedal = 0;
@@ -49,7 +58,7 @@ export class SimpleControls {
         if (tag === 'INPUT' || tag === 'BUTTON') t!.blur(); }
       if (!this.keys.has(e.code)) {
         const d = /^Digit([1-9])$/.exec(e.code);
-        if (d) this.setThrottle((Number(d[1]) - 1) / 8); // 1 = idle ... 9 = full
+        if (d) { this.setThrottle((Number(d[1]) - 1) / 8); if (this.fbw.ap.on && this.fbw.ap.autothrottle) { this.fbw.ap.autothrottle = false; this.say('Autothrottle off (manual throttle)'); } } // 1 = idle ... 9 = full
         if (e.code === 'KeyG') this.events.push('gear');
         if (e.code === 'KeyF') this.events.push('flaps');
         if (e.code === 'KeyB') this.events.push('spoilers');
@@ -60,6 +69,14 @@ export class SimpleControls {
         if (e.code === 'KeyN') this.events.push('bungee');
         if (e.code === 'KeyK') this.events.push('park');
         if (e.code === 'Escape') this.events.push('menu');
+        if (e.code === 'KeyV') { this.setFbw(!this.fbwOn); this.say(this.fbwOn ? 'Flight assist ON: mouse movement steers, release holds the flight path' : 'Flight assist OFF: direct stick (mouse position)'); }
+        if (e.code === 'KeyA') this.events.push('ap');
+        if (e.code === 'BracketRight') { this.fbw.adjust('alt', 1); this.say(`Autopilot altitude ${Math.round(this.fbw.ap.alt / 0.3048)} ft`); }
+        if (e.code === 'BracketLeft') { this.fbw.adjust('alt', -1); this.say(`Autopilot altitude ${Math.round(this.fbw.ap.alt / 0.3048)} ft`); }
+        if (e.code === 'Period') { this.fbw.adjust('hdg', 1); this.say(`Autopilot heading ${this.hdgDeg()}`); }
+        if (e.code === 'Comma') { this.fbw.adjust('hdg', -1); this.say(`Autopilot heading ${this.hdgDeg()}`); }
+        if (e.code === 'Equal') { this.fbw.adjust('spd', 1); this.say(`Autopilot speed ${Math.round(this.fbw.ap.spd / 0.514444)} kt`); }
+        if (e.code === 'Minus') { this.fbw.adjust('spd', -1); this.say(`Autopilot speed ${Math.round(this.fbw.ap.spd / 0.514444)} kt`); }
       }
       this.keys.add(e.code);
       if (['Space', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.code)) e.preventDefault();
@@ -73,6 +90,7 @@ export class SimpleControls {
       this.mouse.x = clamp(((e.clientX - r.left) / r.width) * 2 - 1, -1, 1);
       this.mouse.y = clamp(((e.clientY - r.top) / r.height) * 2 - 1, -1, 1);
       this.mouse.active = true;
+      this.rel.x = clamp(this.rel.x + e.movementX * 0.006, -1, 1); this.rel.y = clamp(this.rel.y + e.movementY * 0.006, -1, 1);
     });
     document.documentElement.addEventListener('mouseleave', () => { this.mouse.active = false; });
 
@@ -120,6 +138,34 @@ export class SimpleControls {
     for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) brake.addEventListener(ev, () => { this.touchBrake = false; brake.classList.remove('on'); });
   }
 
+  /** Called by the game: shows a message (set by main.ts to the HUD toast). */
+  onSay: ((t: string) => void) | null = null;
+  say(t: string) { this.onSay?.(t); this.noteT = 4; }
+  private hdgDeg() { return String(Math.round(((this.fbw.ap.hdg * 180) / Math.PI + 360) % 360)).padStart(3, '0') + '\u00b0'; }
+  toggleAp(ac: Aircraft) {
+    if (!ac.def.turbofans) { this.say('The autopilot is for the jets'); return; }
+    if (this.fbw.ap.on) { this.fbw.disengageAp(); this.say('Autopilot OFF'); return; }
+    if (ac.onGround || ac.agl < 30) { this.say('The autopilot needs the aircraft airborne'); return; }
+    if (!this.fbwOn) this.setFbw(true);
+    this.fbw.engageAp(ac); this.fbw.ap.autothrottle = true;
+    this.say(`Autopilot ON: ${Math.round(this.fbw.ap.alt / 0.3048)} ft, heading ${this.hdgDeg()}, ${Math.round(this.fbw.ap.spd / 0.514444)} kt.  [ ] altitude, , . heading, - = speed, A off`);
+  }
+  private updateStatus(dt: number, ac: Aircraft) {
+    if (!this.statusEl) {
+      const d = document.createElement('div');
+      d.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);padding:3px 14px;border-radius:6px;background:rgba(10,20,40,0.72);color:#9fe3a8;font:600 13px system-ui,sans-serif;letter-spacing:.05em;z-index:9;pointer-events:none;display:none;white-space:nowrap';
+      document.body.appendChild(d); this.statusEl = d;
+    }
+    const jet = !!ac.def.turbofans && !ac.def.drone;
+    const ap = this.fbw.ap;
+    let text = '';
+    if (jet && ap.on) text = `AP  ALT ${Math.round(ap.alt / 0.3048)}  HDG ${this.hdgDeg()}  SPD ${Math.round(ap.spd / 0.514444)}${ap.autothrottle ? ' AT' : ''}`;
+    else if (jet && this.fbwOn && !ac.onGround) text = 'ASSIST';
+    this.noteT = Math.max(0, this.noteT - dt);
+    this.statusEl.style.display = text ? 'block' : 'none';
+    if (text) this.statusEl.textContent = text;
+  }
+
   update(dt: number, c: FlightControls, ac: Aircraft) {
     // stick: touch joystick, else mouse position (dead zone in the centre)
     const dz = (v: number, d: number) => (Math.abs(v) < d ? 0 : Math.sign(v) * (Math.abs(v) - d) / (1 - d));
@@ -155,8 +201,20 @@ export class SimpleControls {
       const bank = ac.euler[0];
       if (Math.abs(bank) < (this.arcade ? 1.2 : 0.7)) roll = clamp(-1.6 * bank - 0.5 * ac.omega.x, -0.5, 0.5);
     }
-    c.pitch = clamp(pitch, -1, 1);
-    c.roll = clamp(roll, -1, 1);
+    // jets in the air: fly-by-wire (the stick commands a rate / bank, released = hold the flight path and level the wings) and the autopilot
+    this.updateStatus(dt, ac);
+    this.rel.x *= Math.exp(-dt / 0.7); this.rel.y *= Math.exp(-dt / 0.7);   // the mouse stick springs back to the centre
+    let fbwTook = false;
+    if (ac.def.turbofans && !drone && !this.tugMode && (this.fbwOn || this.fbw.ap.on)) {
+      if (ac.onGround && this.fbw.ap.on) this.fbw.disengageAp();
+      const expo2 = (v: number) => { const x = clamp(v, -1, 1); return 0.4 * x + 0.6 * x * x * x; };
+      const sp = IS_TOUCH ? pitch : expo2(this.rel.y * 1.6), sr = IS_TOUCH ? roll : expo2(this.rel.x * 1.6);
+      const wasOn = this.fbw.ap.on;
+      fbwTook = this.fbw.update(dt, ac, sp, sr, c, clamp(pitch, -1, 1));
+      if (wasOn && !this.fbw.ap.on && this.fbw.apCancelled) { this.fbw.apCancelled = false; this.say('Autopilot OFF (stick)'); }
+      if (fbwTook && this.fbw.ap.on && this.fbw.ap.autothrottle) this.setThrottle(this.fbw.throttleCmd);
+    }
+    if (!fbwTook) { c.pitch = clamp(pitch, -1, 1); c.roll = clamp(roll, -1, 1); }
     this.rawPitch = c.pitch;
     // rudder: arrows, with coordination / heading-hold assist
     const k = (this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('ArrowLeft') ? 1 : 0);
