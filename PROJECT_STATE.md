@@ -950,3 +950,6 @@ The user wanted a better handling FEEL (like GeoFS), not an assist. Both assist 
 
 ## Update 172 – mouse sensitivity
 The jets felt hard to control because the mouse stick needed the whole screen. Now the pointer position is multiplied by 2.2 in the air (1.4 on the ground) before the dead zone (now 0.06), so full deflection is reached about 45 % of the way to the screen edges; the expo curve is 0.45 linear + 0.55 cubic (was 0.3 / 0.7), livelier in the middle. Applies to all aircraft with the mouse (touch joystick unchanged). Not verified with a real mouse; if too twitchy lower `sens` in `SimpleControls.update`.
+
+## Update 173 – mouse sensitivity, a bit lower
+2.2x was a bit too sensitive: now 1.7x in the air (full stick at about 60 % of the way to the screen edge), 1.2x on the ground, expo 0.38 linear + 0.62 cubic. One number to change: `sens` in `SimpleControls.update`.
