@@ -947,3 +947,6 @@ The golden-hour sky went violet/magenta: the sky shader's strong blue boost + pi
 
 ## Update 171 – flight assist and autopilot REMOVED
 The user wanted a better handling FEEL (like GeoFS), not an assist. Both assist commits (0cc6a23, 4d87807) were reverted: no fly-by-wire, no spring-back mouse, no autopilot, no V/A keys. Controls are back to the plain mouse-position stick. Still open: the handling feel itself (the jets feel hard to control; ideas not yet done: more pitch/roll damping and self-stability in the flight model, quicker and lag-free surface response, lighter stick gains for the big jets).
+
+## Update 172 – mouse sensitivity
+The jets felt hard to control because the mouse stick needed the whole screen. Now the pointer position is multiplied by 2.2 in the air (1.4 on the ground) before the dead zone (now 0.06), so full deflection is reached about 45 % of the way to the screen edges; the expo curve is 0.45 linear + 0.55 cubic (was 0.3 / 0.7), livelier in the middle. Applies to all aircraft with the mouse (touch joystick unchanged). Not verified with a real mouse; if too twitchy lower `sens` in `SimpleControls.update`.

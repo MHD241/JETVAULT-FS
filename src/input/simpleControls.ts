@@ -124,7 +124,7 @@ export class SimpleControls {
     // stick: touch joystick, else mouse position (dead zone in the centre)
     const dz = (v: number, d: number) => (Math.abs(v) < d ? 0 : Math.sign(v) * (Math.abs(v) - d) / (1 - d));
     // response curve: much finer control near the centre, full deflection at the edge (0.3 linear + 0.7 cubic)
-    const expo = (v: number) => { const x = Math.max(-1, Math.min(1, v)); return 0.3 * x + 0.7 * x * x * x; };
+    const expo = (v: number) => { const x = Math.max(-1, Math.min(1, v)); return 0.45 * x + 0.55 * x * x * x; };   // 0.45 linear + 0.55 cubic: lively in the middle
     let pitch = 0, roll = 0;
     if (IS_TOUCH) {
       // smooth the raw finger position (low-pass) and soften the centre with an expo curve
@@ -141,7 +141,9 @@ export class SimpleControls {
       // mouse: low-pass the stick (a flick no longer snaps the controls), gentler gain and a wider dead zone;
       // an airliner has heavier controls, so its stick travel is scaled down (more so at speed on the ground)
       const jet = !!ac.def.turbofans;
-      const tx = this.mouse.active ? dz(this.mouse.x, 0.1) : 0, ty = this.mouse.active ? dz(this.mouse.y, 0.1) : 0;
+      // the pointer reaches full deflection about 45 % of the way to the screen edge (2.2x), so the wide middle of the screen is the stick (1.4x on the ground, where the roll axis steers the nosewheel)
+      const sens = ac.onGround ? 1.4 : 2.2;
+      const tx = this.mouse.active ? dz(clamp(this.mouse.x * sens, -1, 1), 0.06) : 0, ty = this.mouse.active ? dz(clamp(this.mouse.y * sens, -1, 1), 0.06) : 0;
       const a = 1 - Math.exp(-dt / (jet ? 0.10 : 0.09));
       this.mouseSmooth.x += (tx - this.mouseSmooth.x) * a; this.mouseSmooth.y += (ty - this.mouseSmooth.y) * a;
       const g = jet ? 1.1 : 1.15, auth = 1;
