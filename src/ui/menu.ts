@@ -74,6 +74,7 @@ type Tab = 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'se
 export class Menu {
   readonly el: HTMLDivElement;
   private section: HTMLElement;
+  private footer!: HTMLElement;
   private tab: Tab = 'fly';
   private spawn: AnySpawn = { kind: 'stand', index: 0, coldAndDark: false };
   open = true;
@@ -84,7 +85,8 @@ export class Menu {
     this.el = document.createElement('div');
     this.el.className = 'jv-menu';
     const nav = document.createElement('nav');
-    nav.innerHTML = `<div class="jv-brand"><span class="jv-logo"></span>JETVAULT</div>`;
+    nav.innerHTML = `<div class="jv-brand"><span class="jv-logo"></span><span>JETVAULT<small>FLIGHT SIMULATOR</small></span></div><div class="jv-tabs"></div>`;
+    const tabs = nav.querySelector('.jv-tabs') as HTMLElement;
     const items: [Tab, string, boolean, string?][] = [
       ['fly', 'Fly Now', true], ['map', 'World Map', true], ['aircraft', 'Aircraft Selection', true],
       ['airports', 'Airport Selection', true], ['planner', 'Flight Planner', false, 'Not yet available'],
@@ -97,11 +99,15 @@ export class Menu {
       b.disabled = !enabled;
       b.dataset.tab = t;
       b.onclick = () => { this.tab = t; this.render(); };
-      nav.appendChild(b);
+      tabs.appendChild(b);
     }
-    const sp = document.createElement('div'); sp.className = 'spacer'; nav.appendChild(sp);
     this.section = document.createElement('section');
-    this.el.append(nav, this.section);
+    const footer = document.createElement('footer');
+    footer.innerHTML = `<div class="hint"><kbd>ESC</kbd> Close the menu</div><div class="grow"></div><button class="jv-btn ghost" data-f="resume">RESUME FLIGHT</button><button class="jv-btn" data-f="fly">FLY</button>`;
+    (footer.querySelector('[data-f=fly]') as HTMLElement).onclick = () => this.host.fly(this.spawn);
+    (footer.querySelector('[data-f=resume]') as HTMLElement).onclick = () => this.host.resume();
+    this.footer = footer;
+    this.el.append(nav, this.section, footer);
     document.body.appendChild(this.el);
     this.render();
   }
@@ -114,6 +120,7 @@ export class Menu {
     const s = this.section;
     const h = this.host;
     s.innerHTML = '';
+    (this.footer.querySelector('[data-f=resume]') as HTMLElement).style.display = this.host.canResume() ? '' : 'none';
     if (this.tab === 'fly') this.renderFly(s);
     else if (this.tab === 'map') this.renderMap(s);
     else if (this.tab === 'aircraft') this.renderAircraft(s);
@@ -188,16 +195,6 @@ export class Menu {
     form.innerHTML = `<label>Start view</label><select id="sv"><option value="cockpit" ${this.host.startView === 'cockpit' ? 'selected' : ''}>Cockpit</option><option value="chase" ${this.host.startView === 'chase' ? 'selected' : ''}>External (chase)</option></select><span></span>`;
     form.querySelector('#sv')!.addEventListener('change', (e) => { this.host.startView = (e.target as HTMLSelectElement).value as 'cockpit' | 'chase'; });
     s.appendChild(form);
-    const act = document.createElement('div'); act.className = 'jv-actions';
-    const fly = document.createElement('button'); fly.className = 'jv-btn'; fly.textContent = 'FLY';
-    fly.onclick = () => this.host.fly(this.spawn);
-    act.appendChild(fly);
-    if (this.host.canResume()) {
-      const r = document.createElement('button'); r.className = 'jv-btn ghost'; r.textContent = 'RESUME FLIGHT';
-      r.onclick = () => this.host.resume();
-      act.appendChild(r);
-    }
-    s.appendChild(act);
     const help = document.createElement('p');
     help.innerHTML = 'Controls: mouse = fly, inverted (move from the centre of the screen; mouse up = nose down) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · U = pushback · gliders: L/R = winch launch / release cable, N = BUNGEE launch (Mach 1), V = vario sound · C = cockpit/outside view · mouse wheel / pinch = zoom · right-drag or two-finger scroll = look · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
     s.appendChild(help);
@@ -280,7 +277,7 @@ export class Menu {
       const cv = document.createElement('canvas'); cv.width = 260; cv.height = 150; cv.style.width = '100%';
       drawPlanform(cv, d);
       c.appendChild(cv);
-      c.insertAdjacentHTML('beforeend', `<b>${d.name}</b><span>${blurb[d.id] ?? ''}<br>MTOW ${d.maxTakeoffMass.toLocaleString()} kg · span ${d.wingSpan} m</span>`);
+      c.insertAdjacentHTML('beforeend', `<b>${d.name}</b><span>${blurb[d.id] ?? ''}<br>MTOW ${d.maxTakeoffMass.toLocaleString()} kg · span ${d.wingSpan.toFixed(1)} m</span>`);
       c.onclick = () => { this.host.selectAircraft(d.id); this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; this.render(); };
       grid.appendChild(c);
     }

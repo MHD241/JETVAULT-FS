@@ -52,40 +52,58 @@ html, body { margin: 0; height: 100%; background: var(--navy); color: var(--text
   white-space: pre; pointer-events: none; }
 
 /* menu */
-.jv-menu { position: fixed; inset: 0; z-index: 30; display: grid; grid-template-columns: 300px 1fr; background: rgba(8, 14, 27, .86); backdrop-filter: blur(10px); }
-.jv-menu nav { border-right: 1px solid var(--line); padding: 34px 0; display: flex; flex-direction: column; background: rgba(11, 20, 38, .9); }
-.jv-menu nav .jv-brand { font-size: 18px; padding: 0 28px 30px; }
-.jv-menu nav .jv-brand .jv-logo { width: 22px; height: 22px; }
-.jv-menu nav button { all: unset; cursor: pointer; padding: 11px 28px; font-size: 14px; letter-spacing: .06em; color: var(--dim); border-left: 2px solid transparent; }
-.jv-menu nav button:hover { color: var(--text); background: rgba(79, 142, 247, .06); }
-.jv-menu nav button.active { color: var(--text); border-left-color: var(--blue); background: rgba(79, 142, 247, .1); }
-.jv-menu nav button[disabled] { opacity: .4; cursor: default; }
-.jv-menu nav button small { display: block; font-size: 10px; letter-spacing: .1em; color: var(--dim); }
-.jv-menu nav .spacer { flex: 1; }
-.jv-menu section { padding: 40px 48px; overflow: auto; }
-.jv-menu h2 { font-weight: 600; letter-spacing: .08em; margin: 0 0 6px; font-size: 22px; }
-.jv-menu h3 { font-weight: 600; letter-spacing: .06em; font-size: 14px; color: var(--dim); text-transform: uppercase; margin: 28px 0 10px; }
-.jv-menu p { color: var(--dim); max-width: 760px; line-height: 1.55; font-size: 14px; }
-.jv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; max-width: 980px; }
-.jv-card { background: var(--graphite); border: 1px solid var(--line); padding: 14px 16px; cursor: pointer; }
-.jv-card:hover { border-color: var(--blue-dim); }
-.jv-card.sel { border-color: var(--blue); background: #1b2436; }
-.jv-card b { display: block; font-size: 14px; margin-bottom: 4px; }
-.jv-card span { font-size: 12px; color: var(--dim); }
-.jv-form { display: grid; grid-template-columns: 220px 260px 1fr; gap: 10px 16px; align-items: center; max-width: 900px; font-size: 13px; }
-.jv-form label { color: var(--dim); }
-.jv-form input[type=range] { width: 100%; accent-color: var(--blue); }
-.jv-form .val { color: var(--text); font-variant-numeric: tabular-nums; }
-input, select { background: var(--graphite-2); color: var(--text); border: 1px solid var(--line); padding: 6px 8px; font: inherit; }
-.jv-btn { all: unset; cursor: pointer; background: var(--blue); color: #fff; padding: 11px 26px; font-weight: 600; letter-spacing: .08em; font-size: 13px; }
-.jv-btn:hover { background: #3f7ce3; }
-.jv-btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--text); }
+/* ---- main menu: flight-sim "home screen" look: top tabs, big tiles, bottom action bar, the live scene shows through ---- */
+:root { --accent: #3cc8ff; --accent-dim: #1d7fa8; }
+.jv-menu { position: fixed; inset: 0; z-index: 30; display: grid; grid-template-rows: 68px 1fr 78px; grid-template-columns: 1fr; color: #f2f6fa;
+  background: linear-gradient(180deg, rgba(4, 9, 18, .82) 0%, rgba(6, 12, 24, .46) 20%, rgba(6, 12, 24, .5) 76%, rgba(4, 9, 18, .88) 100%); backdrop-filter: blur(3px) saturate(1.15); }
+.jv-menu nav { display: flex; align-items: center; gap: 26px; padding: 0 36px; border-bottom: 1px solid rgba(255, 255, 255, .12); background: rgba(4, 9, 18, .55); min-width: 0; }
+.jv-menu nav .jv-brand { font-size: 15px; letter-spacing: .3em; gap: 12px; flex: none; }
+.jv-menu nav .jv-brand small { font-size: 9px; letter-spacing: .42em; margin: 3px 0 0; }
+.jv-menu nav .jv-brand .jv-logo { width: 26px; height: 26px; background: linear-gradient(135deg, var(--accent), var(--accent-dim)); }
+.jv-menu .jv-tabs { display: flex; gap: 4px; flex: 1; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+.jv-menu .jv-tabs button:first-child { margin-left: auto; }
+.jv-menu .jv-tabs button:last-child { margin-right: auto; }
+.jv-menu .jv-tabs::-webkit-scrollbar { display: none; }
+.jv-menu nav button { all: unset; cursor: pointer; flex: none; padding: 24px 15px 21px; font-size: 12.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: rgba(255, 255, 255, .62);
+  border-bottom: 3px solid transparent; transition: color .15s, border-color .15s; white-space: nowrap; }
+.jv-menu nav button:hover { color: #fff; }
+.jv-menu nav button.active { color: #fff; border-bottom-color: var(--accent); }
+.jv-menu nav button[disabled] { opacity: .35; cursor: default; }
+.jv-menu nav button small { display: none; }
+.jv-menu nav .spacer { display: none; }
+.jv-menu section { padding: 34px 56px 24px; overflow: auto; max-width: 1380px; width: 100%; box-sizing: border-box; margin: 0 auto; }
+.jv-menu h2 { font-weight: 300; letter-spacing: .14em; margin: 0 0 8px; font-size: 38px; text-transform: uppercase; }
+.jv-menu h3 { font-weight: 600; letter-spacing: .22em; font-size: 12px; color: rgba(255, 255, 255, .6); text-transform: uppercase; margin: 32px 0 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, .14); }
+.jv-menu p { color: rgba(255, 255, 255, .66); max-width: 820px; line-height: 1.6; font-size: 14px; }
+.jv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; max-width: none; }
+.jv-card { position: relative; background: rgba(12, 22, 40, .62); border: 2px solid rgba(255, 255, 255, .1); padding: 14px 16px 16px; cursor: pointer; transition: transform .12s, border-color .12s, background .12s; overflow: hidden; }
+.jv-card:hover { border-color: var(--accent); background: rgba(20, 38, 64, .78); transform: translateY(-2px); }
+.jv-card.sel { border-color: #fff; background: rgba(255, 255, 255, .94); color: #0a1220; }
+.jv-card.sel::after { content: "\2713"; position: absolute; top: 8px; right: 10px; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #04202c; font-weight: 800; text-align: center; line-height: 24px; font-size: 14px; }
+.jv-card b { display: block; font-size: 15px; font-weight: 700; letter-spacing: .04em; margin: 8px 0 5px; }
+.jv-card span { font-size: 12px; color: rgba(255, 255, 255, .62); line-height: 1.5; display: block; }
+.jv-card.sel span { color: #3a4a60; }
+.jv-card canvas { display: block; border-radius: 2px; background: radial-gradient(ellipse at 50% 40%, rgba(60, 200, 255, .16), rgba(0, 0, 0, 0) 70%); }
+.jv-card.sel canvas { filter: invert(1) hue-rotate(180deg) brightness(.85); }
+.jv-form { display: grid; grid-template-columns: 240px 280px 1fr; gap: 12px 18px; align-items: center; max-width: 960px; font-size: 13px; }
+.jv-form label { color: rgba(255, 255, 255, .66); letter-spacing: .04em; }
+.jv-form input[type=range] { width: 100%; accent-color: var(--accent); }
+.jv-form .val { color: #fff; font-variant-numeric: tabular-nums; }
+input, select { background: rgba(255, 255, 255, .08); color: #fff; border: 1px solid rgba(255, 255, 255, .22); padding: 7px 10px; font: inherit; }
+select option { color: #0a1220; background: #fff; }
+.jv-btn { all: unset; cursor: pointer; background: var(--accent); color: #04202c; padding: 14px 42px; font-weight: 800; letter-spacing: .2em; font-size: 14px; transition: background .12s, transform .12s; }
+.jv-btn:hover { background: #7ddcff; transform: translateY(-1px); }
+.jv-btn.ghost { background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .35); color: #fff; padding: 13px 28px; font-weight: 700; }
+.jv-btn.ghost:hover { background: rgba(255, 255, 255, .16); }
 .jv-actions { display: flex; gap: 12px; margin-top: 26px; }
+.jv-menu footer { display: flex; align-items: center; gap: 14px; padding: 0 36px; border-top: 1px solid rgba(255, 255, 255, .12); background: rgba(4, 9, 18, .6); }
+.jv-menu footer .hint { font-size: 12px; letter-spacing: .12em; color: rgba(255, 255, 255, .6); text-transform: uppercase; }
+.jv-menu footer .grow { flex: 1; }
 table.jv-keys { border-collapse: collapse; font-size: 13px; }
-table.jv-keys td { padding: 5px 14px 5px 0; border-bottom: 1px solid var(--line); }
-table.jv-keys td:first-child { color: var(--dim); }
-kbd { background: var(--graphite-2); border: 1px solid var(--line); padding: 1px 6px; font: 12px ui-monospace, monospace; margin-right: 4px; cursor: pointer; }
-kbd.listen { border-color: var(--blue); color: var(--blue); }
+table.jv-keys td { padding: 6px 16px 6px 0; border-bottom: 1px solid rgba(255, 255, 255, .12); }
+table.jv-keys td:first-child { color: rgba(255, 255, 255, .6); }
+kbd { background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .28); padding: 1px 7px; font: 12px ui-monospace, monospace; margin-right: 4px; cursor: pointer; border-radius: 3px; }
+@media (max-width: 820px) { .jv-menu nav { padding: 0 12px; gap: 10px; } .jv-menu nav .jv-brand span:last-child { display: none; } .jv-menu section { padding: 22px 16px; } .jv-menu h2 { font-size: 26px; } .jv-form { grid-template-columns: 1fr; } .jv-menu footer { padding: 0 12px; } .jv-btn { padding: 12px 24px; } }
 
 .jv-panel { position: fixed; z-index: 20; background: rgba(11, 20, 38, .94); border: 1px solid var(--line); padding: 14px; font-size: 12px; }
 .jv-debug { top: 60px; right: 12px; width: 420px; max-height: 70vh; display: flex; flex-direction: column; }
