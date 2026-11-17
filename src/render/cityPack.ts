@@ -55,7 +55,7 @@ export async function loadCityPack(world: World, base = './models/citypack/'): P
         p.set(t.e, h - 2, -t.n); q.setFromAxisAngle(up, -t.yaw); s.setScalar(t.scale);
         im.setMatrixAt(k, m4.compose(p, q, s));
       });
-      im.instanceMatrix.needsUpdate = true; im.frustumCulled = false; im.castShadow = false; im.receiveShadow = true;
+      im.instanceMatrix.needsUpdate = true; im.frustumCulled = false; im.castShadow = true; im.receiveShadow = true;
       group.add(im);
     }
   });

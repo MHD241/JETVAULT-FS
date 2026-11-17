@@ -85,6 +85,9 @@ export class EnvironmentRenderer {
   /** Lighting calibration (exposed for tuning). */
   /** Visible sun: a hot core and a wide glow, billboarded far away; clouds (drawn later) cover it. */
   private sunCore!: THREE.Sprite; get sunCoreSprite() { return this.sunCore; }
+  /** Far shadows: the sun's shadow map widens with height above the ground (about 11 km wide on a final approach, centred ahead of the view) so far buildings cast shadows; off = the tight 520 m window. */
+  farShadows = true;
+  private shadowHalf = 260;
   private twiU = { value: 0 }; private sunDU = { value: new THREE.Vector3(0, 1, 0) };
   /** The sun as a real 3D sphere ("The Sun" by tamminen, CC BY 4.0), drawn at the sun's true position; the soft sprites are its halo. */
   sunBody: THREE.Group | null = null;
@@ -260,7 +263,30 @@ export class EnvironmentRenderer {
     return t * t * (3 - 2 * t);
   }
 
-  update(w: WeatherSettings, simTime: number, cam: THREE.Vector3, focus: THREE.Vector3, where: { lat: number; lon: number } = { lat: EGPH_ORIGIN.lat, lon: EGPH_ORIGIN.lon }) {
+  /** Places and sizes the sun's shadow map (see farShadows). Near the ground: the tight, crisp 520 m window around the aircraft. Higher up it grows
+   *  (smoothly) to about 11 km and is moved ahead along the view direction, snapped to the texel grid so the shadows do not crawl. */
+  private placeShadow(focus: THREE.Vector3, look: THREE.Vector3 | undefined, agl: number) {
+    const sc = this.sun.shadow.camera, size = this.sun.shadow.mapSize.x;
+    const t = this.farShadows ? THREE.MathUtils.smoothstep(agl, 30, 250) : 0;
+    const target = 260 * Math.pow(5500 / 260, t);
+    this.shadowHalf += (target - this.shadowHalf) * 0.04;
+    const half = this.shadowHalf, ahead = THREE.MathUtils.clamp((half - 260) / 5240, 0, 1);
+    const c = focus.clone();
+    if (look && ahead > 0) { const hx = look.x, hz = look.z, hl = Math.hypot(hx, hz); if (hl > 0.2) { c.x += (hx / hl) * half * 0.6 * ahead; c.z += (hz / hl) * half * 0.6 * ahead; } }
+    // snap the centre to the shadow texel grid in light space (steady shadow edges while moving)
+    const L = this.sunDir, r = new THREE.Vector3(0, 1, 0).cross(L).normalize(), u = new THREE.Vector3().crossVectors(L, r);
+    const texel = (2 * half) / size, cr = Math.round(c.dot(r) / texel) * texel, cu = Math.round(c.dot(u) / texel) * texel;
+    c.copy(r).multiplyScalar(cr).addScaledVector(u, cu).addScaledVector(L, c.dot(L));
+    const D = 1200 + half * 1.6;
+    this.sun.position.copy(c).addScaledVector(L, D);
+    this.sun.target.position.copy(c);
+    sc.left = -half; sc.right = half; sc.top = half; sc.bottom = -half; sc.near = 1; sc.far = D + 2 * half + 1500;
+    sc.updateProjectionMatrix();
+    this.sun.shadow.bias = -(0.2 + 0.0003 * half) / sc.far;
+    this.sun.shadow.normalBias = Math.max(0.35, texel * 1.5);
+  }
+
+  update(w: WeatherSettings, simTime: number, cam: THREE.Vector3, focus: THREE.Vector3, where: { lat: number; lon: number } = { lat: EGPH_ORIGIN.lat, lon: EGPH_ORIGIN.lon }, look?: THREE.Vector3, agl = 0) {
     const clk = clockNow(w, simTime);
     const sp = sunPosition(where.lat, where.lon, clk.day, clk.utc);       // the sun at the place the aircraft actually is
     const mp = moonPosition(where.lat, where.lon, clk.ms);
@@ -334,8 +360,7 @@ export class EnvironmentRenderer {
     this.twiU.value = twi; this.sunDU.value.copy(this.sunDir);
     this.sun.color.setRGB(1, 0.50 + 0.50 * warm, 0.22 + 0.78 * warm);   // deep orange at the horizon, white at noon
     this.sun.intensity = this.tune.sun * sunVis;
-    this.sun.position.copy(focus).addScaledVector(this.sunDir, 1200);
-    this.sun.target.position.copy(focus);
+    this.placeShadow(focus, look, agl);
     const moonGlow = Math.max(0, Math.sin((mp.elevation * Math.PI) / 180)) * mp.illum * (1 - dayLight);   // a bright moon lifts the night a little
     this.hemi.intensity = (0.4 + 0.6 * dayLight + 0.9 * moonGlow + 1.2 * twi) * this.tune.hemi;
     this.hemi.color.setRGB(0.75, 0.84, 1.0).lerp(new THREE.Color(1.0, 0.62, 0.42), Math.min(1, twi * 1.1));   // warm sky light on the ground at golden hour // moonlit / skyglow floor so the ground is not pitch black

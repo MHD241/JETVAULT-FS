@@ -18,6 +18,8 @@ export interface GraphicsSettings {
   /** Sun shadow map size (px) and whether shadow edges are softened (PCF soft). */
   shadowSize: number;
   softShadows: boolean;
+  /** Shadows reach far: the shadow map widens with height (buildings in the city cast shadows on a final approach). Absent = on. */
+  farShadows?: boolean;
   /** Post-processing budget (min: grading only, mid: + bloom, full: + ambient occlusion). Derived from the preset when absent. */
   fx?: 'min' | 'mid' | 'full';
 }
@@ -389,6 +391,7 @@ export class Menu {
       <label>Render scale</label><input type="range" min="0.4" max="1" step="0.05" value="${g.renderScale}" data-g="renderScale"><span class="val">${g.renderScale}</span>
       <label>Shadows</label><input type="checkbox" data-g="shadows" ${g.shadows ? 'checked' : ''}><span></span>
       <label>Soft shadow edges</label><input type="checkbox" data-g="softShadows" ${g.softShadows ? 'checked' : ''}><span></span>
+      <label>Far shadows (city from the approach)</label><input type="checkbox" data-g="farShadows" ${g.farShadows !== false ? 'checked' : ''}><span></span>
       <label>Shadow map size</label><input type="range" min="1024" max="4096" step="1024" value="${g.shadowSize}" data-g="shadowSize"><span class="val">${g.shadowSize}</span>
       <label>Clouds</label><input type="checkbox" data-g="clouds" ${g.clouds ? 'checked' : ''}><span></span>
       <label>Terrain detail</label><input type="range" min="0.5" max="2" step="0.1" value="${g.terrainDetail}" data-g="terrainDetail"><span class="val">${g.terrainDetail}</span>

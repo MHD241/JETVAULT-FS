@@ -953,3 +953,7 @@ The jets felt hard to control because the mouse stick needed the whole screen. N
 
 ## Update 173 – mouse sensitivity, a bit lower
 2.2x was a bit too sensitive: now 1.7x in the air (full stick at about 60 % of the way to the screen edge), 1.2x on the ground, expo 0.38 linear + 0.62 cubic. One number to change: `sens` in `SimpleControls.update`.
+
+## Update 174 – far shadows
+The sun's shadow map used to be a fixed 520 m window around the aircraft. Now (`Environment.placeShadow`) it widens smoothly with height above the ground: 30 m AGL and below = the tight 520 m window; by 250 m AGL = about 11 km wide (half-size 5500 m), centred up to 0.6 half-size ahead along the camera's horizontal view direction, snapped to the texel grid in light space (no crawling), bias and normal bias scaled with the texel size. New graphics switch "Far shadows (city from the approach)" (`farShadows`, absent = on). Instanced city models (`cityPack`) now cast shadows. Compared in a render at 1,300 ft looking at Edinburgh: distant buildings are shaded with far shadows on, evenly lit with them off.
+- Limits / unverified: frame rate on a real GPU (the shadow pass now draws all buildings in an 11 km window), shadow resolution is coarse far out (HIGH preset 2048 px = about 5 m per texel at 11 km; ULTRA 4096 is better) and at a low sun the shadows stretch and get blocky along the sun direction (the usual orthographic shadow-map limit); buildings beyond the "Building draw distance" (HIGH 12 km, ULTRA 20 km) do not exist, so do not cast; not checked on an actual 3-degree final.

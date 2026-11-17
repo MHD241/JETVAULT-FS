@@ -165,6 +165,7 @@ class App implements MenuHost {
   weather: WeatherSettings = { ...DEFAULT_WEATHER };
   payload: number[] = [];
   fuelFraction: [number, number] = [1, 1];
+  private lookTmp = new THREE.Vector3();
   attribution: string[] = [];
   private started = false;
   private lastT = 0;
@@ -563,6 +564,7 @@ class App implements MenuHost {
     if (this.grade) { this.grade.setSize(window.innerWidth, window.innerHeight); this.grade.setQuality(g.fx ?? (g.terrainDetail > 1.2 ? 'full' : g.renderScale < 0.8 ? 'min' : 'mid')); }
     this.renderer.shadowMap.enabled = g.shadows;
     this.env.sun.castShadow = g.shadows;
+    this.env.farShadows = g.farShadows !== false;
     const type = g.softShadows ? THREE.PCFSoftShadowMap : THREE.PCFShadowMap;
     if (this.renderer.shadowMap.type !== type || this.env.sun.shadow.mapSize.x !== g.shadowSize) {
       this.renderer.shadowMap.type = type;
@@ -999,7 +1001,7 @@ class App implements MenuHost {
     this.cockpit.root.visible = inCockpit;
     const focus = nedToThree(ac.pos);
     if (!sim.paused) advanceClock(sim.weather, dt);
-    this.env.update(sim.weather, sim.simTime, cam.position, focus, this.whereAmI(focus));
+    this.env.update(sim.weather, sim.simTime, cam.position, focus, this.whereAmI(focus), cam.getWorldDirection(this.lookTmp), ac.agl);
     if (PRO) {
       // under the sea surface: blue-green murk, short visibility
       const under = this.world.landAt(cam.position.x, -cam.position.z) === LC.WATER && this.world.terrain.heightAt(cam.position.x, -cam.position.z) < 3 && cam.position.y < seaHeight(cam.position.x, -cam.position.z);
