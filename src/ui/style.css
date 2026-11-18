@@ -179,3 +179,40 @@ body.touch .jv-minimap { width: 150px; height: 150px; }
 .jv-pill.gear { cursor: pointer; font-size: 17px; padding: 3px 10px; } .jv-pill.gear:hover { background: rgba(255, 255, 255, .16); }
 .jv-menu nav .jv-brand { cursor: pointer; }
 @media (max-width: 820px) { .jv-mosaic { left: 12px; right: 12px; width: auto; top: 58px; bottom: 80px; } .jv-globe-wrap { opacity: .35; right: -30%; } .jv-hints { left: 14px; gap: 16px; flex-wrap: wrap; } .jv-hometop .ap { display: none; } }
+
+/* ---- pages, rebuilt: header with back button and page title, centred option rows (label left, control right), toggle switches, thin sliders ---- */
+.jv-page { background: rgba(5, 9, 17, .8); backdrop-filter: blur(16px) saturate(1.1); }
+.jv-menu nav { gap: 18px; padding: 0 30px; background: transparent; border-bottom: 1px solid rgba(255, 255, 255, .1); }
+.jv-menu .jv-tabs { display: none; }
+.jv-menu nav .jv-back { all: unset; cursor: pointer; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .35); text-align: center; font-size: 30px; line-height: 36px; color: #fff; flex: none; }
+.jv-menu nav .jv-back:hover { background: #fff; color: #0a1220; }
+.jv-menu .jv-ptitle { flex: 1; font-size: 22px; font-weight: 300; letter-spacing: .16em; text-transform: uppercase; }
+.jv-menu nav .jv-brand { order: 3; opacity: .85; }
+.jv-menu section h2 { display: none; }
+.jv-menu section { max-width: 1060px; padding: 30px 40px 28px; }
+.jv-menu section > p:first-of-type { margin-top: 0; }
+.jv-menu h3 { color: #fff; font-size: 13px; letter-spacing: .24em; border-bottom: 0; margin: 30px 0 12px; padding: 0 0 0 12px; border-left: 3px solid var(--accent); line-height: 1; }
+.jv-form { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(220px, 340px) 140px; grid-auto-rows: 52px; row-gap: 2px; column-gap: 0; max-width: none; align-items: stretch; font-size: 14px;
+  background: repeating-linear-gradient(to bottom, rgba(20, 28, 44, .78) 0, rgba(20, 28, 44, .78) 52px, transparent 52px, transparent 54px); }
+.jv-form > label { display: flex; align-items: center; padding: 0 18px; color: #f2f6fa; font-size: 14px; letter-spacing: .01em; line-height: 1.25; }
+.jv-form > input, .jv-form > select { align-self: center; justify-self: stretch; margin: 0 18px; }
+.jv-form > input[type=checkbox] { justify-self: start; }
+.jv-form > .val, .jv-form > span { white-space: nowrap; display: flex; align-items: center; justify-content: flex-end; padding: 0 18px; color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.jv-form input[type=range] { -webkit-appearance: none; appearance: none; height: 22px; background: transparent; cursor: pointer; }
+.jv-form input[type=range]::-webkit-slider-runnable-track { height: 4px; background: rgba(255, 255, 255, .3); border-radius: 2px; }
+.jv-form input[type=range]::-moz-range-track { height: 4px; background: rgba(255, 255, 255, .3); border-radius: 2px; }
+.jv-form input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #fff; margin-top: -6px; box-shadow: 0 0 0 0 rgba(60, 200, 255, .4); transition: box-shadow .12s; }
+.jv-form input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: #fff; }
+.jv-form input[type=range]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 6px rgba(60, 200, 255, .4); }
+.jv-form input[type=checkbox] { -webkit-appearance: none; appearance: none; width: 46px; height: 24px; padding: 0; border: 0; border-radius: 12px; background: rgba(255, 255, 255, .28); position: relative; cursor: pointer; transition: background .15s; }
+.jv-form input[type=checkbox]::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.jv-form input[type=checkbox]:checked { background: var(--accent); }
+.jv-form input[type=checkbox]:checked::after { transform: translateX(22px); }
+.jv-form select { background: rgba(255, 255, 255, .1); border: 0; border-bottom: 2px solid rgba(255, 255, 255, .35); padding: 8px 10px; }
+.jv-menu .jv-actions button:not(.jv-btn) { all: unset; cursor: pointer; padding: 9px 26px; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .25); font-size: 12px; font-weight: 700; letter-spacing: .16em; color: #fff; }
+.jv-menu .jv-actions button:not(.jv-btn):hover { background: #fff; color: #0a1220; }
+.jv-menu .jv-actions { margin: 4px 0 16px; }
+.jv-menu footer { padding: 0 30px; background: transparent; }
+.jv-menu footer .hint { margin-left: 8px; }
+.jv-menu footer .jv-btn { padding: 13px 34px; }
+@media (max-width: 820px) { .jv-form { grid-template-columns: 1fr 1fr 64px; } .jv-menu section { padding: 20px 12px; } .jv-menu .jv-ptitle { font-size: 16px; } .jv-menu nav .jv-brand span:last-child { display: none; } }

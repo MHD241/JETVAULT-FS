@@ -89,7 +89,8 @@ export class Menu {
     this.el = document.createElement('div');
     this.el.className = 'jv-menu home';
     const nav = document.createElement('nav');
-    nav.innerHTML = `<div class="jv-brand"><span class="jv-logo"></span><span>JETVAULT<small>FLIGHT SIMULATOR</small></span></div><div class="jv-tabs"></div>`;
+    nav.innerHTML = `<button class="jv-back" aria-label="Back to the home screen">\u2039</button><div class="jv-ptitle"></div><div class="jv-brand"><span class="jv-logo"></span><span>JETVAULT<small>FLIGHT SIMULATOR</small></span></div><div class="jv-tabs"></div>`;
+    (nav.querySelector('.jv-back') as HTMLElement).onclick = () => this.setHome(true);
     const tabs = nav.querySelector('.jv-tabs') as HTMLElement;
     const items: [Tab, string, boolean, string?][] = [
       ['home', 'Home', true], ['fly', 'Fly Now', true], ['map', 'World Map', true], ['aircraft', 'Aircraft Selection', true],
@@ -107,7 +108,8 @@ export class Menu {
     }
     this.section = document.createElement('section');
     const footer = document.createElement('footer');
-    footer.innerHTML = `<div class="hint"><kbd>ESC</kbd> Close the menu</div><div class="grow"></div><button class="jv-btn ghost" data-f="resume">RESUME FLIGHT</button><button class="jv-btn" data-f="fly">FLY</button>`;
+    footer.innerHTML = `<button class="jv-btn ghost" data-f="back">\u2039 BACK</button><div class="hint"><kbd>ESC</kbd> Close the menu</div><div class="grow"></div><button class="jv-btn ghost" data-f="resume">RESUME FLIGHT</button><button class="jv-btn" data-f="fly">FLY</button>`;
+    (footer.querySelector('[data-f=back]') as HTMLElement).onclick = () => this.setHome(true);
     (footer.querySelector('[data-f=fly]') as HTMLElement).onclick = () => this.host.fly(this.spawn);
     (footer.querySelector('[data-f=resume]') as HTMLElement).onclick = () => this.host.resume();
     this.footer = footer;
@@ -168,6 +170,9 @@ export class Menu {
     const h = this.host;
     s.innerHTML = '';
     (this.footer.querySelector('[data-f=resume]') as HTMLElement).style.display = this.host.canResume() ? '' : 'none';
+    const titles: Record<Tab, string> = { home: 'Home', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', controls: 'Controls', training: 'Training', about: 'About JetVault' };
+    const pt = this.el.querySelector('.jv-ptitle'); if (pt) pt.textContent = titles[this.tab];
+    (this.footer.querySelector('[data-f=fly]') as HTMLElement).style.display = ['fly', 'aircraft', 'airports', 'map'].includes(this.tab) ? '' : 'none';
     if (this.tab === 'fly') this.renderFly(s);
     else if (this.tab === 'map') this.renderMap(s);
     else if (this.tab === 'aircraft') this.renderAircraft(s);
@@ -435,7 +440,7 @@ export class Menu {
       <label>Render scale</label><input type="range" min="0.4" max="1" step="0.05" value="${g.renderScale}" data-g="renderScale"><span class="val">${g.renderScale}</span>
       <label>Shadows</label><input type="checkbox" data-g="shadows" ${g.shadows ? 'checked' : ''}><span></span>
       <label>Soft shadow edges</label><input type="checkbox" data-g="softShadows" ${g.softShadows ? 'checked' : ''}><span></span>
-      <label>Far shadows (city from the approach)</label><input type="checkbox" data-g="farShadows" ${g.farShadows !== false ? 'checked' : ''}><span></span>
+      <label>Far shadows</label><input type="checkbox" data-g="farShadows" ${g.farShadows !== false ? 'checked' : ''}><span></span>
       <label>Shadow map size</label><input type="range" min="1024" max="4096" step="1024" value="${g.shadowSize}" data-g="shadowSize"><span class="val">${g.shadowSize}</span>
       <label>Clouds</label><input type="checkbox" data-g="clouds" ${g.clouds ? 'checked' : ''}><span></span>
       <label>Terrain detail</label><input type="range" min="0.5" max="2" step="0.1" value="${g.terrainDetail}" data-g="terrainDetail"><span class="val">${g.terrainDetail}</span>
