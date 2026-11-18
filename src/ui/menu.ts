@@ -7,6 +7,7 @@ import { WeatherSettings, CloudCover } from '../sim/weather';
 import { InputSettings, saveInputSettings } from '../input/input';
 import { airportCentre } from '../world/airport';
 import { World } from '../world/world';
+import { HomeGlobe } from './homeGlobe';
 import { Aircraft, AircraftDef } from '../sim/fdm/aircraft';
 
 export interface GraphicsSettings {
@@ -68,13 +69,16 @@ export interface MenuHost {
   attribution: string[];
 }
 
-type Tab = 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'controls' | 'training' | 'about';
+type Tab = 'home' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'controls' | 'training' | 'about';
 
 
 export class Menu {
   readonly el: HTMLDivElement;
   private section: HTMLElement;
   private footer!: HTMLElement;
+  private globe = new HomeGlobe();
+  private homeEl!: HTMLElement;
+  home = true;
   private tab: Tab = 'fly';
   private spawn: AnySpawn = { kind: 'stand', index: 0, coldAndDark: false };
   open = true;
@@ -83,12 +87,12 @@ export class Menu {
 
   constructor(private host: MenuHost) {
     this.el = document.createElement('div');
-    this.el.className = 'jv-menu';
+    this.el.className = 'jv-menu home';
     const nav = document.createElement('nav');
     nav.innerHTML = `<div class="jv-brand"><span class="jv-logo"></span><span>JETVAULT<small>FLIGHT SIMULATOR</small></span></div><div class="jv-tabs"></div>`;
     const tabs = nav.querySelector('.jv-tabs') as HTMLElement;
     const items: [Tab, string, boolean, string?][] = [
-      ['fly', 'Fly Now', true], ['map', 'World Map', true], ['aircraft', 'Aircraft Selection', true],
+      ['home', 'Home', true], ['fly', 'Fly Now', true], ['map', 'World Map', true], ['aircraft', 'Aircraft Selection', true],
       ['airports', 'Airport Selection', true], ['planner', 'Flight Planner', false, 'Not yet available'],
       ['weather', 'Weather', true], ['settings', 'Settings', true], ['controls', 'Controls', true],
       ['training', 'Training', false, 'Not yet available'], ['about', 'About JetVault', true],
@@ -98,7 +102,7 @@ export class Menu {
       b.innerHTML = `${name}${note ? `<small>${note}</small>` : ''}`;
       b.disabled = !enabled;
       b.dataset.tab = t;
-      b.onclick = () => { this.tab = t; this.render(); };
+      b.onclick = () => { if (t === 'home') { this.setHome(true); return; } this.tab = t; this.render(); };
       tabs.appendChild(b);
     }
     this.section = document.createElement('section');
@@ -107,13 +111,56 @@ export class Menu {
     (footer.querySelector('[data-f=fly]') as HTMLElement).onclick = () => this.host.fly(this.spawn);
     (footer.querySelector('[data-f=resume]') as HTMLElement).onclick = () => this.host.resume();
     this.footer = footer;
-    this.el.append(nav, this.section, footer);
+    const page = document.createElement('div'); page.className = 'jv-page'; page.append(nav, this.section, footer);
+    (nav.querySelector('.jv-brand') as HTMLElement).onclick = () => this.setHome(true);
+    this.homeEl = this.buildHome();
+    this.el.append(this.homeEl, page);
     document.body.appendChild(this.el);
     this.render();
+    this.setHome(true);
   }
 
-  show() { this.open = true; this.el.style.display = ''; this.render(); }
-  hide() { this.open = false; this.el.style.display = 'none'; }
+  show() { this.open = true; this.el.style.display = ''; this.setHome(true); }
+  hide() { this.open = false; this.el.style.display = 'none'; this.globe.stop(); }
+
+  /** Home screen (picture tiles + globe) or one of the pages. */
+  setHome(on: boolean) {
+    this.home = on;
+    this.el.classList.toggle('home', on);
+    if (on) { this.refreshHome(); this.globe.start(); } else { this.globe.stop(); this.render(); }
+  }
+  private go(tab: Tab) { this.tab = tab; this.setHome(false); }
+  private refreshHome() {
+    const r = this.homeEl.querySelector('[data-h=resume]') as HTMLElement | null; if (r) r.style.display = this.host.canResume() ? '' : 'none';
+    const a = this.homeEl.querySelector('[data-h=airport]'); if (a) a.textContent = `${this.host.world.airport.icao} \u00b7 ${this.host.world.airport.name}`;
+  }
+  private buildHome(): HTMLElement {
+    const h = document.createElement('div'); h.className = 'jv-home';
+    // stars
+    const stars = document.createElement('div'); stars.className = 'jv-stars';
+    let sd = 99; const rnd = () => ((sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0) / 4294967296);
+    stars.style.boxShadow = Array.from({ length: 140 }, () => `${Math.round(rnd() * 1900)}px ${Math.round(rnd() * 1100)}px 0 ${rnd() < 0.2 ? 1 : 0}px rgba(255,255,255,${(0.25 + rnd() * 0.6).toFixed(2)})`).join(',');
+    const wrap = document.createElement('div'); wrap.className = 'jv-globe-wrap'; wrap.appendChild(this.globe.canvas);
+    const tiles: [string, string, string, Tab][] = [
+      ['t', 'World Map', 'map', 'map'], ['b', 'Airports', 'airports', 'airports'], ['c', 'Fly Now', 'free', 'fly'],
+      ['d', 'Weather', 'weather', 'weather'], ['e', 'Aircraft', 'aircraft', 'aircraft'], ['w', 'Settings', 'settings', 'settings'],
+    ];
+    const mosaic = document.createElement('div'); mosaic.className = 'jv-mosaic';
+    for (const [area, title, img, tab] of tiles) {
+      const t = document.createElement('button'); t.className = `jv-tile t-${area}`; t.style.backgroundImage = `url(./menu/${img}.jpg)`;
+      t.innerHTML = `<span>${title}</span>`; t.onclick = () => this.go(tab); mosaic.appendChild(t);
+    }
+    const hints = document.createElement('div'); hints.className = 'jv-hints';
+    hints.innerHTML = `<button data-h="resume"><kbd>Esc</kbd> Resume flight</button><button data-h="controls"><kbd>?</kbd> Controls</button><button data-h="about"><kbd>i</kbd> About JetVault</button>`;
+    (hints.querySelector('[data-h=resume]') as HTMLElement).onclick = () => this.host.resume();
+    (hints.querySelector('[data-h=controls]') as HTMLElement).onclick = () => this.go('controls');
+    (hints.querySelector('[data-h=about]') as HTMLElement).onclick = () => this.go('about');
+    const top = document.createElement('div'); top.className = 'jv-hometop';
+    top.innerHTML = `<div class="jv-pill"><span class="jv-logo"></span><b>JETVAULT</b></div><div class="jv-pill ap" data-h="airport"></div><button class="jv-pill gear" title="Settings" aria-label="Settings">\u2699</button>`;
+    (top.querySelector('.gear') as HTMLElement).onclick = () => this.go('settings');
+    h.append(stars, wrap, mosaic, hints, top);
+    return h;
+  }
 
   private render() {
     this.el.querySelectorAll('nav button').forEach((b) => b.classList.toggle('active', (b as HTMLElement).dataset.tab === this.tab));
