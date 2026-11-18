@@ -488,9 +488,9 @@ export class AirportRenderer {
         const nx = -(y1 - y0) / L, ny = (x1 - x0) / L;
         for (let m = 0; m < L; m += 45) {
           const x = x0 + ((x1 - x0) * m) / L, y = y0 + ((y1 - y0) * m) / L;
-          for (const s of [-1, 1]) add(x + nx * (TAXIWAY_HALF_WIDTH + 1) * s, y + ny * (TAXIWAY_HALF_WIDTH + 1) * s, [0.2, 0.35, 1], 0.7);
+          for (const s of [-1, 1]) add(x + nx * (TAXIWAY_HALF_WIDTH + 1) * s, y + ny * (TAXIWAY_HALF_WIDTH + 1) * s, [0.2, 0.35, 1], PRO ? 1.5 : 0.7);
         }
-        if (PRO) for (let m = 0; m < L; m += 30) add(x0 + ((x1 - x0) * m) / L, y0 + ((y1 - y0) * m) / L, [0.2, 1, 0.35], 0.8, 0, 0.3);
+        if (PRO) for (let m = 0; m < L; m += 30) add(x0 + ((x1 - x0) * m) / L, y0 + ((y1 - y0) * m) / L, [0.2, 1, 0.35], 1.5, 0, 0.3);
       }
     }
     const g = new THREE.BufferGeometry();

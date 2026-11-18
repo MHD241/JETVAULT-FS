@@ -79,6 +79,7 @@ export class Menu {
   private globe = new HomeGlobe();
   private homeEl!: HTMLElement;
   home = true;
+  private step = 1;
   private tab: Tab = 'fly';
   private spawn: AnySpawn = { kind: 'stand', index: 0, coldAndDark: false };
   open = true;
@@ -90,7 +91,7 @@ export class Menu {
     this.el.className = 'jv-menu home';
     const nav = document.createElement('nav');
     nav.innerHTML = `<button class="jv-back" aria-label="Back to the home screen">\u2039</button><div class="jv-ptitle"></div><div class="jv-brand"><span class="jv-logo"></span><span>JETVAULT<small>FLIGHT SIMULATOR</small></span></div><div class="jv-tabs"></div>`;
-    (nav.querySelector('.jv-back') as HTMLElement).onclick = () => this.setHome(true);
+    (nav.querySelector('.jv-back') as HTMLElement).onclick = () => this.goBack();
     const tabs = nav.querySelector('.jv-tabs') as HTMLElement;
     const items: [Tab, string, boolean, string?][] = [
       ['home', 'Home', true], ['fly', 'Fly Now', true], ['map', 'World Map', true], ['aircraft', 'Aircraft Selection', true],
@@ -109,8 +110,8 @@ export class Menu {
     this.section = document.createElement('section');
     const footer = document.createElement('footer');
     footer.innerHTML = `<button class="jv-btn ghost" data-f="back">\u2039 BACK</button><div class="hint"><kbd>ESC</kbd> Close the menu</div><div class="grow"></div><button class="jv-btn ghost" data-f="resume">RESUME FLIGHT</button><button class="jv-btn" data-f="fly">FLY</button>`;
-    (footer.querySelector('[data-f=back]') as HTMLElement).onclick = () => this.setHome(true);
-    (footer.querySelector('[data-f=fly]') as HTMLElement).onclick = () => this.host.fly(this.spawn);
+    (footer.querySelector('[data-f=back]') as HTMLElement).onclick = () => this.goBack();
+    (footer.querySelector('[data-f=fly]') as HTMLElement).onclick = () => this.primary();
     (footer.querySelector('[data-f=resume]') as HTMLElement).onclick = () => this.host.resume();
     this.footer = footer;
     const page = document.createElement('div'); page.className = 'jv-page'; page.append(nav, this.section, footer);
@@ -131,7 +132,11 @@ export class Menu {
     this.el.classList.toggle('home', on);
     if (on) { this.refreshHome(); this.globe.start(); } else { this.globe.stop(); this.render(); }
   }
-  private go(tab: Tab) { this.tab = tab; this.setHome(false); }
+  private go(tab: Tab) { this.tab = tab; if (tab === 'fly') this.step = 1; this.setHome(false); }
+  /** Back: one step back inside Fly Now, otherwise to the home screen. */
+  private goBack() { if (!this.home && this.tab === 'fly' && this.step > 1) { this.step--; this.render(); } else this.setHome(true); }
+  /** The big button on the right: NEXT through the Fly Now steps, then FLY. */
+  private primary() { if (this.tab === 'fly' && this.step < 4) { this.step++; this.render(); } else this.host.fly(this.spawn); }
   private refreshHome() {
     const r = this.homeEl.querySelector('[data-h=resume]') as HTMLElement | null; if (r) r.style.display = this.host.canResume() ? '' : 'none';
     const a = this.homeEl.querySelector('[data-h=airport]'); if (a) a.textContent = `${this.host.world.airport.icao} \u00b7 ${this.host.world.airport.name}`;
@@ -172,7 +177,9 @@ export class Menu {
     (this.footer.querySelector('[data-f=resume]') as HTMLElement).style.display = this.host.canResume() ? '' : 'none';
     const titles: Record<Tab, string> = { home: 'Home', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', controls: 'Controls', training: 'Training', about: 'About JetVault' };
     const pt = this.el.querySelector('.jv-ptitle'); if (pt) pt.textContent = titles[this.tab];
-    (this.footer.querySelector('[data-f=fly]') as HTMLElement).style.display = ['fly', 'aircraft', 'airports', 'map'].includes(this.tab) ? '' : 'none';
+    const fb = this.footer.querySelector('[data-f=fly]') as HTMLElement;
+    fb.style.display = ['fly', 'aircraft', 'airports', 'map'].includes(this.tab) ? '' : 'none';
+    fb.textContent = this.tab === 'fly' && this.step < 4 ? 'NEXT \u203a' : 'FLY';
     if (this.tab === 'fly') this.renderFly(s);
     else if (this.tab === 'map') this.renderMap(s);
     else if (this.tab === 'aircraft') this.renderAircraft(s);
@@ -209,14 +216,31 @@ export class Menu {
     }
   }
 
+  /** Fly Now as four steps: 1 aircraft, 2 location, 3 weather, 4 ready (summary, then the FLY button loads the game). */
   private renderFly(s: HTMLElement) {
+    s.innerHTML = '';
+    const names = ['Aircraft', 'Location', 'Weather', 'Ready'];
+    const bar = document.createElement('div'); bar.className = 'jv-steps';
+    names.forEach((n, i) => {
+      const st = document.createElement('button'); st.className = 'st' + (i + 1 === this.step ? ' on' : '') + (i + 1 < this.step ? ' done' : '');
+      st.innerHTML = `<b>${i + 1 < this.step ? '\u2713' : i + 1}</b><span>${n}</span>`;
+      st.onclick = () => { if (i + 1 <= this.step) { this.step = i + 1; this.render(); } };
+      bar.appendChild(st);
+    });
+    const body = document.createElement('div'); body.className = 'jv-stepbody';
+    s.append(bar, body);
+    if (this.step === 1) { body.insertAdjacentHTML('beforeend', '<h3>Choose your aircraft</h3>'); this.aircraftPicker(body); }
+    else if (this.step === 2) this.renderLocation(body);
+    else if (this.step === 3) this.renderWeather(body);
+    else this.renderReady(body);
+  }
+
+  private renderLocation(body: HTMLElement) {
     const ap = this.host.world.airport;
     const def = this.host.aircraft.def;
     const jet = def.id === 'b738';
     const glider = !!def.glider;
-    s.innerHTML = `<h2>Fly Now</h2><p>Choose the aircraft, airport, start position and view.</p><h3>Aircraft</h3>`;
-    this.aircraftPicker(s);
-    s.insertAdjacentHTML('beforeend', `<h3>Airport</h3><div class="jv-grid"><div class="jv-card sel"><b>${ap.icao} ${ap.name}</b><span>${ap.runways.map((r) => `Runway ${r.id}`).join(', ')}<br>Change it under Airport Selection.</span></div></div><h3>Start position</h3>`);
+    body.insertAdjacentHTML('beforeend', `<h3>Airport</h3><div class="jv-grid"><div class="jv-card sel"><b>${ap.icao} ${ap.name}</b><span>${ap.runways.map((r) => `Runway ${r.id}`).join(', ')}<br>Change it under Airport Selection (the Home screen).</span></div></div><h3>Where do you start?</h3>`);
     const idents = ap.runways.flatMap((r) => r.ends.map((e) => e.ident));
     const ctr = airportCentre(ap);
     const grid = document.createElement('div'); grid.className = 'jv-grid';
@@ -240,16 +264,28 @@ export class Menu {
       c.onclick = () => { const cd = this.spawn.kind === 'stand' && this.spawn.coldAndDark; this.spawn = k.kind === 'stand' ? { ...k, coldAndDark: cd } : k; this.render(); };
       grid.appendChild(c);
     }
-    s.appendChild(grid);
-    const form = document.createElement('div');
-    form.className = 'jv-form';
-    form.style.marginTop = '18px';
-    form.innerHTML = `<label>Start view</label><select id="sv"><option value="cockpit" ${this.host.startView === 'cockpit' ? 'selected' : ''}>Cockpit</option><option value="chase" ${this.host.startView === 'chase' ? 'selected' : ''}>External (chase)</option></select><span></span>`;
-    form.querySelector('#sv')!.addEventListener('change', (e) => { this.host.startView = (e.target as HTMLSelectElement).value as 'cockpit' | 'chase'; });
-    s.appendChild(form);
+    body.appendChild(grid);
+  }
+
+  private spawnLabel(): string {
+    const k = this.spawn;
+    return k.kind === 'stand' ? `Stand ${k.index + 1} (parked)` : k.kind === 'runway' ? `Runway ${k.ident}, lined up` : k.kind === 'approach' ? `Final approach to runway ${k.ident}, ${k.distanceNm} nm` : `Airborne at ${Math.round(k.altFt)} ft`;
+  }
+
+  private renderReady(body: HTMLElement) {
+    const h = this.host, w = h.weather, ap = h.world.airport;
+    const time = w.realTime ? 'real time' : `${String(Math.floor(w.timeOfDay)).padStart(2, '0')}:${String(Math.round((w.timeOfDay % 1) * 60)).padStart(2, '0')} UTC`;
+    body.insertAdjacentHTML('beforeend', `<h3>Ready to fly</h3><div class="jv-sum">
+      <div><span>Aircraft</span><b>${h.aircraft.def.name}</b></div>
+      <div><span>Location</span><b>${ap.icao} ${ap.name}</b><i>${this.spawnLabel()}</i></div>
+      <div><span>Weather</span><b>Wind ${Math.round(w.windDirection)}\u00b0 / ${Math.round(w.windSpeed)} kt</b><i>${w.cloudCover} \u00b7 visibility ${(w.visibility / 1000).toFixed(w.visibility < 10000 ? 1 : 0)} km \u00b7 ${time}</i></div></div>`);
+    const form = document.createElement('div'); form.className = 'jv-form'; form.style.marginTop = '20px';
+    form.innerHTML = `<label>Start view</label><select id="sv"><option value="cockpit" ${h.startView === 'cockpit' ? 'selected' : ''}>Cockpit</option><option value="chase" ${h.startView === 'chase' ? 'selected' : ''}>External (chase)</option></select><span></span>`;
+    form.querySelector('#sv')!.addEventListener('change', (e) => { h.startView = (e.target as HTMLSelectElement).value as 'cockpit' | 'chase'; });
+    body.appendChild(form);
     const help = document.createElement('p');
     help.innerHTML = 'Controls: mouse = fly, inverted (move from the centre of the screen; mouse up = nose down) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · U = pushback · gliders: L/R = winch launch / release cable, N = BUNGEE launch (Mach 1), V = vario sound · C = cockpit/outside view · mouse wheel / pinch = zoom · right-drag or two-finger scroll = look · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
-    s.appendChild(help);
+    body.appendChild(help);
   }
 
   private renderMap(s: HTMLElement) {

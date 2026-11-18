@@ -564,6 +564,8 @@ if (uNight > 0.01) {
   float lamp = smoothstep(1.4, 0.15, length(lp) * 9.0);
   float street = step(0.86, sp) * gBuilt * lamp;
   totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * street * uNight * 1.6;
+  // aprons and taxiways are lit at night (apron floodlights, spill light): a faint warm glow so the pavement reads against the dark grass
+  totalEmissiveRadiance += vec3(0.62, 0.55, 0.42) * gPaved * uNight * 0.12;
 }
 `);
   };
