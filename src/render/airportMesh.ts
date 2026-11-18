@@ -278,6 +278,9 @@ export class AirportRenderer {
         varying vec3 vColor; varying float vA;
         void main() {
           #include <logdepthbuf_fragment>
+          #ifdef USE_LOGDEPTHBUF
+          gl_FragDepth -= 6.0e-4;   // like the paint: pulled slightly towards the camera, so the coarse terrain mesh cannot hide the lights from a low eye (a cockpit on the runway)
+          #endif
           vec2 p = gl_PointCoord - 0.5;
           float r = length(p);
           float core = smoothstep(0.5, 0.0, r);

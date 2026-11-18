@@ -2,6 +2,8 @@
 // one mesh per material. Static (no moving surfaces or gear animation). Models: "A350 V5" by Newbie99999993, "Lufthansa Airbus A340-600" by Dave Love
 // SketchFab and "Airbus A320-200" by Dlourine, all CC BY 4.0.
 import * as THREE from 'three';
+import type { Aircraft } from '../sim/fdm/aircraft';
+import type { FlightControls } from '../sim/controls';
 
 interface MatMeta { name: string; map: string; color: number[]; opacity: number; metal: number; rough: number; n: number; ni: number; pos: number; nrm: number; uv: number; idx: number }
 
@@ -37,7 +39,17 @@ export class AirlinerModel {
 
   async load(base = './models/airliners/') { this.body.add(await buildPack(base, this.id)); }
 
-  update(_ac: unknown, _c: unknown, _dt: number, _night: number) { /* static model */ }
+  /** The nose landing light (same behaviour as the 737's): on while the landing-light switch and the battery are on, brighter at night. The model is otherwise static. */
+  private lightReady = false;
+  update(_ac: Aircraft, c: FlightControls, _dt: number, night: number) {
+    if (!this.lightReady) {
+      const nose = ({ a320: 18.8, a340: 37.7, a350: 36.9, c17: 26.5 } as Record<string, number>)[this.id] ?? 18;
+      const L = this.landingLight; L.position.set(nose - 6, 0, 1.4); L.target.position.set(nose + 90, 0, 4); L.angle = 0.2; L.penumbra = 0.4; L.distance = 1500; L.decay = 1.4; L.color.set(0xfff4e0);
+      this.lightReady = true;
+    }
+    this.landingLight.visible = true;
+    this.landingLight.intensity = c.landingLight && c.masterBattery ? 9000 * (0.3 + night) : 0;
+  }
   setCockpitView(inCockpit: boolean) { this.body.visible = !inCockpit; }
 }
 
