@@ -8,6 +8,8 @@ import { InputSettings, saveInputSettings } from '../input/input';
 import { airportCentre } from '../world/airport';
 import { World } from '../world/world';
 import { HomeGlobe } from './homeGlobe';
+import { PRO } from '../config';
+import { aircraftAvailable, wallet } from '../economy';
 import { Aircraft, AircraftDef } from '../sim/fdm/aircraft';
 
 export interface GraphicsSettings {
@@ -69,7 +71,7 @@ export interface MenuHost {
   attribution: string[];
 }
 
-type Tab = 'home' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'controls' | 'training' | 'about';
+type Tab = 'home' | 'credits' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'controls' | 'training' | 'about';
 
 
 export class Menu {
@@ -90,7 +92,7 @@ export class Menu {
     this.el = document.createElement('div');
     this.el.className = 'jv-menu home';
     const nav = document.createElement('nav');
-    nav.innerHTML = `<button class="jv-back" aria-label="Back to the home screen">\u2039</button><div class="jv-ptitle"></div><div class="jv-brand"><span class="jv-logo"></span><span>JETVAULT<small>FLIGHT SIMULATOR</small></span></div><div class="jv-tabs"></div>`;
+    nav.innerHTML = `<button class="jv-back" aria-label="Back to the home screen">\u2039</button><div class="jv-ptitle"></div><div class="jv-pill coins" data-c="coins"></div><div class="jv-brand"><span class="jv-logo"></span><span>JETVAULT<small>FLIGHT SIMULATOR</small></span></div><div class="jv-tabs"></div>`;
     (nav.querySelector('.jv-back') as HTMLElement).onclick = () => this.goBack();
     const tabs = nav.querySelector('.jv-tabs') as HTMLElement;
     const items: [Tab, string, boolean, string?][] = [
@@ -121,6 +123,7 @@ export class Menu {
     document.body.appendChild(this.el);
     this.render();
     this.setHome(true);
+    this.updateCoins(); wallet.onChange(() => this.updateCoins());
   }
 
   show() { this.open = true; this.el.style.display = ''; this.setHome(true); }
@@ -131,6 +134,13 @@ export class Menu {
     this.home = on;
     this.el.classList.toggle('home', on);
     if (on) { this.refreshHome(); this.globe.start(); } else { this.globe.stop(); this.render(); }
+  }
+  private updateCoins() { this.el.querySelectorAll('[data-c=coins]').forEach((e) => { e.innerHTML = `<span class="jc">\u25c8</span> ${wallet.coins.toLocaleString()} JetCoins`; }); }
+  /** A short message at the top of the menu. */
+  private notice(text: string) {
+    this.el.querySelector('.jv-notice')?.remove();
+    const n = document.createElement('div'); n.className = 'jv-notice'; n.textContent = text; this.el.appendChild(n);
+    setTimeout(() => n.remove(), 4500);
   }
   private go(tab: Tab) { this.tab = tab; if (tab === 'fly') this.step = 1; this.setHome(false); }
   /** Back: one step back inside Fly Now, otherwise to the home screen. */
@@ -158,12 +168,13 @@ export class Menu {
       t.innerHTML = `<span>${title}</span>`; t.onclick = () => this.go(tab); mosaic.appendChild(t);
     }
     const hints = document.createElement('div'); hints.className = 'jv-hints';
-    hints.innerHTML = `<button data-h="resume"><kbd>Esc</kbd> Resume flight</button><button data-h="controls"><kbd>?</kbd> Controls</button><button data-h="about"><kbd>i</kbd> About JetVault</button>`;
+    hints.innerHTML = `<button data-h="resume"><kbd>Esc</kbd> Resume flight</button><button data-h="controls"><kbd>?</kbd> Controls</button><button data-h="about"><kbd>i</kbd> About JetVault</button><button data-h="credits"><kbd>\u2605</kbd> Acknowledgements</button>`;
+    (hints.querySelector('[data-h=credits]') as HTMLElement).onclick = () => this.go('credits');
     (hints.querySelector('[data-h=resume]') as HTMLElement).onclick = () => this.host.resume();
     (hints.querySelector('[data-h=controls]') as HTMLElement).onclick = () => this.go('controls');
     (hints.querySelector('[data-h=about]') as HTMLElement).onclick = () => this.go('about');
     const top = document.createElement('div'); top.className = 'jv-hometop';
-    top.innerHTML = `<div class="jv-pill"><span class="jv-logo"></span><b>JETVAULT</b></div><div class="jv-pill ap" data-h="airport"></div><button class="jv-pill gear" title="Settings" aria-label="Settings">\u2699</button>`;
+    top.innerHTML = `<div class="jv-pill"><span class="jv-logo"></span><b>JETVAULT</b></div><div class="jv-pill ap" data-h="airport"></div><div class="jv-pill ed">${PRO ? 'PRO' : 'FREE'}</div><div class="jv-pill coins" data-c="coins"></div><button class="jv-pill gear" title="Settings" aria-label="Settings">\u2699</button>`;
     (top.querySelector('.gear') as HTMLElement).onclick = () => this.go('settings');
     h.append(stars, wrap, mosaic, hints, top);
     return h;
@@ -175,7 +186,7 @@ export class Menu {
     const h = this.host;
     s.innerHTML = '';
     (this.footer.querySelector('[data-f=resume]') as HTMLElement).style.display = this.host.canResume() ? '' : 'none';
-    const titles: Record<Tab, string> = { home: 'Home', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', controls: 'Controls', training: 'Training', about: 'About JetVault' };
+    const titles: Record<Tab, string> = { home: 'Home', credits: 'Acknowledgements', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', controls: 'Controls', training: 'Training', about: 'About JetVault' };
     const pt = this.el.querySelector('.jv-ptitle'); if (pt) pt.textContent = titles[this.tab];
     const fb = this.footer.querySelector('[data-f=fly]') as HTMLElement;
     fb.style.display = ['fly', 'aircraft', 'airports', 'map'].includes(this.tab) ? '' : 'none';
@@ -195,6 +206,7 @@ export class Menu {
       }
       s.appendChild(grid);
     } else if (this.tab === 'weather') this.renderWeather(s);
+    else if (this.tab === 'credits') this.renderCredits(s);
     else if (this.tab === 'settings') this.renderSettings(s);
     else if (this.tab === 'controls') this.renderControls(s);
     else if (this.tab === 'about') {
@@ -288,6 +300,38 @@ export class Menu {
     body.appendChild(help);
   }
 
+  /** Everyone whose work is in the game. */
+  private renderCredits(s: HTMLElement) {
+    const L = (t: string, u: string) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`;
+    const BY = L('CC BY 4.0', 'http://creativecommons.org/licenses/by/4.0/');
+    const groups: [string, [string, string, string, string][]][] = [
+      ['Aircraft', [
+        ['Boeing 737-800 (exterior)', L('boy737', 'https://www.cgtrader.com/designers/boy737'), 'CGTrader; supplied as a free-to-use public model, its licence terms are not yet verified. Recoloured to a neutral scheme.', 'The 737-800'],
+        ['Boeing 737-800 Cockpit', L('hakai315', 'https://skfb.ly/oSGxK'), BY, 'Optional old flight deck (?oldcockpit)'],
+        ['Airbus A320-200', L('Dlourine', 'https://sketchfab.com/3d-models/airbus-a320-200-02470bf974e645f78f5d9385a333e9e0'), BY, 'The A320'],
+        ['A320 Cockpit 2', L('davidmarton1987', 'https://sketchfab.com/3d-models/a320-cockpit-2-5fb0c671a91042c1a9d8f2cf3e2df021'), BY, 'The flight deck of the A320, A340 and A350'],
+        ['Lufthansa Airbus A340-600', L('Dave Love SketchFab', 'https://skfb.ly/pGwVB'), BY, 'The A340-600'],
+        ['A350 V5', L('Newbie99999993', 'https://skfb.ly/pINtM'), BY, 'The A350-1000'],
+        ['C-17A Globemaster III', L('VTX', 'https://sketchfab.com/VTX_car'), L('CC BY-NC-SA 4.0', 'http://creativecommons.org/licenses/by-nc-sa/4.0/') + ' (non-commercial, share-alike)', 'The C-17A'],
+        ['UNDERPOLY: Free Sailplane Glider', L('UNDERPOLY Project', 'https://skfb.ly/oMDMu'), BY, 'The glider'],
+      ]],
+      ['World', [
+        ['Jetway', L('vishnevsky.yaroslav', 'https://skfb.ly/oUZou'), BY, 'Boarding bridges'],
+        ['The Sun', L('tamminen', 'https://skfb.ly/oy8RZ'), BY, 'The sun'],
+        ['Moon', L('Akshat', 'https://skfb.ly/6TwGU'), BY, 'The moon'],
+        ['City Buildings pack', '3DTGRL', 'CGTrader, free; licence terms not yet verified', 'Landmark towers (Pro)'],
+      ]],
+    ];
+    let html = '<p>JetVault is built on the work of many people. Thank you to everyone below.</p>';
+    for (const [name, rows] of groups) {
+      html += `<h3>${name}</h3><div class="jv-credits">`;
+      for (const [title, by, lic, use] of rows) html += `<div><b>${title}</b><span>by ${by}</span><span class="lic">${lic}</span><i>${use}</i></div>`;
+      html += '</div>';
+    }
+    html += `<h3>Data</h3><p>${this.host.attribution.join('<br>')}</p><p>JetVault is not affiliated with Microsoft, Asobo, Boeing, Airbus, Lockheed Martin or any airport operator. Aircraft names are used to identify the real aircraft the models depict.</p>`;
+    s.innerHTML = html;
+  }
+
   private renderMap(s: HTMLElement) {
     const lo = this.host.world.terrain.lo!;
     s.innerHTML = `<h2>World Map</h2><p>Scotland, ${lo.half * 2 / 1000} x ${lo.half * 2 / 1000} km (terrain at ${lo.step} m, the ground gets coarser the higher you fly). Click the map to start airborne at that position. Airports with full detail: ${this.host.world.airports.filter((a) => airportVisible(a.icao)).map((a) => a.icao).join(', ')}.</p>`;
@@ -361,12 +405,25 @@ export class Menu {
     };
     for (const d of this.host.aircraftDefs) {
       const c = document.createElement('div');
-      c.className = 'jv-card' + (d.id === this.host.aircraft.def.id ? ' sel' : '');
+      const locked = !aircraftAvailable(d.id);
+      c.className = 'jv-card' + (d.id === this.host.aircraft.def.id ? ' sel' : '') + (locked ? ' locked' : '');
       const cv = document.createElement('canvas'); cv.width = 260; cv.height = 150; cv.style.width = '100%';
       drawPlanform(cv, d);
       c.appendChild(cv);
       c.insertAdjacentHTML('beforeend', `<b>${d.name}</b><span>${blurb[d.id] ?? ''}<br>MTOW ${d.maxTakeoffMass.toLocaleString()} kg · span ${d.wingSpan.toFixed(1)} m</span>`);
-      c.onclick = () => { this.host.selectAircraft(d.id); this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; this.render(); };
+      const price = wallet.price(d.id);
+      if (locked) c.insertAdjacentHTML('afterbegin', `<em class="jv-lock">${price ? `\ud83d\udd12 \u25c8 ${price.toLocaleString()}` : '\ud83d\udd12 PRO'}</em>`);
+      c.onclick = () => {
+        if (locked) {
+          if (price && wallet.canBuy(d.id)) {
+            if (confirm(`Unlock the ${d.name} for ${price.toLocaleString()} JetCoins?`)) { wallet.buy(d.id); this.notice(`${d.name} unlocked. Enjoy the flight!`); this.host.selectAircraft(d.id); this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; this.render(); }
+            return;
+          }
+          c.classList.add('shake'); setTimeout(() => c.classList.remove('shake'), 400);
+          this.notice(price ? `You need ${(price - wallet.coins).toLocaleString()} more JetCoins (you have ${wallet.coins.toLocaleString()}). Earn them by flying and landing.` : 'This aircraft is part of the Pro edition.');
+          return;
+        }
+        this.host.selectAircraft(d.id); this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; this.render(); };
       grid.appendChild(c);
     }
     s.appendChild(grid);

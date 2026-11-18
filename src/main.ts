@@ -51,6 +51,7 @@ import { GrassBlades } from './render/grassBlades';
 import { WorldEditor } from './studio/worldEditor';
 import { loadCityPack } from './render/cityPack';
 import { FOCUS_MODE, airportVisible, FOCUS_AIRCRAFT, PRO } from './config';
+import { aircraftAvailable, FlightRewards, wallet } from './economy';
 import { generateCity } from './world/city';
 import { LocalProjection, EGPH_ORIGIN } from './world/geo';
 import { LC } from './world/world';
@@ -166,6 +167,7 @@ class App implements MenuHost {
   payload: number[] = [];
   fuelFraction: [number, number] = [1, 1];
   private lookTmp = new THREE.Vector3();
+  private rewards = new FlightRewards();
   attribution: string[] = [];
   private started = false;
   private lastT = 0;
@@ -476,6 +478,7 @@ class App implements MenuHost {
 
   /** Switch aircraft type (rebuilds the simulation and the aircraft visuals). */
   selectAircraft(id: string) {
+    if (!aircraftAvailable(id)) { this.hud?.toast(`Unlock it with JetCoins (${wallet.price(id) || '-'}) in Aircraft Selection`, 3); return; }
     if (this.sim.def.id === id) return;
     const def = this.aircraftDefs.find((d) => d.id === id)!;
     this.sim = new Simulation(this.world, def, this.weather);
@@ -855,6 +858,10 @@ class App implements MenuHost {
     this.lastT = now;
     const t0 = performance.now();
     const sim = this.sim, ac = sim.aircraft;
+    if (!sim.paused && !this.menu.open && !ac.def.drone) {   // JetCoins: paid when a flight ends with a landing
+      const r = this.rewards.update(dt, ac.onGround, ac.agl, Math.hypot(ac.vel.x, ac.vel.y), Math.max(0, ac.vel.z), ac.crashed);
+      if (r) { wallet.add(r.coins, r.km); this.hud.toast(`+${r.coins} JetCoins  \u00b7  ${r.km.toFixed(1)} km flown, ${r.label}`, 6); }
+    }
     this.input.consume(); // legacy bindings are disabled in the simplified control scheme
     for (const ev of this.simple.consume()) this.handleSimple(ev);
     if (!this.menu.open) {

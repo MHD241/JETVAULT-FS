@@ -21,3 +21,6 @@ export const PRO: boolean = (() => {
     return localStorage.getItem('jetvault.edition') === 'pro';
   } catch { return false; }
 })();
+
+/** Aircraft that are free for everybody; the others are bought with JetCoins (see economy.ts) and are all unlocked in the Pro edition (?pro). */
+export const FREE_AIRCRAFT = ['b738', 'a320'];
