@@ -52,7 +52,7 @@ import { WorldEditor } from './studio/worldEditor';
 import { loadCityPack } from './render/cityPack';
 import { FOCUS_MODE, airportVisible, FOCUS_AIRCRAFT, PRO } from './config';
 import { aircraftAvailable, FlightRewards, wallet } from './economy';
-import { FlightScript } from './sim/flightScript';
+import { KeyframeFlight } from './sim/keyframes';
 import { DirectorInput, DirectorShot } from './director';
 import { SHOTS } from './shotList';
 import { generateCity } from './world/city';
@@ -171,7 +171,7 @@ class App implements MenuHost {
   fuelFraction: [number, number] = [1, 1];
   private lookTmp = new THREE.Vector3();
   /** Director mode: the scripted pilot flies the aircraft; the player flies the camera drone. */
-  private director: { shot: DirectorShot; script: FlightScript; t0: number; p0: THREE.Vector3; fwd0: THREE.Vector3; right0: THREE.Vector3; ground: number; state: 'count' | 'run' | 'cut'; until: number; cut: boolean } | null = null;
+  private director: { shot: DirectorShot; script: KeyframeFlight; t0: number; p0: THREE.Vector3; fwd0: THREE.Vector3; right0: THREE.Vector3; ground: number; state: 'count' | 'run' | 'cut'; until: number; cut: boolean } | null = null;
   private directorInput!: DirectorInput;
   private directorStarting = false;
   private rewards = new FlightRewards();
@@ -591,7 +591,7 @@ class App implements MenuHost {
     await this.fly(spawn);
     this.menu.hide();
     const sim = this.sim, ac = sim.aircraft;
-    const script = new FlightScript(sim, shot.kind, rw.ident, shot.cruiseAglFt ?? 3000);
+    const script = new KeyframeFlight(sim, shot.kind, rw.ident, shot.spawn ? { heading: shot.spawn.hdg, east: shot.spawn.east, north: shot.spawn.north, altMsl: shot.spawn.altFt * 0.3048 } : {});
     sim.preStep = () => script.step();
     const p0 = nedToThree(ac.pos), psi = ac.euler[2];
     const fwd0 = new THREE.Vector3(Math.sin(psi), 0, -Math.cos(psi)), right0 = new THREE.Vector3(Math.cos(psi), 0, Math.sin(psi));
