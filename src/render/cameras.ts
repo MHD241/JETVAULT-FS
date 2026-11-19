@@ -27,6 +27,8 @@ export class CameraRig {
   freePos = new THREE.Vector3();
   freeYaw = 0; freePitch = 0;
   private freeKeys = new Set<string>();
+  /** Free (drone) camera speed multiplier: 25 m/s, 120 m/s with Shift, times this. */
+  freeSpeed = 1;
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(70, aspect, 0.05, 260000);
@@ -128,7 +130,7 @@ export class CameraRig {
       cam.fov = THREE.MathUtils.clamp((2 * Math.atan(30 / d) * 180) / Math.PI, 2, 60);
       cam.updateProjectionMatrix();
     } else {
-      const speed = (this.freeKeys.has('ShiftLeft') ? 120 : 25) * dt;
+      const speed = (this.freeKeys.has('ShiftLeft') ? 120 : 25) * this.freeSpeed * dt;
       const dir = new THREE.Vector3(-Math.sin(this.freeYaw) * Math.cos(this.freePitch), Math.sin(this.freePitch), -Math.cos(this.freeYaw) * Math.cos(this.freePitch));
       const right = new THREE.Vector3(Math.cos(this.freeYaw), 0, -Math.sin(this.freeYaw));
       if (this.freeKeys.has('KeyW')) this.freePos.addScaledVector(dir, speed);

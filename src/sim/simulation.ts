@@ -189,8 +189,12 @@ export class Simulation {
     ac.placeOnGround(east, north, heading, this.env);
   }
 
+  /** Called at the start of every physics step (the Director's scripted pilot flies the aircraft from here). */
+  preStep: (() => void) | null = null;
+
   /** One fixed physics step. */
   step() {
+    this.preStep?.();
     const ac = this.aircraft;
     const c = this.controls;
     this.wind.step(PHYSICS_DT, Math.max(ac.agl, 0), ac.tas);

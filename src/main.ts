@@ -52,6 +52,8 @@ import { WorldEditor } from './studio/worldEditor';
 import { loadCityPack } from './render/cityPack';
 import { FOCUS_MODE, airportVisible, FOCUS_AIRCRAFT, PRO } from './config';
 import { aircraftAvailable, FlightRewards, wallet } from './economy';
+import { FlightScript } from './sim/flightScript';
+import { DirectorInput, DirectorShot } from './director';
 import { generateCity } from './world/city';
 import { LocalProjection, EGPH_ORIGIN } from './world/geo';
 import { LC } from './world/world';
@@ -167,6 +169,11 @@ class App implements MenuHost {
   payload: number[] = [];
   fuelFraction: [number, number] = [1, 1];
   private lookTmp = new THREE.Vector3();
+  /** Director mode: the scripted pilot flies the aircraft; the player flies the camera drone. */
+  private director: { shot: DirectorShot; script: FlightScript } | null = null;
+  private directorInput!: DirectorInput;
+  private directorHint: HTMLDivElement | null = null;
+  private directorStarting = false;
   private rewards = new FlightRewards();
   attribution: string[] = [];
   private started = false;
@@ -296,6 +303,7 @@ class App implements MenuHost {
     if (!new URLSearchParams(location.search).has('nograde')) this.grade = new Grade(this.renderer, this.scene, this.rig.camera);
     this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);
     this.placeTower();
+    this.directorInput = new DirectorInput(this.renderer.domElement, this.rig, { restart: () => { if (this.director) void this.directorStart(this.director.shot); }, keepVisible: () => [this.menu.el] });
     this.debug = new DebugView(this.sim.aircraft, this.world);
     this.scene.add(this.debug.group);
     this.input = new InputManager(loadInputSettings(), this.renderer.domElement);
@@ -531,6 +539,7 @@ class App implements MenuHost {
   startView: 'cockpit' | 'chase' = 'chase';
 
   async fly(spawn: SpawnKind | { kind: 'air'; east: number; north: number; altFt: number; hdg: number }) {
+    if (this.director && !this.directorStarting) this.directorStop(false);
     // make sure the detail around the start position is in memory before the aircraft is placed there
     if (spawn.kind === 'air') await this.ensurePatchesNear(spawn.east, spawn.north);
     else { const c = airportCentre(this.world.airport); await this.ensurePatchesNear(c.x, c.y); }
@@ -557,6 +566,55 @@ class App implements MenuHost {
     this.menu.hide();
     (document.activeElement as HTMLElement | null)?.blur?.();
     this.renderer.domElement.focus();
+  }
+  /** Starts a Director shot: sets the time and weather, places the aircraft, hands it to the scripted pilot and gives the player the free camera. */
+  async directorStart(shot: DirectorShot) {
+    this.directorStop(false); this.directorStarting = true;
+    const w = this.weather; w.realTime = false; w.dayOfYear = shot.dayOfYear; w.timeOfDay = shot.timeOfDay; w.cloudCover = shot.cloud;
+    this.selectAircraft(shot.aircraft);
+    if (this.sim.def.id !== shot.aircraft) return;   // locked aircraft
+    this.sim.setWeather(w);
+    const def = this.sim.def;
+    if (shot.kind === 'landing' && def.turbofans) {   // a landing weight of about 72 % of the maximum takeoff mass
+      const fuelKg = def.tanks.reduce((a, t) => a + t.capacity, 0) * 0.8, pay = def.stations.reduce((a, t) => a + t.mass, 0);
+      const f = Math.max(0.15, Math.min(1, (0.72 * def.maxTakeoffMass - def.emptyMass - pay) / fuelKg)); this.fuelFraction = [f, f];
+    }
+    const ap = this.world.airport, rw = ap.runways.flatMap((r) => r.ends).find((e) => e.ident === shot.runway) ?? ap.runways[0].ends[0];
+    const spawn = shot.kind === 'takeoff' ? { kind: 'runway' as const, ident: rw.ident }
+      : shot.kind === 'landing' ? { kind: 'approach' as const, ident: rw.ident, distanceNm: 4 }
+      : { kind: 'air' as const, east: rw.x - Math.sin(rw.hdgTrue * Math.PI / 180) * 1500, north: rw.y - Math.cos(rw.hdgTrue * Math.PI / 180) * 1500, altFt: 3000, hdg: rw.hdgTrue * Math.PI / 180 };
+    await this.fly(spawn);
+    const sim = this.sim, ac = sim.aircraft;
+    const script = new FlightScript(sim, shot.kind, rw.ident);
+    sim.preStep = () => script.step();
+    this.director = { shot, script };
+    // the camera drone starts beside the action, looking at the aircraft
+    this.rig.setMode('free', ac); this.rig.freeSpeed = 1;
+    const p = nedToThree(ac.pos), psi = ac.euler[2];
+    const fwd = new THREE.Vector3(Math.sin(psi), 0, -Math.cos(psi)), right = new THREE.Vector3(Math.cos(psi), 0, Math.sin(psi));
+    const where = shot.kind === 'takeoff' ? p.clone().addScaledVector(fwd, -45).addScaledVector(right, -22).setY(p.y + 5)
+      : shot.kind === 'landing' ? new THREE.Vector3(rw.x, rw.elev + 6, -rw.y).addScaledVector(right, -70).addScaledVector(fwd, 250)
+      : p.clone().addScaledVector(fwd, 60).addScaledVector(right, 40).setY(p.y + 4);
+    this.rig.freePos.copy(where);
+    const d = p.clone().sub(where).normalize();
+    this.rig.freeYaw = Math.atan2(-d.x, -d.z); this.rig.freePitch = Math.asin(THREE.MathUtils.clamp(d.y, -1, 1));
+    this.directorStarting = false;
+    this.directorInput.enable(true); this.directorInput.setClean(true);
+    this.showDirectorHint();
+  }
+  private showDirectorHint() {
+    this.directorHint?.remove();
+    const h = document.createElement('div'); this.directorHint = h;
+    h.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:9;padding:10px 18px;border-radius:8px;background:rgba(6,12,22,.82);color:#e8f1f7;font:600 14px system-ui,sans-serif;letter-spacing:.02em;text-align:center;pointer-events:none;transition:opacity .8s';
+    h.textContent = 'CAMERA DRONE: W A S D move · Q E down / up · Shift fast · Z X speed · click to look around · wheel zoom · H show or hide the screen · R restart the shot · Esc menu';
+    document.body.appendChild(h);
+    setTimeout(() => { h.style.opacity = '0'; }, 7000); setTimeout(() => h.remove(), 8000);
+  }
+  directorStop(showUi = true) {
+    if (!this.director) return;
+    this.sim.preStep = null; this.director = null;
+    this.directorInput.enable(false); this.directorHint?.remove();
+    if (showUi) this.rig.setMode(this.startView, this.sim.aircraft);
   }
   resume() { this.sim.paused = false; this.menu.hide(); (document.activeElement as HTMLElement | null)?.blur?.(); this.renderer.domElement.focus(); }
   canResume() { return this.started && !this.sim.aircraft.crashed; }
@@ -858,14 +916,14 @@ class App implements MenuHost {
     this.lastT = now;
     const t0 = performance.now();
     const sim = this.sim, ac = sim.aircraft;
-    if (!sim.paused && !this.menu.open && !ac.def.drone) {   // JetCoins: paid when a flight ends with a landing
+    if (!sim.paused && !this.menu.open && !ac.def.drone && !this.director) {   // JetCoins: paid when a flight ends with a landing
       const r = this.rewards.update(dt, ac.onGround, ac.agl, Math.hypot(ac.vel.x, ac.vel.y), Math.max(0, ac.vel.z), ac.crashed);
       if (r) { wallet.add(r.coins, r.km); this.hud.toast(`+${r.coins} JetCoins  \u00b7  ${r.km.toFixed(1)} km flown, ${r.label}`, 6); }
     }
     this.input.consume(); // legacy bindings are disabled in the simplified control scheme
-    for (const ev of this.simple.consume()) this.handleSimple(ev);
+    for (const ev of this.simple.consume()) { if (!this.director || ev === 'menu') this.handleSimple(ev); }   // in Director mode the keys are the camera's, only Esc (menu) still works
     if (!this.menu.open) {
-      this.simple.update(dt, sim.controls, ac);
+      if (!this.director) this.simple.update(dt, sim.controls, ac);
       if (sim.def.drone) { const sp = droneSpeed(sim.controls.throttle, sim.def.drone), k = Math.round(sp); if (k !== this.lastDroneSpeed) { this.lastDroneSpeed = k; this.hud.toast(sp ? `Drone speed ${Math.round(sp * 1.944)} kt (${k} m/s)` : 'Drone motor off (keys 2-9 set the speed)'); } }
       if (!sim.paused && this.simple.assists && sim.def.profile.fixedTrim !== undefined && !sim.def.drone) {
         sim.controls.trim = sim.def.profile.fixedTrim;   // the trim stays at the set value (0 = neutral), on the ground and in the air

@@ -986,3 +986,12 @@ User report (Safari, A320, night, after landing, rolling at 85 kt on the runway)
 1. The runway paint is pulled towards the camera in depth (`gl_FragDepth -= 3.5e-4`) so the coarse terrain mesh cannot hide it, but the light sprites were not, so from a low cockpit at a grazing angle the terrain could cover them. The light shader now applies the same kind of nudge (6e-4).
 2. The A320 / A340 / A350 / C-17 had NO landing light at all (`AirlinerModel.update` was an empty stub; only the 737 drove its light). They now have a nose landing light with the 737's behaviour (on when the landing-light switch and battery are on, which the runway/approach spawns set; brighter at night). Checked in a render: a lit pool on the runway ahead.
 If it still happens: need the aircraft, edition (free/pro), time of day, and whether the lights are missing near the aircraft or only far away.
+
+## Update 181 – Director (film mode, Pro only)
+For real in-game footage: the aircraft flies the shot by itself, the player flies a free camera drone and records the screen with their own tool.
+- Menu: Pro only, "Director" page (also on the home screen): aircraft, shot (takeoff and climb / approach and landing from 4 nm / cruise at 3000 ft), runway, time of day (sunrise, morning, midday, golden hour, dusk, night), clouds, START SHOT.
+- `src/sim/flightScript.ts`: `FlightScript` (takeoff, cruise, landing) drives the controls through `Simulation.preStep`; `LandingPilot` moved here from the test helpers.
+- `src/director.ts`: `DirectorInput` (click to look with pointer lock, Z/X camera speed, R restart shot, H hide/show the interface, Esc menu). Camera: WASD, Q/E down/up, Shift fast, wheel zoom.
+- `Main.directorStart/Stop`; keys, rewards and the normal pilot input are bypassed while directing.
+- Tests: tests/flightScript.test.ts: every jet (737, A320, A340, A350, C-17) takes off to 3000 ft and lands from 4 nm and stops on the runway (sink < 600 fpm). Landings from 2 nm are NOT reliable for A320/A340/C-17 (hard), so 4 nm is used.
+- Verified headless: shot starts, rig in free mode, script runs (phase roll). NOT verified: pointer lock look, smoothness on a real GPU, Safari behaviour.

@@ -9,6 +9,7 @@ import { airportCentre } from '../world/airport';
 import { World } from '../world/world';
 import { HomeGlobe } from './homeGlobe';
 import { PRO } from '../config';
+import type { DirectorShot } from '../director';
 import { aircraftAvailable, wallet } from '../economy';
 import { Aircraft, AircraftDef } from '../sim/fdm/aircraft';
 
@@ -69,9 +70,10 @@ export interface MenuHost {
   resume(): void;
   canResume(): boolean;
   attribution: string[];
+  directorStart(shot: DirectorShot): Promise<void>;
 }
 
-type Tab = 'home' | 'credits' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'controls' | 'training' | 'about';
+type Tab = 'home' | 'credits' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'director' | 'controls' | 'training' | 'about';
 
 
 export class Menu {
@@ -83,6 +85,7 @@ export class Menu {
   home = true;
   private step = 1;
   private tab: Tab = 'fly';
+  private shot: DirectorShot = { aircraft: 'a320', kind: 'takeoff', runway: '24', dayOfYear: 190, timeOfDay: 19.9, cloud: 'SCT' };
   private spawn: AnySpawn = { kind: 'stand', index: 0, coldAndDark: false };
   open = true;
   private mapCanvas: HTMLCanvasElement | null = null;
@@ -98,7 +101,7 @@ export class Menu {
     const items: [Tab, string, boolean, string?][] = [
       ['home', 'Home', true], ['fly', 'Fly Now', true], ['map', 'World Map', true], ['aircraft', 'Aircraft Selection', true],
       ['airports', 'Airport Selection', true], ['planner', 'Flight Planner', false, 'Not yet available'],
-      ['weather', 'Weather', true], ['settings', 'Settings', true], ['controls', 'Controls', true],
+      ['weather', 'Weather', true], ['settings', 'Settings', true], ...(PRO ? [['director', 'Director (film mode)', true] as [Tab, string, boolean]] : []), ['controls', 'Controls', true],
       ['training', 'Training', false, 'Not yet available'], ['about', 'About JetVault', true],
     ];
     for (const [t, name, enabled, note] of items) {
@@ -169,6 +172,7 @@ export class Menu {
     }
     const hints = document.createElement('div'); hints.className = 'jv-hints';
     hints.innerHTML = `<button data-h="resume"><kbd>Esc</kbd> Resume flight</button><button data-h="controls"><kbd>?</kbd> Controls</button><button data-h="about"><kbd>i</kbd> About JetVault</button><button data-h="credits"><kbd>\u2605</kbd> Acknowledgements</button>`;
+    if (PRO) { const d = document.createElement('button'); d.innerHTML = '<kbd>\u25b6</kbd> Director'; d.onclick = () => this.go('director'); hints.appendChild(d); }
     (hints.querySelector('[data-h=credits]') as HTMLElement).onclick = () => this.go('credits');
     (hints.querySelector('[data-h=resume]') as HTMLElement).onclick = () => this.host.resume();
     (hints.querySelector('[data-h=controls]') as HTMLElement).onclick = () => this.go('controls');
@@ -186,7 +190,7 @@ export class Menu {
     const h = this.host;
     s.innerHTML = '';
     (this.footer.querySelector('[data-f=resume]') as HTMLElement).style.display = this.host.canResume() ? '' : 'none';
-    const titles: Record<Tab, string> = { home: 'Home', credits: 'Acknowledgements', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', controls: 'Controls', training: 'Training', about: 'About JetVault' };
+    const titles: Record<Tab, string> = { home: 'Home', credits: 'Acknowledgements', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', director: 'Director', controls: 'Controls', training: 'Training', about: 'About JetVault' };
     const pt = this.el.querySelector('.jv-ptitle'); if (pt) pt.textContent = titles[this.tab];
     const fb = this.footer.querySelector('[data-f=fly]') as HTMLElement;
     fb.style.display = ['fly', 'aircraft', 'airports', 'map'].includes(this.tab) ? '' : 'none';
@@ -208,6 +212,7 @@ export class Menu {
     } else if (this.tab === 'weather') this.renderWeather(s);
     else if (this.tab === 'credits') this.renderCredits(s);
     else if (this.tab === 'settings') this.renderSettings(s);
+    else if (this.tab === 'director') this.renderDirector(s);
     else if (this.tab === 'controls') this.renderControls(s);
     else if (this.tab === 'about') {
       s.innerHTML = `<h2>About JetVault Flight Simulator</h2>
@@ -517,6 +522,26 @@ export class Menu {
     s.appendChild(act);
   }
 
+  /** Director (film mode): the aircraft flies itself, the player flies a free camera drone to film it. */
+  private renderDirector(s: HTMLElement) {
+    const sh = this.shot, h = this.host;
+    s.innerHTML = '<h2>Director</h2><p>The aircraft flies the shot by itself at the time of day you choose. You fly a free camera drone (W A S D, Q E, mouse) and record the screen with your own tool.</p>';
+    const row = (label: string, opts: [string, string][], cur: string, set: (v: string) => void) => {
+      const d = document.createElement('div'); d.className = 'jv-row'; d.innerHTML = `<label>${label}</label>`;
+      const sel = document.createElement('select');
+      for (const [v, t] of opts) { const o = document.createElement('option'); o.value = v; o.textContent = t; o.selected = v === cur; sel.appendChild(o); }
+      sel.onchange = () => set(sel.value); d.appendChild(sel); s.appendChild(d);
+    };
+    row('Aircraft', h.aircraftDefs.filter((a) => !a.drone && aircraftAvailable(a.id)).map((a) => [a.id, a.name] as [string, string]), sh.aircraft, (v) => { sh.aircraft = v; });
+    row('Shot', [['takeoff', 'Takeoff and climb'], ['landing', 'Approach and landing (4 nm final)'], ['cruise', 'Cruise at 3000 ft']], sh.kind, (v) => { sh.kind = v as DirectorShot['kind']; });
+    row('Runway', h.world.airport.runways.flatMap((r) => r.ends).map((e) => [e.ident, `Runway ${e.ident}`] as [string, string]), sh.runway, (v) => { sh.runway = v; });
+    const presets: [string, number, number, number][] = [['Sunrise', 190, 3.9, 0], ['Morning', 190, 7, 0], ['Midday', 190, 11.5, 0], ['Golden hour', 190, 19.9, 0], ['Dusk', 322, 15.8, 0], ['Night', 190, 23.5, 0]];
+    row('Time of day', presets.map(([n, , t], i) => [String(i), `${n} (${Math.floor(t)}:${String(Math.round((t % 1) * 60)).padStart(2, '0')} UTC)`] as [string, string]), String(Math.max(0, presets.findIndex((p) => p[2] === sh.timeOfDay))), (v) => { const p = presets[Number(v)]; sh.dayOfYear = p[1]; sh.timeOfDay = p[2]; });
+    row('Clouds', [['SKC', 'Clear'], ['FEW', 'Few'], ['SCT', 'Scattered'], ['BKN', 'Broken'], ['OVC', 'Overcast']], sh.cloud, (v) => { sh.cloud = v as CloudCover; });
+    const go = document.createElement('button'); go.className = 'jv-btn'; go.textContent = 'START SHOT';
+    go.onclick = () => { go.disabled = true; go.textContent = 'LOADING...'; void h.directorStart(sh); };
+    s.appendChild(go);
+  }
   private renderSettings(s: HTMLElement) {
     const g = { ...this.host.graphics };
     const inp = this.host.inputSettings;
