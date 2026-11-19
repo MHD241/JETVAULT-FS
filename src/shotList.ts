@@ -20,10 +20,10 @@ function tripod(forward: number, side: number, height: number, fov: number) {
 
 export const SHOTS: DirectorShot[] = [
   { id: 'approach', title: 'Golden hour approach (A320)', aircraft: 'a320', kind: 'landing', runway: '24', nm: 4, dayOfYear: 190, timeOfDay: 19.9, cloud: 'SCT', duration: 26, cam: orbit(0.9, 0.05, 75, 12, 45) },
-  { id: 'approach-rwy', title: 'Landing from the runway: A320 flies over and lands', aircraft: 'a320', kind: 'landing', runway: '24', nm: 4, dayOfYear: 190, timeOfDay: 19.9, cloud: 'SCT', duration: 30, cam: tripod(1500 - 60, -30, 2.2, 32) },
+  { id: 'approach-rwy', title: 'Runway camera: A320 flies over and lands (W/S slides you along the runway)', aircraft: 'a320', kind: 'landing', runway: '24', nm: 4, dayOfYear: 190, timeOfDay: 19.9, cloud: 'SCT', duration: 30, rail: { s0: 260, side: -30, height: 2.2, fov: 32 } },
   { id: 'takeoff', title: 'Takeoff roll (A320)', aircraft: 'a320', kind: 'takeoff', runway: '24', dayOfYear: 190, timeOfDay: 20.2, cloud: 'SCT', duration: 24, cam: tripod(330, -32, 2.5, 38) },
   { id: 'c17', title: 'Heavy lift approach (C-17)', aircraft: 'c17', kind: 'landing', runway: '24', nm: 4, dayOfYear: 190, timeOfDay: 12.6, cloud: 'FEW', duration: 26, cam: orbit(-0.8, -0.04, 100, 8, 42) },
-  { id: 'c17-rwy', title: 'Landing from the runway: C-17 flies over and lands', aircraft: 'c17', kind: 'landing', runway: '24', nm: 4, dayOfYear: 190, timeOfDay: 12.6, cloud: 'FEW', duration: 30, cam: tripod(1500 - 60, 35, 2.5, 30) },
+  { id: 'c17-rwy', title: 'Runway camera: C-17 flies over and lands (W/S slides you along the runway)', aircraft: 'c17', kind: 'landing', runway: '24', nm: 4, dayOfYear: 190, timeOfDay: 12.6, cloud: 'FEW', duration: 30, rail: { s0: 260, side: 35, height: 2.5, fov: 30 } },
   { id: 'dusk', title: 'Dusk approach from the cockpit (A320)', aircraft: 'a320', kind: 'landing', runway: '24', nm: 4, dayOfYear: 322, timeOfDay: 17.0, cloud: 'FEW', duration: 36, view: 'cockpit' },
   { id: 'city', title: 'Over the city (A320)', aircraft: 'a320', kind: 'cruise', runway: '24', dayOfYear: 300, timeOfDay: 14.6, cloud: 'FEW', duration: 16, cruiseAglFt: 1800, spawn: { kind: 'air', east: 3000, north: 300, altFt: 1900, hdg: Math.PI / 2 }, cam: orbit(0.6, -0.03, 95, 14, 45) },
 ];

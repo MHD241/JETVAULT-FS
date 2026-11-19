@@ -1009,3 +1009,8 @@ Verified headless: takeoff and city shots run the state machine to CUT (sim fast
 - `KeyframeFlight` ground and collision: the aircraft's wheels never go below the terrain/runway surface under it (the runway slopes about 1.8 m over 1500 m, the path follows it), a cruise stays 60 m above ground, and a path that enters a building stops and marks the aircraft crashed (`collided`). Tests cover both for the A320 and C-17 landing and takeoff (no collision, never below ground).
 - Open: the "inverted camera left/right" report was NOT investigated (user said stop; view not identified: cockpit, chase or free). `look()` in cameras.ts reads correctly in free mode.
 - Headless: both runway and C-17 shots reach CUT without a crash. Not seen on screen.
+
+## Update 185 – runway shots on a rail; mouse pointer hidden
+- The two runway-camera shots (A320, C-17) now put the camera on a RAIL: `rail: {s0, side, height, fov}` in shotList.ts. The camera sits beside the runway centreline, always looks at the aircraft, and the player can only slide it along the runway: W/S or Up/Down, Shift fast (range -400..2600 m). `rig.freeLocked` stops the free camera's own key movement in all Director shots.
+- The mouse pointer is hidden while a shot is filmed (3-2-1, action) and shown again on the CUT card (needed for the buttons) and when leaving the Director.
+- Headless: the rail shot reaches CUT, cursor hidden, camera starts at 260 m. Slide keys and the look of the shot not tested on screen.

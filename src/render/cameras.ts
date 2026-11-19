@@ -26,7 +26,9 @@ export class CameraRig {
   private chaseInit = false;
   freePos = new THREE.Vector3();
   freeYaw = 0; freePitch = 0;
-  private freeKeys = new Set<string>();
+  freeKeys = new Set<string>();
+  /** When true the free camera ignores the movement keys (a script places it). */
+  freeLocked = false;
   /** Free (drone) camera speed multiplier: 25 m/s, 120 m/s with Shift, times this. */
   freeSpeed = 1;
 
@@ -133,12 +135,12 @@ export class CameraRig {
       const speed = (this.freeKeys.has('ShiftLeft') ? 120 : 25) * this.freeSpeed * dt;
       const dir = new THREE.Vector3(-Math.sin(this.freeYaw) * Math.cos(this.freePitch), Math.sin(this.freePitch), -Math.cos(this.freeYaw) * Math.cos(this.freePitch));
       const right = new THREE.Vector3(Math.cos(this.freeYaw), 0, -Math.sin(this.freeYaw));
-      if (this.freeKeys.has('KeyW')) this.freePos.addScaledVector(dir, speed);
-      if (this.freeKeys.has('KeyS')) this.freePos.addScaledVector(dir, -speed);
-      if (this.freeKeys.has('KeyD')) this.freePos.addScaledVector(right, speed);
-      if (this.freeKeys.has('KeyA')) this.freePos.addScaledVector(right, -speed);
-      if (this.freeKeys.has('KeyE')) this.freePos.y += speed;
-      if (this.freeKeys.has('KeyQ')) this.freePos.y -= speed;
+      if (!this.freeLocked && this.freeKeys.has('KeyW')) this.freePos.addScaledVector(dir, speed);
+      if (!this.freeLocked && this.freeKeys.has('KeyS')) this.freePos.addScaledVector(dir, -speed);
+      if (!this.freeLocked && this.freeKeys.has('KeyD')) this.freePos.addScaledVector(right, speed);
+      if (!this.freeLocked && this.freeKeys.has('KeyA')) this.freePos.addScaledVector(right, -speed);
+      if (!this.freeLocked && this.freeKeys.has('KeyE')) this.freePos.y += speed;
+      if (!this.freeLocked && this.freeKeys.has('KeyQ')) this.freePos.y -= speed;
       cam.position.copy(this.freePos);
       cam.up.set(0, 1, 0);
       cam.lookAt(this.freePos.clone().add(dir));

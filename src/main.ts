@@ -575,7 +575,7 @@ class App implements MenuHost {
   }
   /** Starts a film shot: loads it, shows 3-2-1, runs the scripted aircraft and camera for the shot length, then says CUT. */
   async directorStart(shot0: DirectorShot, userOrbit = this.director?.orbit ?? false) {
-    const shot: DirectorShot = userOrbit ? { ...shot0, cam: undefined, view: undefined } : shot0;
+    const shot: DirectorShot = userOrbit && !shot0.rail ? { ...shot0, cam: undefined, view: undefined } : shot0;
     this.directorStop(false); this.directorStarting = true;
     this.menu.hide(); this.showCard('LOADING', shot.title);
     const w = this.weather; w.realTime = false; w.dayOfYear = shot.dayOfYear; w.timeOfDay = shot.timeOfDay; w.cloudCover = shot.cloud;
@@ -597,14 +597,32 @@ class App implements MenuHost {
     const p0 = nedToThree(ac.pos), psi = ac.euler[2];
     const fwd0 = new THREE.Vector3(Math.sin(psi), 0, -Math.cos(psi)), right0 = new THREE.Vector3(Math.cos(psi), 0, Math.sin(psi));
     this.director = { shot, script, t0: -1, p0, fwd0, right0, ground: rw.elev, state: 'count', until: performance.now() + 3300, cut: false, orbit: userOrbit };
-    this.rig.setMode(shot.view ?? (userOrbit ? 'chase' : 'free'), ac);
+    this.rig.setMode(shot.view ?? (userOrbit && !shot.rail ? 'chase' : 'free'), ac);
+    this.rig.freeLocked = true; this.setCursor(false);
+    this.railS = shot.rail?.s0 ?? 0; this.railRw = { x: rw.x, y: rw.y, hdg: rw.hdgTrue * Math.PI / 180 }; this.railLast = performance.now();
     this.directorInput.setClean(false); this.directorInput.setClean(true);
     this.sim.paused = true; this.directorStarting = false;
     this.directorCam(0);
   }
   /** The scripted camera for the current time of the shot. */
+  /** Shows or hides the mouse pointer (hidden while a shot is being filmed, shown on the CUT card). */
+  private setCursor(show: boolean) { document.body.style.cursor = show ? '' : 'none'; this.renderer.domElement.style.cursor = show ? '' : 'none'; }
+  private railS = 0; private railRw = { x: 0, y: 0, hdg: 0 }; private railLast = 0;
   private directorCam(t: number) {
-    const d = this.director; if (!d?.shot.cam) return;
+    const d = this.director; if (!d) return;
+    if (d.shot.rail) {   // runway camera on a rail: only forward / backward along the runway; it always looks at the aircraft
+      const now = performance.now(), dt = Math.min(0.1, (now - this.railLast) / 1000); this.railLast = now;
+      const k = this.rig.freeKeys, sp = (k.has('ShiftLeft') ? 120 : 30) * dt;
+      if (k.has('KeyW') || k.has('ArrowUp')) this.railS += sp; if (k.has('KeyS') || k.has('ArrowDown')) this.railS -= sp;
+      this.railS = THREE.MathUtils.clamp(this.railS, -400, 2600);
+      const r = d.shot.rail, h = this.railRw.hdg, ux = Math.sin(h), uy = Math.cos(h);
+      const e = this.railRw.x + ux * this.railS + uy * r.side, n = this.railRw.y + uy * this.railS - ux * r.side;
+      const pos = new THREE.Vector3(e, this.world.heightAt(e, n) + r.height, -n), look = nedToThree(this.sim.aircraft.pos), dir = look.clone().sub(pos).normalize();
+      this.rig.freePos.copy(pos); this.rig.freeYaw = Math.atan2(-dir.x, -dir.z); this.rig.freePitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
+      if (t === 0) { this.rig.camera.fov = r.fov; this.rig.camera.updateProjectionMatrix(); }
+      return;
+    }
+    if (!d.shot.cam) return;
     const ac = this.sim.aircraft, psi = ac.euler[2], p = nedToThree(ac.pos);
     const c = d.shot.cam(t, { p, psi, fwd: new THREE.Vector3(Math.sin(psi), 0, -Math.cos(psi)), right: new THREE.Vector3(Math.cos(psi), 0, Math.sin(psi)), p0: d.p0, fwd0: d.fwd0, right0: d.right0, ground: d.ground });
     const rig = this.rig, dir = c.look.clone().sub(c.pos).normalize();
@@ -636,7 +654,7 @@ class App implements MenuHost {
   }
   private hideCard() { this.card?.remove(); this.card = null; }
   private showCut() {
-    this.showCard('CUT', '');
+    this.showCard('CUT', ''); this.setCursor(true);
     const c = this.card!, shots = SHOTS, d = this.director!, i = shots.findIndex((s) => s.id === d.shot.id);
     const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:12px;margin-top:18px;pointer-events:auto';
     const btn = (label: string, fn: () => void) => { const b = document.createElement('button'); b.className = 'jv-btn'; b.textContent = label; b.onclick = fn; row.appendChild(b); };
@@ -646,7 +664,7 @@ class App implements MenuHost {
     c.appendChild(row);
   }
   directorStop(showUi = true) {
-    this.hideCard();
+    this.hideCard(); this.rig.freeLocked = false; this.setCursor(true);
     if (!this.director) return;
     this.sim.preStep = null; this.director = null; this.sim.paused = false;
     this.directorInput.setClean(false);

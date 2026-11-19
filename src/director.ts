@@ -17,6 +17,8 @@ export interface DirectorShot {
   spawn?: { kind: 'air'; east: number; north: number; altFt: number; hdg: number };
   view?: 'cockpit';
   cam?: (t: number, c: ShotCtx) => ShotCam;
+  /** Runway camera on a rail: it sits `side` m beside the centreline at `height` m, looks at the aircraft, and the player can only slide it along the runway (W/S, Shift fast). `s0` = start distance from the threshold. */
+  rail?: { s0: number; side: number; height: number; fov: number };
 }
 
 export class DirectorInput {
