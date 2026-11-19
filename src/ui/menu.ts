@@ -71,7 +71,7 @@ export interface MenuHost {
   resume(): void;
   canResume(): boolean;
   attribution: string[];
-  directorStart(shot: DirectorShot): Promise<void>;
+  directorStart(shot: DirectorShot, userOrbit?: boolean): Promise<void>;
 }
 
 type Tab = 'home' | 'credits' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'director' | 'controls' | 'training' | 'about';
@@ -529,8 +529,9 @@ export class Menu {
     SHOTS.forEach((sh, i) => {
       const c = document.createElement('div'); c.className = 'jv-card';
       c.innerHTML = `<b>${i + 1}. ${sh.title}</b><span>${sh.duration} s \u00b7 ${sh.cloud} clouds \u00b7 ${Math.floor(sh.timeOfDay)}:${String(Math.round((sh.timeOfDay % 1) * 60)).padStart(2, '0')} UTC</span>`;
-      const b = document.createElement('button'); b.className = 'jv-btn'; b.textContent = 'START'; b.onclick = (e) => { e.stopPropagation(); b.disabled = true; b.textContent = 'LOADING...'; void this.host.directorStart(sh); };
-      c.appendChild(b); list.appendChild(c);
+      const sel = document.createElement('select'); sel.innerHTML = '<option value="0">Scripted camera</option><option value="1">Orbit camera (you drag the mouse)</option>'; sel.onclick = (e) => e.stopPropagation();
+      const b = document.createElement('button'); b.className = 'jv-btn'; b.textContent = 'START'; b.onclick = (e) => { e.stopPropagation(); b.disabled = true; b.textContent = 'LOADING...'; void this.host.directorStart(sh, sel.value === '1'); };
+      c.append(sel, b); list.appendChild(c);
     });
     s.appendChild(list);
   }

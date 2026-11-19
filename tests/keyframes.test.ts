@@ -19,7 +19,7 @@ function fly(def: typeof A320, kind: 'landing' | 'takeoff', secs: number) {
   const ux = Math.sin(end.hdgTrue * Math.PI / 180), uy = Math.cos(end.hdgTrue * Math.PI / 180);
   for (let i = 0; i < 240 * secs; i++) {
     sim.step();
-    if (i % 240 === 0) { const a = sim.aircraft; log.push({ t: i / 240, alt: a.altitude - end.elev, s: (a.pos.y - end.x) * ux + (a.pos.x - end.y) * uy, cas: a.vel.len(), vz: -a.vel.z }); }
+    if (i % 240 === 0) { const a = sim.aircraft; log.push({ t: i / 240, alt: a.altitude - world.heightAt(a.pos.y, a.pos.x), s: (a.pos.y - end.x) * ux + (a.pos.x - end.y) * uy, cas: a.vel.len(), vz: -a.vel.z }); }
   }
   return { log, sim };
 }
@@ -33,6 +33,15 @@ describe('keyframed flights', () => {
       console.log(name, 'touchdown at', td.t, 's, along', td.s.toFixed(0), 'm, speed', td.cas.toFixed(0), 'm/s; sink before', a.log[Math.max(0, a.log.indexOf(td) - 1)].vz.toFixed(2));
       expect(td.s).toBeGreaterThan(200); expect(td.s).toBeLessThan(900);
       expect(Math.min(...a.log.map((x) => x.alt))).toBeGreaterThan(def.spawnHeight - 0.5);   // never below the wheels
+    });
+    it(`${name} landing and takeoff paths never hit the ground or a building`, () => {
+      for (const kind of ['landing', 'takeoff'] as const) {
+        const sim = newSim(world, CALM_ISA, def);
+        sim.spawn(kind === 'landing' ? { kind: 'approach', ident: '24', distanceNm: 4 } : { kind: 'runway', ident: '24' });
+        const f = new KeyframeFlight(sim, kind, '24'); sim.preStep = () => f.step();
+        for (let i = 0; i < 240 * 60; i++) { sim.step(); const a = sim.aircraft; expect(a.altitude - world.heightAt(a.pos.y, a.pos.x)).toBeGreaterThan(def.spawnHeight - 0.01); }
+        expect(f.collided, kind).toBe(false);
+      }
     });
     it(`${name} takes off and climbs away`, () => {
       const a = fly(def, 'takeoff', 60);

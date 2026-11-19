@@ -65,6 +65,8 @@ export function cruiseKeys(v: number, h: number, pitch: number): Key[] {
 /** Flies the keyframes: call `step()` once per physics step (Simulation.preStep). */
 export class KeyframeFlight {
   t = 0; done = false; phase = 'keyframes';
+  /** Set when the path runs into a building (the flight stops there and the aircraft is marked crashed). */
+  collided = false;
   private keys: Key[]; private ux: number; private uy: number; private ground: number; private hdg: number;
   private kind: FlightKind;
   constructor(public sim: Simulation, kind: FlightKind, ident: string, opts: { cruiseAglFt?: number; heading?: number; east?: number; north?: number; altMsl?: number } = {}) {
@@ -87,10 +89,11 @@ export class KeyframeFlight {
   private x0 = 0; private y0 = 0;
   step() {
     const ac = this.sim.aircraft, c = this.sim.controls;
+    if (this.collided) { ac.crashed = true; return; }
     this.t += PHYSICS_DT;
     const total = this.keys[this.keys.length - 1].t;
     this.apply(Math.min(this.t, total), PHYSICS_DT);
-    ac.crashed = false;
+    ac.crashed = this.collided;
     // gear, flaps, engines, spoilers follow the table's story
     const { k } = sample(this.keys, Math.min(this.t, total));
     if (this.kind === 'landing') {
@@ -106,7 +109,13 @@ export class KeyframeFlight {
     const ac = this.sim.aircraft;
     const { k, v } = sample(this.keys, t);
     const east = this.x0 + this.ux * k.s + this.uy * k.c, north = this.y0 + this.uy * k.s - this.ux * k.c;
-    const alt = (this.kind === 'cruise' ? this.ground : this.ground - (this.sim.aircraft.def.spawnHeight + 0.05)) + k.h;
+    const def = this.sim.aircraft.def, world = this.sim.world;
+    let alt = (this.kind === 'cruise' ? this.ground : this.ground - (def.spawnHeight + 0.05)) + k.h;
+    // ground: the wheels never go below the terrain or runway surface under the aircraft, and a cruise keeps 60 m above it
+    const gh = world.heightAt(east, north);
+    alt = Math.max(alt, gh + (this.kind === 'cruise' ? 60 : def.spawnHeight + 0.05));
+    // collision: the datum inside a building ends the flight
+    if (!this.collided && world.obstacles.hit(east, north, alt) >= 0) this.collided = true;
     if (this.kind !== 'cruise') k.h = Math.max(k.h, this.sim.aircraft.def.spawnHeight + 0.05);
     ac.q = Quat.fromEuler(k.roll * DEG, k.pitch * DEG, this.hdg);
     ac.pos = new Vec3(north, east, -alt);

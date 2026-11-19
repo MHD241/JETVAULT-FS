@@ -171,7 +171,7 @@ class App implements MenuHost {
   fuelFraction: [number, number] = [1, 1];
   private lookTmp = new THREE.Vector3();
   /** Director mode: the scripted pilot flies the aircraft; the player flies the camera drone. */
-  private director: { shot: DirectorShot; script: KeyframeFlight; t0: number; p0: THREE.Vector3; fwd0: THREE.Vector3; right0: THREE.Vector3; ground: number; state: 'count' | 'run' | 'cut'; until: number; cut: boolean } | null = null;
+  private director: { shot: DirectorShot; script: KeyframeFlight; t0: number; p0: THREE.Vector3; fwd0: THREE.Vector3; right0: THREE.Vector3; ground: number; state: 'count' | 'run' | 'cut'; until: number; cut: boolean; orbit: boolean } | null = null;
   private directorInput!: DirectorInput;
   private directorStarting = false;
   private rewards = new FlightRewards();
@@ -574,7 +574,8 @@ class App implements MenuHost {
     this.renderer.domElement.focus();
   }
   /** Starts a film shot: loads it, shows 3-2-1, runs the scripted aircraft and camera for the shot length, then says CUT. */
-  async directorStart(shot: DirectorShot) {
+  async directorStart(shot0: DirectorShot, userOrbit = this.director?.orbit ?? false) {
+    const shot: DirectorShot = userOrbit ? { ...shot0, cam: undefined, view: undefined } : shot0;
     this.directorStop(false); this.directorStarting = true;
     this.menu.hide(); this.showCard('LOADING', shot.title);
     const w = this.weather; w.realTime = false; w.dayOfYear = shot.dayOfYear; w.timeOfDay = shot.timeOfDay; w.cloudCover = shot.cloud;
@@ -595,8 +596,8 @@ class App implements MenuHost {
     sim.preStep = () => script.step();
     const p0 = nedToThree(ac.pos), psi = ac.euler[2];
     const fwd0 = new THREE.Vector3(Math.sin(psi), 0, -Math.cos(psi)), right0 = new THREE.Vector3(Math.cos(psi), 0, Math.sin(psi));
-    this.director = { shot, script, t0: -1, p0, fwd0, right0, ground: rw.elev, state: 'count', until: performance.now() + 3300, cut: false };
-    this.rig.setMode(shot.view ?? 'free', ac);
+    this.director = { shot, script, t0: -1, p0, fwd0, right0, ground: rw.elev, state: 'count', until: performance.now() + 3300, cut: false, orbit: userOrbit };
+    this.rig.setMode(shot.view ?? (userOrbit ? 'chase' : 'free'), ac);
     this.directorInput.setClean(false); this.directorInput.setClean(true);
     this.sim.paused = true; this.directorStarting = false;
     this.directorCam(0);
