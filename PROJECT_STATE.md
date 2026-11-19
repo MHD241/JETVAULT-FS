@@ -995,3 +995,7 @@ For real in-game footage: the aircraft flies the shot by itself, the player flie
 - `Main.directorStart/Stop`; keys, rewards and the normal pilot input are bypassed while directing.
 - Tests: tests/flightScript.test.ts: every jet (737, A320, A340, A350, C-17) takes off to 3000 ft and lands from 4 nm and stops on the runway (sink < 600 fpm). Landings from 2 nm are NOT reliable for A320/A340/C-17 (hard), so 4 nm is used.
 - Verified headless: shot starts, rig in free mode, script runs (phase roll). NOT verified: pointer lock look, smoothness on a real GPU, Safari behaviour.
+
+## Update 182 – Director reworked: fully scripted shots (user: "you program everything, I just take a video")
+The free camera drone was dropped. `src/shotList.ts` has 5 shots (golden hour approach A320, takeoff roll A320, C-17 approach, dusk cockpit approach, over the city); each sets aircraft, runway, date/time, clouds, a scripted pilot (`FlightScript`) and a scripted camera (orbit or ground tripod). Menu > Director lists them with START. Flow: loads, clean screen, 3-2-1, ACTION, plays for `duration` sim seconds, then CUT with START AGAIN (R) / NEXT SHOT (N) / MENU. Pro only.
+Verified headless: takeoff and city shots run the state machine to CUT (sim fast-forwarded; headless real-time is too slow to watch). NOT verified: how the camera moves look on screen; tune the `cam` functions in shotList.ts after the user's first recording.

@@ -1,9 +1,23 @@
 // Director mode: the player flies a floating camera drone (the rig's free camera) while a scripted pilot flies the aircraft. This class adds what the plain free
 // camera lacks: click to capture the mouse for looking around, speed keys, a restart key and hiding the interface for a clean picture.
+import * as THREE from 'three';
 import type { CameraRig } from './render/cameras';
 
-/** One Director shot: which aircraft does what, where, and when (date and time of day, UTC) with what clouds. */
-export interface DirectorShot { aircraft: string; kind: 'takeoff' | 'landing' | 'cruise'; runway: string; dayOfYear: number; timeOfDay: number; cloud: 'SKC' | 'FEW' | 'SCT' | 'BKN' | 'OVC' }
+/** Where the aircraft and the shot start, passed to a camera function. All vectors are in three.js world coordinates. */
+export interface ShotCtx { p: THREE.Vector3; psi: number; fwd: THREE.Vector3; right: THREE.Vector3; p0: THREE.Vector3; fwd0: THREE.Vector3; right0: THREE.Vector3; ground: number }
+export interface ShotCam { pos: THREE.Vector3; look: THREE.Vector3; fov: number }
+/** One film shot: which aircraft does what, where, and when (date and time of day, UTC) with what clouds; optionally a scripted camera. */
+export interface DirectorShot {
+  id: string; title: string; aircraft: string; kind: 'takeoff' | 'landing' | 'cruise'; runway: string; dayOfYear: number; timeOfDay: number;
+  cloud: 'SKC' | 'FEW' | 'SCT' | 'BKN' | 'OVC';
+  /** Length of the shot in simulated seconds. */
+  duration: number;
+  /** Approach distance for landings (nm). */
+  nm?: number; cruiseAglFt?: number;
+  spawn?: { kind: 'air'; east: number; north: number; altFt: number; hdg: number };
+  view?: 'cockpit';
+  cam?: (t: number, c: ShotCtx) => ShotCam;
+}
 
 export class DirectorInput {
   active = false;

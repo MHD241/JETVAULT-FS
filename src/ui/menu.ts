@@ -10,6 +10,7 @@ import { World } from '../world/world';
 import { HomeGlobe } from './homeGlobe';
 import { PRO } from '../config';
 import type { DirectorShot } from '../director';
+import { SHOTS } from '../shotList';
 import { aircraftAvailable, wallet } from '../economy';
 import { Aircraft, AircraftDef } from '../sim/fdm/aircraft';
 
@@ -85,7 +86,6 @@ export class Menu {
   home = true;
   private step = 1;
   private tab: Tab = 'fly';
-  private shot: DirectorShot = { aircraft: 'a320', kind: 'takeoff', runway: '24', dayOfYear: 190, timeOfDay: 19.9, cloud: 'SCT' };
   private spawn: AnySpawn = { kind: 'stand', index: 0, coldAndDark: false };
   open = true;
   private mapCanvas: HTMLCanvasElement | null = null;
@@ -145,7 +145,7 @@ export class Menu {
     const n = document.createElement('div'); n.className = 'jv-notice'; n.textContent = text; this.el.appendChild(n);
     setTimeout(() => n.remove(), 4500);
   }
-  private go(tab: Tab) { this.tab = tab; if (tab === 'fly') this.step = 1; this.setHome(false); }
+  go(tab: Tab) { this.tab = tab; if (tab === 'fly') this.step = 1; this.setHome(false); }
   /** Back: one step back inside Fly Now, otherwise to the home screen. */
   private goBack() { if (!this.home && this.tab === 'fly' && this.step > 1) { this.step--; this.render(); } else this.setHome(true); }
   /** The big button on the right: NEXT through the Fly Now steps, then FLY. */
@@ -522,25 +522,17 @@ export class Menu {
     s.appendChild(act);
   }
 
-  /** Director (film mode): the aircraft flies itself, the player flies a free camera drone to film it. */
+  /** Director (film mode): a list of scripted shots; the aircraft, weather, time and camera are all automatic, the player just records the screen. */
   private renderDirector(s: HTMLElement) {
-    const sh = this.shot, h = this.host;
-    s.innerHTML = '<h2>Director</h2><p>The aircraft flies the shot by itself at the time of day you choose. You fly a free camera drone (W A S D, Q E, mouse) and record the screen with your own tool.</p>';
-    const row = (label: string, opts: [string, string][], cur: string, set: (v: string) => void) => {
-      const d = document.createElement('div'); d.className = 'jv-row'; d.innerHTML = `<label>${label}</label>`;
-      const sel = document.createElement('select');
-      for (const [v, t] of opts) { const o = document.createElement('option'); o.value = v; o.textContent = t; o.selected = v === cur; sel.appendChild(o); }
-      sel.onchange = () => set(sel.value); d.appendChild(sel); s.appendChild(d);
-    };
-    row('Aircraft', h.aircraftDefs.filter((a) => !a.drone && aircraftAvailable(a.id)).map((a) => [a.id, a.name] as [string, string]), sh.aircraft, (v) => { sh.aircraft = v; });
-    row('Shot', [['takeoff', 'Takeoff and climb'], ['landing', 'Approach and landing (4 nm final)'], ['cruise', 'Cruise at 3000 ft']], sh.kind, (v) => { sh.kind = v as DirectorShot['kind']; });
-    row('Runway', h.world.airport.runways.flatMap((r) => r.ends).map((e) => [e.ident, `Runway ${e.ident}`] as [string, string]), sh.runway, (v) => { sh.runway = v; });
-    const presets: [string, number, number, number][] = [['Sunrise', 190, 3.9, 0], ['Morning', 190, 7, 0], ['Midday', 190, 11.5, 0], ['Golden hour', 190, 19.9, 0], ['Dusk', 322, 15.8, 0], ['Night', 190, 23.5, 0]];
-    row('Time of day', presets.map(([n, , t], i) => [String(i), `${n} (${Math.floor(t)}:${String(Math.round((t % 1) * 60)).padStart(2, '0')} UTC)`] as [string, string]), String(Math.max(0, presets.findIndex((p) => p[2] === sh.timeOfDay))), (v) => { const p = presets[Number(v)]; sh.dayOfYear = p[1]; sh.timeOfDay = p[2]; });
-    row('Clouds', [['SKC', 'Clear'], ['FEW', 'Few'], ['SCT', 'Scattered'], ['BKN', 'Broken'], ['OVC', 'Overcast']], sh.cloud, (v) => { sh.cloud = v as CloudCover; });
-    const go = document.createElement('button'); go.className = 'jv-btn'; go.textContent = 'START SHOT';
-    go.onclick = () => { go.disabled = true; go.textContent = 'LOADING...'; void h.directorStart(sh); };
-    s.appendChild(go);
+    s.innerHTML = '<h2>Director</h2><p>Every shot is fully scripted: aircraft, place, time of day, weather and camera. Start your screen recorder, press START, and the game counts 3-2-1, plays the shot and says CUT. If you missed it, press START AGAIN.</p>';
+    const list = document.createElement('div'); list.className = 'jv-grid';
+    SHOTS.forEach((sh, i) => {
+      const c = document.createElement('div'); c.className = 'jv-card';
+      c.innerHTML = `<b>${i + 1}. ${sh.title}</b><span>${sh.duration} s \u00b7 ${sh.cloud} clouds \u00b7 ${Math.floor(sh.timeOfDay)}:${String(Math.round((sh.timeOfDay % 1) * 60)).padStart(2, '0')} UTC</span>`;
+      const b = document.createElement('button'); b.className = 'jv-btn'; b.textContent = 'START'; b.onclick = (e) => { e.stopPropagation(); b.disabled = true; b.textContent = 'LOADING...'; void this.host.directorStart(sh); };
+      c.appendChild(b); list.appendChild(c);
+    });
+    s.appendChild(list);
   }
   private renderSettings(s: HTMLElement) {
     const g = { ...this.host.graphics };
