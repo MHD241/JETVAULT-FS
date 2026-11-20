@@ -109,7 +109,10 @@ if (vWall.z > 4.5) {
   float win = step(0.25, f.x) * step(f.x, 0.75) * step(0.3, f.y) * step(f.y, 0.78) * step(1.0, vWall.y);
   gWin = win * step(0.45, bh(floor(cell) + floor(vWall.x / 97.0)));
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.06, 0.07), win * 0.85);
-}`)
+}
+// lit windows are 1-2 m wide: when a pixel covers more than about a window the lit/dark pattern shimmers as the camera moves, so it fades to its average glow
+float wfade = 1.0 - smoothstep(0.35, 1.3, fwd);
+if (vWall.z > 0.5) { gWin = mix(0.05 + 0.09 * bh(floor(vWall.xy / 24.0)), gWin, wfade); }`)
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.15, gWin);')
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(1.0, 0.78, 0.5) * gWin * uNight * 0.8;');
     };
