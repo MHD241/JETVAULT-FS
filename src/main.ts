@@ -55,6 +55,9 @@ import { aircraftAvailable, FlightRewards, wallet } from './economy';
 import { KeyframeFlight } from './sim/keyframes';
 import { DirectorInput, DirectorShot } from './director';
 import { SHOTS } from './shotList';
+import { Multiplayer, PlayerState, WeatherShare } from './net/multiplayer';
+import { hostRoom, joinRoom, validCode, RoomTransport } from './net/transport';
+import { RemotePlayers } from './render/remotePlayers';
 import { generateCity } from './world/city';
 import { LocalProjection, EGPH_ORIGIN } from './world/geo';
 import { LC } from './world/world';
@@ -174,6 +177,34 @@ class App implements MenuHost {
   private director: { shot: DirectorShot; script: KeyframeFlight; t0: number; p0: THREE.Vector3; fwd0: THREE.Vector3; right0: THREE.Vector3; ground: number; state: 'count' | 'run' | 'cut'; until: number; cut: boolean; orbit: boolean } | null = null;
   private directorInput!: DirectorInput;
   private directorStarting = false;
+  // multiplayer
+  mpChanged: (() => void) | null = null;
+  private mp: Multiplayer | null = null; private mpCode: string | null = null; private mpLogLines: string[] = [];
+  private remotes = new RemotePlayers();
+  private mpStart(net: RoomTransport, name: string, host: boolean, code: string | null) {
+    this.mpLeave();
+    const mp = new Multiplayer(net, name, host); this.mp = mp; this.mpCode = code; this.mpLogLines = [];
+    mp.onRoster = () => this.mpChanged?.();
+    mp.onChat = (n, t) => { this.mpLogLines.push(`${n}: ${t}`); this.hud?.toast(`${n}: ${t}`, 6); this.mpChanged?.(); };
+    mp.getWeather = () => { const w = this.weather; return { dayOfYear: w.dayOfYear, timeOfDay: w.timeOfDay, cloudCover: w.cloudCover, windDirection: w.windDirection, windSpeed: w.windSpeed, qnh: w.qnh, temperatureC: w.temperatureC }; };
+    mp.onWeather = (w: WeatherShare) => { this.applyWeather({ ...this.weather, realTime: false, dayOfYear: w.dayOfYear, timeOfDay: w.timeOfDay, cloudCover: w.cloudCover as WeatherSettings['cloudCover'], windDirection: w.windDirection, windSpeed: w.windSpeed, qnh: w.qnh, temperatureC: w.temperatureC }); };
+    net.onClosed = () => { this.hud?.toast('The host closed the room', 4); this.mpLeave(); };
+    this.mpChanged?.();
+  }
+  async mpHost(name: string) { const { net, code } = await hostRoom(); this.mpStart(net, name, true, code); return code; }
+  async mpJoin(code: string, name: string) {
+    if (!validCode(code)) throw new Error('A room code is 5 letters or digits.');
+    const net = await joinRoom(code); this.mpStart(net, name, false, code);
+  }
+  mpLeave() { if (!this.mp) return; this.mp.leave(); this.mp = null; this.mpCode = null; this.remotes.clear(); this.mpChanged?.(); }
+  mpSay(text: string) { this.mp?.say(text); }
+  mpState() { return this.mp ? { code: this.mpCode, host: this.mp.isHost, roster: this.mp.roster, log: this.mpLogLines } : null; }
+  /** This player's aircraft as sent to the others. */
+  private mpMine(): PlayerState | null {
+    if (!this.started) return null;
+    const ac = this.sim.aircraft, c = this.sim.controls, p = ac.worldPoint(new Vec3(0, 0, 0));
+    return { name: '', ac: ac.def.id, p: [p.x, p.y, p.z], q: [ac.q.w, ac.q.x, ac.q.y, ac.q.z], v: [ac.vel.x, ac.vel.y, ac.vel.z], gear: ac.gearExt, flap: ac.flap, lights: (c.landingLight ? 1 : 0) | (c.beacon ? 2 : 0) | (c.strobes ? 4 : 0) | (c.navLights ? 8 : 0) };
+  }
   private rewards = new FlightRewards();
   attribution: string[] = [];
   private started = false;
@@ -297,6 +328,7 @@ class App implements MenuHost {
     this.buildAircraftVisuals();
     this.aircraftGroup.matrixAutoUpdate = false;
     this.scene.add(this.aircraftGroup);
+    this.scene.add(this.remotes.group);
     this.crashFx = new CrashFx(this.scene);
     this.env = new EnvironmentRenderer(this.scene, this.renderer, this.terrain.uniforms.uDetail.value as THREE.DataTexture);
     this.rig = new CameraRig(window.innerWidth / window.innerHeight);
@@ -1132,6 +1164,7 @@ class App implements MenuHost {
     }
     for (const m of this.scene.children) if (m.renderOrder >= 2 && m.renderOrder <= 3) m.visible = m.visible && this.graphics.clouds;
     this.model.update(ac, sim.controls, sim.paused ? 0 : dt * sim.timeScale, this.env.night);
+    if (this.mp) { this.mp.update(dt, () => this.mpMine()); this.remotes.update(this.mp.poses(), cam, dt); }
     if (inCockpit) this.cockpit.update(dt, this.env.night);
     this.terrain.update(cam.position, sim.simTime);
     this.terrain.setNight(this.env.night);

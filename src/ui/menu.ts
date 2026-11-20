@@ -72,9 +72,16 @@ export interface MenuHost {
   canResume(): boolean;
   attribution: string[];
   directorStart(shot: DirectorShot, userOrbit?: boolean): Promise<void>;
+  /** Multiplayer (net/multiplayer.ts): host or join a room, leave, chat. `mpState` is read by the page; the host calls `mpChanged` when it changes. */
+  mpHost(name: string): Promise<string>;
+  mpJoin(code: string, name: string): Promise<void>;
+  mpLeave(): void;
+  mpSay(text: string): void;
+  mpState(): { code: string | null; host: boolean; roster: { name: string; me: boolean }[]; log: string[] } | null;
+  mpChanged: (() => void) | null;
 }
 
-type Tab = 'home' | 'credits' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'director' | 'controls' | 'training' | 'about';
+type Tab = 'home' | 'credits' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'director' | 'multiplayer' | 'controls' | 'training' | 'about';
 
 
 export class Menu {
@@ -101,7 +108,7 @@ export class Menu {
     const items: [Tab, string, boolean, string?][] = [
       ['home', 'Home', true], ['fly', 'Fly Now', true], ['map', 'World Map', true], ['aircraft', 'Aircraft Selection', true],
       ['airports', 'Airport Selection', true], ['planner', 'Flight Planner', false, 'Not yet available'],
-      ['weather', 'Weather', true], ['settings', 'Settings', true], ...(PRO ? [['director', 'Director (film mode)', true] as [Tab, string, boolean]] : []), ['controls', 'Controls', true],
+      ['weather', 'Weather', true], ['settings', 'Settings', true], ['multiplayer', 'Multiplayer', true], ...(PRO ? [['director', 'Director (film mode)', true] as [Tab, string, boolean]] : []), ['controls', 'Controls', true],
       ['training', 'Training', false, 'Not yet available'], ['about', 'About JetVault', true],
     ];
     for (const [t, name, enabled, note] of items) {
@@ -122,6 +129,7 @@ export class Menu {
     const page = document.createElement('div'); page.className = 'jv-page'; page.append(nav, this.section, footer);
     (nav.querySelector('.jv-brand') as HTMLElement).onclick = () => this.setHome(true);
     this.homeEl = this.buildHome();
+    host.mpChanged = () => this.updateMp();
     this.el.append(this.homeEl, page);
     document.body.appendChild(this.el);
     this.render();
@@ -173,6 +181,7 @@ export class Menu {
     const hints = document.createElement('div'); hints.className = 'jv-hints';
     hints.innerHTML = `<button data-h="resume"><kbd>Esc</kbd> Resume flight</button><button data-h="controls"><kbd>?</kbd> Controls</button><button data-h="about"><kbd>i</kbd> About JetVault</button><button data-h="credits"><kbd>\u2605</kbd> Acknowledgements</button>`;
     if (PRO) { const d = document.createElement('button'); d.innerHTML = '<kbd>\u25b6</kbd> Director'; d.onclick = () => this.go('director'); hints.appendChild(d); }
+    { const m = document.createElement('button'); m.innerHTML = '<kbd>\u2708</kbd> Multiplayer'; m.onclick = () => this.go('multiplayer'); hints.appendChild(m); }
     (hints.querySelector('[data-h=credits]') as HTMLElement).onclick = () => this.go('credits');
     (hints.querySelector('[data-h=resume]') as HTMLElement).onclick = () => this.host.resume();
     (hints.querySelector('[data-h=controls]') as HTMLElement).onclick = () => this.go('controls');
@@ -190,7 +199,7 @@ export class Menu {
     const h = this.host;
     s.innerHTML = '';
     (this.footer.querySelector('[data-f=resume]') as HTMLElement).style.display = this.host.canResume() ? '' : 'none';
-    const titles: Record<Tab, string> = { home: 'Home', credits: 'Acknowledgements', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', director: 'Director', controls: 'Controls', training: 'Training', about: 'About JetVault' };
+    const titles: Record<Tab, string> = { home: 'Home', credits: 'Acknowledgements', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', director: 'Director', multiplayer: 'Multiplayer', controls: 'Controls', training: 'Training', about: 'About JetVault' };
     const pt = this.el.querySelector('.jv-ptitle'); if (pt) pt.textContent = titles[this.tab];
     const fb = this.footer.querySelector('[data-f=fly]') as HTMLElement;
     fb.style.display = ['fly', 'aircraft', 'airports', 'map'].includes(this.tab) ? '' : 'none';
@@ -213,6 +222,7 @@ export class Menu {
     else if (this.tab === 'credits') this.renderCredits(s);
     else if (this.tab === 'settings') this.renderSettings(s);
     else if (this.tab === 'director') this.renderDirector(s);
+    else if (this.tab === 'multiplayer') this.renderMultiplayer(s);
     else if (this.tab === 'controls') this.renderControls(s);
     else if (this.tab === 'about') {
       s.innerHTML = `<h2>About JetVault Flight Simulator</h2>
@@ -522,6 +532,46 @@ export class Menu {
     s.appendChild(act);
   }
 
+  /** Multiplayer page: one player hosts a room and shares its 5-letter code, the others join with it. Players see each other's aircraft in the same sky. */
+  private mpRoster: HTMLElement | null = null; private mpLog: HTMLElement | null = null;
+  private renderMultiplayer(s: HTMLElement) {
+    const h = this.host;
+    s.innerHTML = `<h2>Multiplayer</h2><p>Fly together in the same sky. One player hosts a room and shares its code, the others join with it (up to 8 players). Everybody flies their own aircraft where they like; you see the others with name tags. Aircraft do not collide with each other. The host's time of day and weather are shared when you join.</p>
+      <p class="hint">Connections are made directly between players through the public PeerJS service (it sees the room code and network addresses while connecting). Players behind strict firewalls may not be able to connect.</p>`;
+    const row = document.createElement('div'); row.className = 'jv-row';
+    let saved = ''; try { saved = localStorage.getItem('jetvault.mpname') ?? ''; } catch { /* ignore */ }
+    row.innerHTML = `<label>Your name</label><input type="text" maxlength="16" placeholder="Pilot" value="${saved.replace(/[^\p{L}\p{N} _.\-]/gu, '')}">`;
+    const nameIn = row.querySelector('input') as HTMLInputElement; s.appendChild(row);
+    const name = () => { const n = nameIn.value.trim() || 'Pilot'; try { localStorage.setItem('jetvault.mpname', n); } catch { /* ignore */ } return n; };
+    const st = document.createElement('div'); st.className = 'jv-notice-line';
+    const busy = (t: string) => { st.textContent = t; };
+    const actions = document.createElement('div'); actions.className = 'jv-row';
+    const hostB = document.createElement('button'); hostB.className = 'jv-btn'; hostB.textContent = 'HOST A ROOM';
+    hostB.onclick = () => { hostB.disabled = true; busy('Opening a room...'); h.mpHost(name()).then((c) => busy(`Room open. Share this code: ${c}`)).catch((e) => busy(`Could not open a room: ${(e as Error).message}`)).finally(() => { hostB.disabled = false; this.updateMp(); }); };
+    const codeIn = document.createElement('input'); codeIn.type = 'text'; codeIn.maxLength = 5; codeIn.placeholder = 'CODE'; codeIn.style.cssText = 'width:90px;text-transform:uppercase;margin-left:18px';
+    const joinB = document.createElement('button'); joinB.className = 'jv-btn'; joinB.textContent = 'JOIN';
+    joinB.onclick = () => { joinB.disabled = true; busy('Connecting...'); h.mpJoin(codeIn.value.trim().toUpperCase(), name()).then(() => busy('Connected.')).catch((e) => busy((e as Error).message)).finally(() => { joinB.disabled = false; this.updateMp(); }); };
+    const leaveB = document.createElement('button'); leaveB.className = 'jv-btn ghost'; leaveB.textContent = 'LEAVE ROOM'; leaveB.onclick = () => { h.mpLeave(); busy('Left the room.'); this.updateMp(); };
+    actions.append(hostB, codeIn, joinB, leaveB); s.append(actions, st);
+    const roster = document.createElement('div'); roster.className = 'jv-card'; this.mpRoster = roster; s.appendChild(roster);
+    const log = document.createElement('div'); log.className = 'jv-card'; log.style.cssText = 'max-height:160px;overflow:auto;margin-top:10px'; this.mpLog = log; s.appendChild(log);
+    const chat = document.createElement('div'); chat.className = 'jv-row';
+    const ci = document.createElement('input'); ci.type = 'text'; ci.maxLength = 200; ci.placeholder = 'Message to everybody'; ci.style.width = '60%';
+    const send = () => { if (ci.value.trim()) { h.mpSay(ci.value); ci.value = ''; } };
+    ci.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') send(); };
+    const sb = document.createElement('button'); sb.className = 'jv-btn'; sb.textContent = 'SEND'; sb.onclick = send;
+    chat.append(ci, sb); s.appendChild(chat);
+    nameIn.onkeydown = (e) => e.stopPropagation(); codeIn.onkeydown = (e) => e.stopPropagation();
+    this.updateMp();
+  }
+  private updateMp() {
+    if (!this.mpRoster || !this.mpLog) return;
+    const m = this.host.mpState();
+    const esc = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+    this.mpRoster.innerHTML = m ? `<b>Room ${m.code ?? ''} ${m.host ? '(you are the host)' : ''}</b><span>${m.roster.map((r) => esc(r.name) + (r.me ? ' (you)' : '')).join(' \u00b7 ')}</span>` : '<b>Not in a room</b><span>Host a room or join one with a code.</span>';
+    this.mpLog.innerHTML = m && m.log.length ? m.log.slice(-30).map((l) => `<div>${esc(l)}</div>`).join('') : '<span>No messages yet.</span>';
+    this.mpLog.scrollTop = this.mpLog.scrollHeight;
+  }
   /** Director (film mode): a list of scripted shots; the aircraft, weather, time and camera are all automatic, the player just records the screen. */
   private renderDirector(s: HTMLElement) {
     s.innerHTML = '<h2>Director</h2><p>Every shot is fully scripted: aircraft, place, time of day, weather and camera. Start your screen recorder, press START, and the game counts 3-2-1, plays the shot and says CUT. If you missed it, press START AGAIN.</p>';
