@@ -4,8 +4,10 @@
  */
 export const FOCUS_MODE = true;
 export const FOCUS_AIRPORT = 'EGPH';
+/** Airports shown in the menus while FOCUS_MODE is on. */
+export const FOCUS_AIRPORTS = ['EGPH', 'EGLL'];
 export const FOCUS_AIRCRAFT = 'b738';
-export const airportVisible = (icao: string) => !FOCUS_MODE || icao === FOCUS_AIRPORT;
+export const airportVisible = (icao: string) => !FOCUS_MODE || FOCUS_AIRPORTS.includes(icao);
 
 /**
  * Edition. FREE = the current look (satellite-photo ground, simple lights), kept exactly as released (git branch `free-edition`).

@@ -23,11 +23,13 @@ from build_geodata import LOCAL, to_local, to_wgs, dem_urls, wc_urls, write_i16,
 
 ROOT = bg.ROOT
 OUT = os.path.join(ROOT, "public", "data", "scot")
-LO = dict(half=400000.0, step=500.0)
+LO = dict(half=700000.0, step=700.0)
 
 PATCHES = {
     "egpf": dict(name="Glasgow Airport", lat=55.8719, lon=-4.4331, elev_ft=26, half=14400.0, img_half=9000.0,
                  ident="EGPF", freq=dict(ATIS=129.2, GND=121.7, TWR=118.8, APP=119.1)),
+    "egll": dict(name="London Heathrow Airport", lat=51.4706, lon=-0.4619, elev_ft=83, half=14400.0, img_half=9000.0,
+                 ident="EGLL", freq={}),
     "egpm": dict(name="Portmoak (Scottish Gliding Centre)", lat=56.191031, lon=-3.328505, elev_ft=350, half=12480.0, img_half=9000.0,
                  ident="EGPM", freq={}),
 }
@@ -95,6 +97,17 @@ def runways_for(pid, p):
         return [dict(id="05/23", width_ft=float(r["width_ft"]), surface="asphalt", ends=[
             dict(ident="05", lat=float(r["le_latitude_deg"]), lon=float(r["le_longitude_deg"]), elev_ft=26, displaced_ft=0.0),
             dict(ident="23", lat=float(r["he_latitude_deg"]), lon=float(r["he_longitude_deg"]), elev_ft=21, displaced_ft=980.0)])]
+    if pid == "egll":
+        # OurAirports EGLL: 09L/27R and 09R/27L (both open). Elevations ft; displaced threshold only given for the 09 ends.
+        out = []
+        for r in csv.DictReader(open(os.path.join(ROOT, "tools", "cache", "runways.csv"))):
+            if r["airport_ident"] != "EGLL" or r["closed"] != "0":
+                continue
+            f = lambda k, d=0.0: float(r[k]) if r[k] else d
+            out.append(dict(id=f"{r['le_ident']}/{r['he_ident']}", width_ft=f("width_ft", 164), surface="asphalt", ends=[
+                dict(ident=r["le_ident"], lat=f("le_latitude_deg"), lon=f("le_longitude_deg"), elev_ft=f("le_elevation_ft", 80), displaced_ft=f("le_displaced_threshold_ft")),
+                dict(ident=r["he_ident"], lat=f("he_latitude_deg"), lon=f("he_longitude_deg"), elev_ft=f("he_elevation_ft", 80), displaced_ft=f("he_displaced_threshold_ft"))]))
+        return out
     # Portmoak: launch line along the worn track found in the Sentinel-2 imagery (see PROJECT_STATE update 17)
     return [dict(id="10/28", width_ft=100, surface="grass", ends=[
         dict(ident="10", lat=56.191244, lon=-3.33752, elev_ft=350, displaced_ft=0.0),
@@ -191,7 +204,7 @@ def build_patch(pid):
         hgt = q.get("height") or (3.2 * float(q["num_floors"]) + 1.0 if q.get("num_floors") else 8.0)
         airport_blds.append(dict(h=round(float(hgt), 1), pts=[[round(x, 2), round(y, 2)] for x, y in sg.polygon.orient(g, 1.0).exterior.coords][:-1]))
     # keep the download light: only buildings within BR metres of the airport (the 3D city is not needed further out)
-    BR = 5000.0 if pid == "egpf" else 3500.0
+    BR = {"egpf": 5000.0, "egll": 4000.0}.get(pid, 3500.0)
     feats = []
     for f in blds["features"]:
         c = sg.shape(f["geometry"]).centroid
@@ -241,7 +254,8 @@ def build_imagery(pid):
     tf = from_origin(cx - HALF, cy + HALF, STEP, STEP)
     Bk = "/vsicurl/https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/30"
     scenes = {"egpf": [f"{Bk}/U/UG/2025/5/S2C_30UUG_20250516_0_L2A/TCI.tif", f"{Bk}/U/VG/2025/5/S2C_30UVG_20250516_0_L2A/TCI.tif"],
-              "egpm": [f"{Bk}/V/VH/2025/5/S2C_30VVH_20250516_0_L2A/TCI.tif"]}[pid]
+              "egpm": [f"{Bk}/V/VH/2025/5/S2C_30VVH_20250516_0_L2A/TCI.tif"],
+              "egll": [f"{Bk}/U/XC/2025/8/S2A_30UXC_20250817_0_L2A/TCI.tif", f"{Bk}/U/XC/2025/6/S2C_30UXC_20250619_0_L2A/TCI.tif", f"{Bk}/U/XC/2024/7/S2B_30UXC_20240719_0_L2A/TCI.tif"]}[pid]
     out = np.zeros((3, N, N), np.float32); have = np.zeros((N, N), bool)
     for url in scenes:
         with rasterio.open(url) as src:

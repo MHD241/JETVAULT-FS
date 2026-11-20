@@ -579,6 +579,7 @@ class App implements MenuHost {
     this.directorStop(false); this.directorStarting = true;
     this.menu.hide(); this.showCard('LOADING', shot.title);
     const w = this.weather; w.realTime = false; w.dayOfYear = shot.dayOfYear; w.timeOfDay = shot.timeOfDay; w.cloudCover = shot.cloud;
+    if (this.world.airport.icao !== 'EGPH') { this.world.setAirport('EGPH'); await this.airportChanged(); }   // the shots are written for Edinburgh
     this.selectAircraft(shot.aircraft);
     if (this.sim.def.id !== shot.aircraft) { this.directorStarting = false; this.hideCard(); this.menu.show(); return; }   // locked aircraft
     this.sim.setWeather(w);
