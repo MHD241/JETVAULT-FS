@@ -562,13 +562,8 @@ if (uNight > 0.01) {
   // small warm lamp points (a lamp is ~1 m across, not a lit 9 m square), brighter windows glow stays in the building shader
   vec2 lp = fract(en3 / 9.0) - 0.5;
   float lamp = smoothstep(1.4, 0.15, length(lp) * 9.0);
-  // a lamp is about 1 m across: once a pixel covers more than that the points shimmer as the camera moves, so they fade out with the pixel size
-  // and a steady glow of their average takes over (varying slowly, over 150 m, so it cannot sparkle either)
-  float fpx = length(fwidth(en3));
-  float lampFade = 1.0 - smoothstep(0.7, 2.5, fpx);
-  float street = step(0.86, sp) * gBuilt * lamp * lampFade;
+  float street = step(0.96, sp) * gBuilt * lamp;
   totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * street * uNight * 1.6;
-  totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * gBuilt * (1.0 - lampFade) * (0.04 + 0.03 * hash12(floor(en3 / 150.0))) * uNight;
   // aprons and taxiways are lit at night (apron floodlights, spill light): a faint warm glow so the pavement reads against the dark grass
   totalEmissiveRadiance += vec3(0.62, 0.55, 0.42) * gPaved * uNight * 0.12;
 }

@@ -66,7 +66,7 @@ if (vWall.z > 4.5) {
   float win = step(0.30, f.y) * step(f.y, 0.78) * step(1.0, vWall.y) * step(0.04, f.x) * step(f.x, 0.96);
   diffuseColor.rgb *= 1.0 - 0.18 * seam - 0.05 * bh(floor(cell));
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.13, 0.16, 0.19), win * 0.85);
-  gWin = win * 0.7;
+  gWin = win * 0.7 * step(0.80, bh(floor(cell) + 5.0));
 } else if (vWall.z > 3.5) {
   // sandstone / granite: ashlar blocks 1.0 x 0.5 m with per-block tone, tall sash windows with pale surrounds
   vec2 bc = vec2(vWall.x / 1.0 + 0.5 * mod(floor(vWall.y / 0.5), 2.0), vWall.y / 0.5);
@@ -79,7 +79,7 @@ if (vWall.z > 4.5) {
   float win = step(0.30, f.x) * step(f.x, 0.70) * step(0.26, f.y) * step(f.y, 0.84) * step(1.0, vWall.y);
   diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 1.12, surround * (1.0 - win));
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.07, 0.08), win * 0.9);
-  gWin = win * step(0.5, bh(floor(cell) + 3.0));
+  gWin = win * step(0.85, bh(floor(cell) + 3.0));
 } else if (vWall.z > 2.5) {
   // red brick: 0.5 x 0.14 m coursing with mortar, 3 m storeys with 1.3 m windows and pale lintels
   vec2 bc = vec2(vWall.x / 0.5 + 0.5 * mod(floor(vWall.y / 0.14), 2.0), vWall.y / 0.14);
@@ -93,13 +93,13 @@ if (vWall.z > 4.5) {
   float lintel = step(0.28, f.x) * step(f.x, 0.72) * step(0.80, f.y) * step(f.y, 0.86) * step(1.0, vWall.y);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.74, 0.72, 0.66), lintel);
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.06, 0.07), win * 0.9);
-  gWin = win * step(0.4, bh(floor(cell) + 9.0));
+  gWin = win * step(0.85, bh(floor(cell) + 9.0));
 } else if (vWall.z > 1.5) {
   // glazed facade: continuous ribbon glazing with mullions, 4.5 m storeys
   vec2 cell = vec2(vWall.x / 1.8, vWall.y / 4.5);
   vec2 f = fract(cell);
   float win = step(0.06, f.x) * step(f.x, 0.96) * step(0.12, f.y) * step(f.y, 0.86) * step(1.0, vWall.y);
-  gWin = win * 0.9;
+  gWin = win * 0.9 * step(0.80, bh(floor(cell) + 13.0));
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.10, 0.17, 0.24), win * 0.85);
   diffuseColor.rgb += 0.10 * (bh(floor(cell)) - 0.5) * win;       // slight per-pane reflection variation
 } else if (vWall.z > 0.5) {
@@ -107,12 +107,9 @@ if (vWall.z > 4.5) {
   vec2 cell = vec2(vWall.x / 2.6, vWall.y / 3.2);
   vec2 f = fract(cell);
   float win = step(0.25, f.x) * step(f.x, 0.75) * step(0.3, f.y) * step(f.y, 0.78) * step(1.0, vWall.y);
-  gWin = win * step(0.45, bh(floor(cell) + floor(vWall.x / 97.0)));
+  gWin = win * step(0.85, bh(floor(cell) + floor(vWall.x / 97.0)));
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.06, 0.07), win * 0.85);
-}
-// lit windows are 1-2 m wide: when a pixel covers more than about a window the lit/dark pattern shimmers as the camera moves, so it fades to its average glow
-float wfade = 1.0 - smoothstep(0.35, 1.3, fwd);
-if (vWall.z > 0.5) { gWin = mix(0.05 + 0.09 * bh(floor(vWall.xy / 24.0)), gWin, wfade); }`)
+}`)
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.15, gWin);')
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(1.0, 0.78, 0.5) * gWin * uNight * 0.8;');
     };
