@@ -204,7 +204,7 @@ def build_patch(pid):
         hgt = q.get("height") or (3.2 * float(q["num_floors"]) + 1.0 if q.get("num_floors") else 8.0)
         airport_blds.append(dict(h=round(float(hgt), 1), pts=[[round(x, 2), round(y, 2)] for x, y in sg.polygon.orient(g, 1.0).exterior.coords][:-1]))
     # keep the download light: only buildings within BR metres of the airport (the 3D city is not needed further out)
-    BR = {"egpf": 5000.0, "egll": 4000.0}.get(pid, 3500.0)
+    BR = {"egpf": 5000.0, "egll": 7000.0}.get(pid, 3500.0)
     feats = []
     for f in blds["features"]:
         c = sg.shape(f["geometry"]).centroid
