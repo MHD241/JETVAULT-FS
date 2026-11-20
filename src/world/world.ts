@@ -2,6 +2,7 @@ import { Terrain, HeightGrid } from './terrain';
 import { AirportData, PavementIndex } from './airport';
 import { Building, ObstacleIndex, parseBuildings, styleAirportBuildings, findGateSites, spacedStands } from './obstacles';
 import { GroundQuery, SurfaceInfo } from '../sim/fdm/gear';
+import { sea, seaHeight } from './waves';
 
 export interface GridFile { file: string; n: number; half: number; step: number; scale?: number }
 export interface PatchMeta {
@@ -146,11 +147,54 @@ export class World implements GroundQuery {
     return this.landcover ? this.landcover.at(east, north) : 0;
   }
 
+  /**
+   * Inland water (lake, reservoir, river, canal) inside a high-detail patch: the flat surface level (m MSL), or null. The DEM is flat over water, so
+   * the level is the lowest ground height among the water cells around the point (the bilinear DEM rises toward the bank). The regional grid is too
+   * coarse for this (a 700 m cell cannot say where a lake is), so outside the patches only the sea is water.
+   */
+  inlandWaterLevel(east: number, north: number): number | null {
+    let inside = false;
+    for (const l of this.landcovers.values()) if (l.contains(east, north)) { inside = l.at(east, north) === LC.WATER; break; }
+    if (!inside) return null;
+    let h = this.terrain.heightAt(east, north);
+    if (h < 3) return null;   // below 3 m it is the sea
+    for (let i = 0; i < 8; i++) {
+      const a = i * Math.PI / 4, e = east + 40 * Math.cos(a), n = north + 40 * Math.sin(a);
+      let w = false; for (const l of this.landcovers.values()) if (l.contains(e, n)) { w = l.at(e, n) === LC.WATER; break; }
+      if (w) h = Math.min(h, this.terrain.heightAt(e, n));
+    }
+    return h;
+  }
+
+  /** True where the aircraft, the splash effects and the surface type treat the ground as water: the sea (below 3 m) or inland water in a patch. */
+  isWater(east: number, north: number): boolean {
+    return this.landAt(east, north) === LC.WATER && (this.terrain.heightAt(east, north) < 3 || this.inlandWaterLevel(east, north) !== null);
+  }
+
+  /** Height (m MSL) of the water surface at a point, or null if there is no water: sea waves at the coast, a flat surface with small ripples inland. */
+  waterSurface(east: number, north: number): number | null {
+    if (this.landAt(east, north) !== LC.WATER) return null;
+    if (this.terrain.heightAt(east, north) < 3) return seaHeight(east, north);
+    const lv = this.inlandWaterLevel(east, north);
+    return lv === null ? null : lv + seaHeight(east, north, sea.t, Math.min(sea.amp, 1) * 0.1);
+  }
+
+  /** Ground height for the flight model: the sea bed (60 m down) at sea, 6 m below the surface in inland water. */
+  groundHeight(east: number, north: number, normalOut?: { e: number; n: number; u: number }): number {
+    if (this.landAt(east, north) === LC.WATER) {
+      const h = this.terrain.heightAt(east, north);
+      if (h < 3) return -60;
+      const lv = this.inlandWaterLevel(east, north);
+      if (lv !== null) return lv - 6;
+    }
+    return this.terrain.heightAt(east, north, normalOut);
+  }
+
   surfaceAt(east: number, north: number): SurfaceInfo {
     if (this.isPaved(east, north)) return this.wetRunway ? ASPHALT_WET : ASPHALT;
     if (this.landcover || this.landcovers.size) {
       const c = this.landAt(east, north);
-      if (c === LC.WATER && this.terrain.heightAt(east, north) < 3) return WATER;
+      if (c === LC.WATER && (this.terrain.heightAt(east, north) < 3 || this.inlandWaterLevel(east, north) !== null)) return WATER;
       if (c === LC.GRASS || c === LC.CROP || c === LC.WETLAND || c === LC.MOSS) return GRASS;
       return GROUND;
     }

@@ -52,13 +52,13 @@ export class WaterFx {
       const k = 3 * i, sp = Math.hypot(va[k], va[k + 1], va[k + 2]), drag = 1 - Math.min(0.9, 0.06 * sp * dt);
       va[k] *= drag; va[k + 2] *= drag; va[k + 1] = va[k + 1] * drag - 9.81 * dt;
       pa[k] += va[k] * dt; pa[k + 1] += va[k + 1] * dt; pa[k + 2] += va[k + 2] * dt;
-      if (this.dLife[i] <= 0 || (va[k + 1] < 0 && pa[k + 1] <= seaHeight(pa[k], -pa[k + 2]))) {
+      if (this.dLife[i] <= 0 || (va[k + 1] < 0 && pa[k + 1] <= this.surfaceY(pa[k], -pa[k + 2]))) {
         if (this.dLife[i] > 0 && va[k + 1] < -3 && Math.random() < 0.35) { const f = this.foamCur; this.foamCur = (this.foamCur + 1) % 600; this.foam[4 * f] = pa[k]; this.foam[4 * f + 1] = pa[k + 1]; this.foam[4 * f + 2] = pa[k + 2]; this.foam[4 * f + 3] = 1.0; }
         this.dLife[i] = 0; pa[k + 1] = -1e5;
       }
     }
     for (let i = 0; i < 600; i++) {
-      if (this.foam[4 * i + 3] > 0) { this.foam[4 * i + 3] -= dt / 1.6; fp.setXYZ(i, this.foam[4 * i], seaHeight(this.foam[4 * i], -this.foam[4 * i + 2]) + 0.1, this.foam[4 * i + 2]); }
+      if (this.foam[4 * i + 3] > 0) { this.foam[4 * i + 3] -= dt / 1.6; fp.setXYZ(i, this.foam[4 * i], this.surfaceY(this.foam[4 * i], -this.foam[4 * i + 2]) + 0.1, this.foam[4 * i + 2]); }
       else fp.setXYZ(i, 0, -1e5, 0);
     }
     (this.dPts.geometry.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true; fp.needsUpdate = true;
@@ -90,7 +90,10 @@ export class WaterFx {
       this.rings.push({ m, age: -0.5 * k, life: 5 + 3 * s, r1: 40 + 260 * s * (1 - 0.18 * k) });
     }
   }
+  /** Water surface height at a point; set by update() (sea waves at the coast, a flat level with ripples inland). */
+  private surfaceY: (e: number, n: number) => number = (e, n) => seaHeight(e, n);
   update(dt: number, ac: Aircraft, isWater: (e: number, n: number) => boolean, surfaceY: (e: number, n: number) => number) {
+    this.surfaceY = surfaceY;
     this.updateDrops(dt);
     for (let i = this.rings.length - 1; i >= 0; i--) {
       const r = this.rings[i]; r.age += dt;

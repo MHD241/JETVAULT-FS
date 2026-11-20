@@ -993,9 +993,9 @@ class App implements MenuHost {
       sea.t = performance.now() / 1000; sea.amp = seaAmpFromWind(sim.weather.windSpeed);
       if (!this.seaSurface) { this.seaSurface = new SeaSurface(this.terrain.uniforms.uDetail.value as THREE.Texture, this.world, this.renderer); this.scene.add(this.seaSurface.group); }
       { const cp = this.rig.camera.position; this.seaSurface.update(cp, this.env.night, this.world.landAt(cp.x, -cp.z) === LC.WATER && this.world.terrain.heightAt(cp.x, -cp.z) < 3 && cp.y < seaHeight(cp.x, -cp.z)); }
-      while (ac.waterImpacts.length) { const v = ac.waterImpacts.shift()!; const p = nedToThree(ac.pos); p.y = seaHeight(ac.pos.y, ac.pos.x); if (v > 6) { this.waterFx.impact(p, v); addSurge(ac.pos.y, ac.pos.x, Math.min(3.0, v / 30)); } }
+      while (ac.waterImpacts.length) { const v = ac.waterImpacts.shift()!; const p = nedToThree(ac.pos); p.y = this.world.waterSurface(ac.pos.y, ac.pos.x) ?? seaHeight(ac.pos.y, ac.pos.x); if (v > 6) { this.waterFx.impact(p, v); addSurge(ac.pos.y, ac.pos.x, Math.min(3.0, v / 30)); } }
     }
-    if (PRO && !sim.paused) this.waterFx.update(dt * sim.timeScale, ac, (e, n) => this.world.landAt(e, n) === LC.WATER && this.world.terrain.heightAt(e, n) < 3, (e, n) => seaHeight(e, n));
+    if (PRO && !sim.paused) this.waterFx.update(dt * sim.timeScale, ac, (e, n) => this.world.isWater(e, n), (e, n) => this.world.waterSurface(e, n) ?? seaHeight(e, n));
     if (!sim.paused) this.tyreSmoke.update(dt, ac, (e, n) => this.world.terrain.heightAt(e, n));
     this.updateMarshal(dt);
     if (!ac.crashed) nedToThree(ac.vel, this.lastVel);
