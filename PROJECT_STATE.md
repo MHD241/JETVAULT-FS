@@ -1014,3 +1014,11 @@ Verified headless: takeoff and city shots run the state machine to CUT (sim fast
 - The two runway-camera shots (A320, C-17) now put the camera on a RAIL: `rail: {s0, side, height, fov}` in shotList.ts. The camera sits beside the runway centreline, always looks at the aircraft, and the player can only slide it along the runway: W/S or Up/Down, Shift fast (range -400..2600 m). `rig.freeLocked` stops the free camera's own key movement in all Director shots.
 - The mouse pointer is hidden while a shot is filmed (3-2-1, action) and shown again on the CUT card (needed for the buttons) and when leaving the Director.
 - Headless: the rail shot reaches CUT, cursor hidden, camera starts at 260 m. Slide keys and the look of the shot not tested on screen.
+
+## Update 186 – UK map started: Heathrow (EGLL) added
+- Low-res terrain and land cover now cover all of Britain: 1400 km square, 700 m cells (`LO` in tools/build_scotland.py; was 800 km / 500 m). Same Edinburgh-centred frame, so Heathrow sits about 540 km south of the origin (float precision there is about 3-6 cm: not checked for visible jitter).
+- New patch `egll` (tools/build_scotland.py: `PATCHES`, `runways_for`, Sentinel-2 scenes 30UXC 2025-08-17 + 2025-06-19 + 2024-07-19 as fill): 4 runway ends (09L/27R, 09R/27L from OurAirports), 17,957 buildings within 4 km, 148 gate points, roads, imagery. About 11 MB. No ILS or frequencies (not sourced; not invented). Two imagery dates means a possible colour seam.
+- `FOCUS_AIRPORTS = ['EGPH', 'EGLL']` in config.ts: Heathrow is now selectable in the airport list. Glasgow and Portmoak stay hidden. The Director pins the airport to Edinburgh (its shots are written for runway 24).
+- Tests: tests/heathrow.test.ts (runway ends, terrain within 3 m of the published elevations, keyframed A320 landing on 27L without collision); tests/scotland.test.ts updated for four airports and the 700 km grid. 153 pass.
+- Viewed headless (paused frames): runways, terminals, reservoirs, woodland and the city around it render in the right places. Not seen: running performance on a real GPU, low flying, taxiways and stands (stand derivation not run for EGLL; spawn at a stand untested).
+- Next: other major UK airports one or two at a time; airport-specific Director shots; stands for EGLL.
