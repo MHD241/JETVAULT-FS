@@ -79,6 +79,8 @@ export interface MenuHost {
   mpSay(text: string): void;
   mpState(): { code: string | null; host: boolean; roster: { name: string; me: boolean }[]; log: string[] } | null;
   mpChanged: (() => void) | null;
+  /** Opens the replay of the recorded flight (closes the menu). */
+  replayOpen(): void;
 }
 
 type Tab = 'home' | 'credits' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'director' | 'multiplayer' | 'controls' | 'training' | 'about';
@@ -181,6 +183,7 @@ export class Menu {
     const hints = document.createElement('div'); hints.className = 'jv-hints';
     hints.innerHTML = `<button data-h="resume"><kbd>Esc</kbd> Resume flight</button><button data-h="controls"><kbd>?</kbd> Controls</button><button data-h="about"><kbd>i</kbd> About JetVault</button><button data-h="credits"><kbd>\u2605</kbd> Acknowledgements</button>`;
     if (PRO) { const d = document.createElement('button'); d.innerHTML = '<kbd>\u25b6</kbd> Director'; d.onclick = () => this.go('director'); hints.appendChild(d); }
+    { const r = document.createElement('button'); r.innerHTML = '<kbd>V</kbd> Replay'; r.onclick = () => this.host.replayOpen(); hints.appendChild(r); }
     { const m = document.createElement('button'); m.innerHTML = '<kbd>\u2708</kbd> Multiplayer'; m.onclick = () => this.go('multiplayer'); hints.appendChild(m); }
     (hints.querySelector('[data-h=credits]') as HTMLElement).onclick = () => this.go('credits');
     (hints.querySelector('[data-h=resume]') as HTMLElement).onclick = () => this.host.resume();

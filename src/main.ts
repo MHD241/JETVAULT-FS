@@ -34,7 +34,9 @@ import { bodyMatrix, nedToThree } from './render/coords';
 import { InputManager, loadInputSettings } from './input/input';
 import { Hud } from './ui/hud';
 import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
-import { Vec3, clamp, moveToward, KT } from './core/math';
+import { Vec3, Quat, clamp, moveToward, KT } from './core/math';
+import { ReplayRecorder, Replay, sampleReplay, parseReplay } from './replay';
+import type { FlightControls } from './sim/controls';
 import { AutoTrim, trimFor, stallGuardTrim } from './sim/assists';
 import { advanceClock } from './sim/weather';
 import { SimpleControls, IS_TOUCH } from './input/simpleControls';
@@ -177,6 +179,91 @@ class App implements MenuHost {
   private director: { shot: DirectorShot; script: KeyframeFlight; t0: number; p0: THREE.Vector3; fwd0: THREE.Vector3; right0: THREE.Vector3; ground: number; state: 'count' | 'run' | 'cut'; until: number; cut: boolean; orbit: boolean } | null = null;
   private directorInput!: DirectorInput;
   private directorStarting = false;
+  // ---- replay (replay.ts): the last minutes are recorded; playback draws the recorded pose with the flight model paused ----
+  private recorder = new ReplayRecorder();
+  private rp: { replay: Replay; t: number; playing: boolean; speed: number; live: { pos: Vec3; q: Quat; vel: Vec3; omega: Vec3; gearExt: number; flap: number; spoiler: number; elevator: number; aileronL: number; aileronR: number; rudder: number; controls: FlightControls; paused: boolean; tod: number; realTime: boolean | undefined; view: string }; bar: HTMLDivElement } | null = null;
+  replayActive() { return !!this.rp; }
+  private recordTick() {
+    const sim = this.sim, ac = sim.aircraft, c = sim.controls;
+    if (this.rp || sim.paused || !this.started || this.director || ac.def.drone || ac.crashed) return;
+    this.recorder.record(sim.simTime, ac, c.throttle, (c.landingLight ? 1 : 0) | (c.beacon ? 2 : 0) | (c.strobes ? 4 : 0) | (c.navLights ? 8 : 0) | (c.taxiLight ? 16 : 0) | (c.reverse ? 32 : 0) | (c.gearDown ? 64 : 0), sim.weather.timeOfDay);
+  }
+  /** Opens the replay of the recorded flight (or closes it if it is open). */
+  replayOpen() {
+    if (this.rp) { this.replayClose(); return; }
+    if (this.recorder.duration < 3) { this.hud.toast('Nothing to replay yet: fly for a few seconds first', 3); return; }
+    const w = this.sim.weather;
+    this.replayBegin({ version: 1, aircraft: this.sim.def.id, airport: this.world.airport.icao, dayOfYear: w.dayOfYear, cloud: w.cloudCover, windDirection: w.windDirection, windSpeed: w.windSpeed, qnh: w.qnh, temperatureC: w.temperatureC, frames: this.recorder.frames.slice() });
+  }
+  private replayBegin(replay: Replay) {
+    const sim = this.sim, ac = sim.aircraft;
+    const live = { pos: ac.pos.clone(), q: ac.q.clone(), vel: ac.vel.clone(), omega: ac.omega.clone(), gearExt: ac.gearExt, flap: ac.flap, spoiler: ac.spoiler, elevator: ac.elevator, aileronL: ac.aileronL, aileronR: ac.aileronR, rudder: ac.rudder, controls: { ...sim.controls }, paused: sim.paused, tod: sim.weather.timeOfDay, realTime: sim.weather.realTime, view: this.rig.mode };
+    sim.paused = true; sim.weather.realTime = false; this.menu.hide(); this.hud.el.style.display = 'none';   // the instrument strip shows the live end of the flight, not the replay
+    const bar = document.createElement('div');
+    bar.style.cssText = 'position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:20;display:flex;gap:10px;align-items:center;padding:10px 16px;border-radius:10px;background:rgba(6,12,22,.86);color:#e8f1f7;font:600 13px system-ui,sans-serif;min-width:min(720px,92vw)';
+    document.body.appendChild(bar);
+    this.rp = { replay, t: replay.frames[0].t, playing: true, speed: 1, live, bar };
+    this.replayBar();
+    this.hud.toast('REPLAY: space plays or pauses, V or EXIT returns to the flight', 4);
+  }
+  private replayBar() {
+    const s = this.rp!, bar = s.bar; bar.innerHTML = '';
+    const mk = (label: string, fn: () => void) => { const b = document.createElement('button'); b.className = 'jv-btn'; b.style.cssText = 'padding:6px 12px;min-width:0'; b.textContent = label; b.onclick = fn; bar.appendChild(b); return b; };
+    const play = mk('\u275a\u275a', () => { s.playing = !s.playing; if (s.playing && s.t >= s.replay.frames[s.replay.frames.length - 1].t - 0.01) s.t = s.replay.frames[0].t; });
+    play.dataset.r = 'play';
+    mk('\u23ee', () => { s.t = s.replay.frames[0].t; });
+    const f0 = s.replay.frames[0].t, f1 = s.replay.frames[s.replay.frames.length - 1].t;
+    const sl = document.createElement('input'); sl.type = 'range'; sl.min = String(f0); sl.max = String(f1); sl.step = '0.05'; sl.value = String(s.t); sl.style.cssText = 'flex:1;min-width:120px'; sl.dataset.r = 'slider';
+    sl.oninput = () => { s.t = Number(sl.value); }; bar.appendChild(sl);
+    const lab = document.createElement('span'); lab.dataset.r = 'time'; lab.style.cssText = 'min-width:84px;text-align:right'; bar.appendChild(lab);
+    const sp = document.createElement('select'); for (const v of [0.25, 0.5, 1, 2, 4]) { const o = document.createElement('option'); o.value = String(v); o.textContent = `${v}x`; o.selected = v === 1; sp.appendChild(o); }
+    sp.onchange = () => { s.speed = Number(sp.value); }; bar.appendChild(sp);
+    const cam = document.createElement('select'); for (const [v, n] of [['chase', 'Chase'], ['cockpit', 'Cockpit'], ['wing', 'Wing'], ['tower', 'Tower'], ['free', 'Free camera']] as const) { const o = document.createElement('option'); o.value = v; o.textContent = n; o.selected = v === this.rig.mode; cam.appendChild(o); }
+    cam.onchange = () => { this.rig.setMode(cam.value as never, this.sim.aircraft); }; bar.appendChild(cam);
+    mk('SAVE', () => {
+      const blob = new Blob([JSON.stringify(s.replay)], { type: 'application/json' }); const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = `jetvault-replay-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    });
+    const file = document.createElement('input'); file.type = 'file'; file.accept = 'application/json,.json'; file.style.display = 'none';
+    file.onchange = () => { const f = file.files?.[0]; if (f) void f.text().then((t) => this.replayLoad(t)); file.value = ''; }; bar.appendChild(file);
+    mk('LOAD', () => file.click());
+    mk('EXIT', () => this.replayClose());
+  }
+  /** Loads a saved replay file (any aircraft and airport: they are switched to the recorded ones). */
+  async replayLoad(text: string) {
+    const rp = parseReplay(text);
+    if (!rp) { this.hud.toast('That is not a valid replay file', 4); return; }
+    if (this.rp) this.replayClose(false);
+    if (rp.aircraft && this.aircraftDefs.some((d) => d.id === rp.aircraft)) this.selectAircraft(rp.aircraft);
+    if (rp.airport && this.world.airports.some((a) => a.icao === rp.airport) && this.world.airport.icao !== rp.airport) { this.world.setAirport(rp.airport); await this.airportChanged(); }
+    const w = this.weather; w.realTime = false; w.dayOfYear = rp.dayOfYear || w.dayOfYear; w.cloudCover = (rp.cloud || w.cloudCover) as typeof w.cloudCover; w.windDirection = rp.windDirection; w.windSpeed = rp.windSpeed; w.qnh = rp.qnh; w.temperatureC = rp.temperatureC;
+    const f = rp.frames[0];
+    await this.fly({ kind: 'air', east: f.p[1], north: f.p[0], altFt: -f.p[2] / 0.3048, hdg: 0 });
+    this.replayBegin(rp);
+  }
+  private replayClose(restore = true) {
+    const s = this.rp; if (!s) return;
+    this.rp = null; s.bar.remove(); this.hud.el.style.display = '';
+    if (!restore) return;
+    const sim = this.sim, ac = sim.aircraft, l = s.live;
+    ac.pos = l.pos; ac.q = l.q; ac.vel = l.vel; ac.omega = l.omega; ac.gearExt = l.gearExt; ac.flap = l.flap; ac.spoiler = l.spoiler; ac.elevator = l.elevator; ac.aileronL = l.aileronL; ac.aileronR = l.aileronR; ac.rudder = l.rudder;
+    Object.assign(sim.controls, l.controls); sim.weather.timeOfDay = l.tod; sim.weather.realTime = l.realTime; sim.paused = true;
+    this.rig.setMode(l.view as never, ac);
+    this.hud.toast('Back in the flight (paused): press P to resume', 4);
+  }
+  private replayTick(dt: number) {
+    const s = this.rp; if (!s || this.menu.open) return;
+    const f0 = s.replay.frames[0].t, f1 = s.replay.frames[s.replay.frames.length - 1].t;
+    if (s.playing) { s.t += dt * s.speed; if (s.t >= f1) { s.t = f1; s.playing = false; } }
+    const f = sampleReplay(s.replay.frames, s.t), sim = this.sim, ac = sim.aircraft, c = sim.controls;
+    ac.pos = new Vec3(f.p[0], f.p[1], f.p[2]); ac.q = new Quat(f.q[0], f.q[1], f.q[2], f.q[3]); ac.vel = new Vec3(f.v[0], f.v[1], f.v[2]); ac.omega = new Vec3();
+    ac.gearExt = f.gear; ac.flap = f.flap; ac.spoiler = f.spoiler; ac.elevator = f.el; ac.aileronL = f.al; ac.aileronR = f.ar; ac.rudder = f.rud;
+    c.throttle = f.thr; c.landingLight = !!(f.bits & 1); c.beacon = !!(f.bits & 2); c.strobes = !!(f.bits & 4); c.navLights = !!(f.bits & 8); c.taxiLight = !!(f.bits & 16); c.reverse = !!(f.bits & 32); c.gearDown = !!(f.bits & 64);
+    sim.weather.timeOfDay = f.tod;
+    const sl = s.bar.querySelector('[data-r=slider]') as HTMLInputElement | null; if (sl && document.activeElement !== sl) sl.value = String(s.t);
+    const tm = s.bar.querySelector('[data-r=time]'); if (tm) tm.textContent = `${(s.t - f0).toFixed(1)} / ${(f1 - f0).toFixed(1)} s`;
+    const pb = s.bar.querySelector('[data-r=play]'); if (pb) pb.textContent = s.playing ? '\u275a\u275a' : '\u25b6';
+  }
   // multiplayer
   mpChanged: (() => void) | null = null;
   private mp: Multiplayer | null = null; private mpCode: string | null = null; private mpLogLines: string[] = [];
@@ -329,6 +416,11 @@ class App implements MenuHost {
     this.aircraftGroup.matrixAutoUpdate = false;
     this.scene.add(this.aircraftGroup);
     this.scene.add(this.remotes.group);
+    window.addEventListener('keydown', (e) => {
+      if ((e.target as HTMLElement | null)?.tagName === 'INPUT' || (e.target as HTMLElement | null)?.tagName === 'SELECT' || this.director) return;
+      if (e.code === 'KeyV' && !e.repeat && !this.menu.open) this.replayOpen();
+      else if (e.code === 'Space' && this.rp) { this.rp.playing = !this.rp.playing; e.preventDefault(); }
+    });
     this.crashFx = new CrashFx(this.scene);
     this.env = new EnvironmentRenderer(this.scene, this.renderer, this.terrain.uniforms.uDetail.value as THREE.DataTexture);
     this.rig = new CameraRig(window.innerWidth / window.innerHeight);
@@ -577,6 +669,7 @@ class App implements MenuHost {
   startView: 'cockpit' | 'chase' = 'chase';
 
   async fly(spawn: SpawnKind | { kind: 'air'; east: number; north: number; altFt: number; hdg: number }) {
+    this.recorder.clear();
     if (this.director && !this.directorStarting) this.directorStop(false);
     // make sure the detail around the start position is in memory before the aircraft is placed there
     if (spawn.kind === 'air') await this.ensurePatchesNear(spawn.east, spawn.north);
@@ -1008,9 +1101,10 @@ class App implements MenuHost {
       if (r) { wallet.add(r.coins, r.km); this.hud.toast(`+${r.coins} JetCoins  \u00b7  ${r.km.toFixed(1)} km flown, ${r.label}`, 6); }
     }
     this.input.consume(); // legacy bindings are disabled in the simplified control scheme
-    for (const ev of this.simple.consume()) { if (!this.director || ev === 'menu') this.handleSimple(ev); }   // in Director mode the keys are the camera's, only Esc (menu) still works
+    this.replayTick(dt);
+    for (const ev of this.simple.consume()) { if ((!this.director && !this.rp) || ev === 'menu' || (this.rp && ev === 'camera')) this.handleSimple(ev); }   // in Director mode the keys are the camera's, only Esc (menu) still works
     if (!this.menu.open) {
-      if (!this.director) this.simple.update(dt, sim.controls, ac);
+      if (!this.director && !this.rp) this.simple.update(dt, sim.controls, ac);
       if (sim.def.drone) { const sp = droneSpeed(sim.controls.throttle, sim.def.drone), k = Math.round(sp); if (k !== this.lastDroneSpeed) { this.lastDroneSpeed = k; this.hud.toast(sp ? `Drone speed ${Math.round(sp * 1.944)} kt (${k} m/s)` : 'Drone motor off (keys 2-9 set the speed)'); } }
       if (!sim.paused && this.simple.assists && sim.def.profile.fixedTrim !== undefined && !sim.def.drone) {
         sim.controls.trim = sim.def.profile.fixedTrim;   // the trim stays at the set value (0 = neutral), on the ground and in the air
@@ -1032,6 +1126,7 @@ class App implements MenuHost {
     this.updateMarshal(dt);
     if (!ac.crashed) nedToThree(ac.vel, this.lastVel);
     sim.advance(dt);
+    this.recordTick();
     if (ac.crashed && !this.crashShown) {
       this.crashShown = true;
       this.aircraftGroup.visible = false;
@@ -1040,7 +1135,7 @@ class App implements MenuHost {
     }
     this.crashFx.update(dt);
     this.jetBridges.update(dt, ac);
-    const showBridge = !this.menu.open && !ac.crashed && !this.pushing && this.jetBridges.canConnect(ac);
+    const showBridge = !this.menu.open && !this.rp && !ac.crashed && !this.pushing && this.jetBridges.canConnect(ac);
     this.bridgeBtn.style.display = showBridge ? 'block' : 'none';
     if (this.pushing) {
       if (!ac.onGround) this.finishPushback();
@@ -1066,10 +1161,10 @@ class App implements MenuHost {
       pa.setXYZ(0, a.x, a.y, a.z); pa.setXYZ(1, b.x, b.y, b.z); pa.needsUpdate = true;
     }
     this.vario.update(!!ac.def.glider && !this.menu.open && !sim.paused && !ac.crashed, -ac.vel.z, dt);
-    const dpt = ac.worldPoint(new Vec3(0, 0, 0)), showPush = !this.menu.open && !ac.crashed && ((ac.def.retractableGear && ac.onGround && (this.pushing || (Math.hypot(ac.vel.x, ac.vel.y) < 0.5 && !this.onRunwayStrip(dpt.y, dpt.x)))) || this.retrieving);
+    const dpt = ac.worldPoint(new Vec3(0, 0, 0)), showPush = !this.menu.open && !this.rp && !ac.crashed && ((ac.def.retractableGear && ac.onGround && (this.pushing || (Math.hypot(ac.vel.x, ac.vel.y) < 0.5 && !this.onRunwayStrip(dpt.y, dpt.x)))) || this.retrieving);
     this.pushBtn.style.display = showPush ? 'block' : 'none';
     if (showPush) this.pushBtn.textContent = this.retrieving ? 'LEAVE THE BUGGY' : this.pushing ? 'FINISHED - BACK TO AIRCRAFT' : 'START PUSHBACK';
-    const showPark = !this.menu.open && !ac.crashed && ac.onGround && !this.pushing && !ac.def.glider;
+    const showPark = !this.menu.open && !this.rp && !ac.crashed && ac.onGround && !this.pushing && !ac.def.glider;
     this.parkBtn.style.display = showPark ? 'block' : 'none';
     if (showPark) { this.parkBtn.textContent = this.simple.parking ? 'PARK BRAKE ON' : 'PARK BRAKE OFF'; this.parkBtn.classList.toggle('on', this.simple.parking); }
     if (showBridge) this.bridgeBtn.textContent = this.jetBridges.connected ? 'RETRACT JET BRIDGE' : 'CONNECT JET BRIDGE';
