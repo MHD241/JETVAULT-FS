@@ -35,7 +35,7 @@ import { InputManager, loadInputSettings } from './input/input';
 import { Hud } from './ui/hud';
 import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
 import { Vec3, Quat, clamp, moveToward, KT } from './core/math';
-import { ReplayRecorder, Replay, sampleReplay, parseReplay } from './replay';
+import { ReplayRecorder, Replay, sampleReplay, parseReplay, weatherAt } from './replay';
 import type { FlightControls } from './sim/controls';
 import { AutoTrim, trimFor, stallGuardTrim } from './sim/assists';
 import { advanceClock } from './sim/weather';
@@ -181,11 +181,12 @@ class App implements MenuHost {
   private directorStarting = false;
   // ---- replay (replay.ts): the last minutes are recorded; playback draws the recorded pose with the flight model paused ----
   private recorder = new ReplayRecorder();
-  private rp: { replay: Replay; t: number; playing: boolean; speed: number; live: { pos: Vec3; q: Quat; vel: Vec3; omega: Vec3; gearExt: number; flap: number; spoiler: number; elevator: number; aileronL: number; aileronR: number; rudder: number; controls: FlightControls; paused: boolean; tod: number; realTime: boolean | undefined; view: string }; bar: HTMLDivElement } | null = null;
+  private rp: { replay: Replay; t: number; playing: boolean; speed: number; live: { wx: WeatherSettings; pos: Vec3; q: Quat; vel: Vec3; omega: Vec3; gearExt: number; flap: number; spoiler: number; elevator: number; aileronL: number; aileronR: number; rudder: number; controls: FlightControls; paused: boolean; tod: number; realTime: boolean | undefined; view: string }; bar: HTMLDivElement } | null = null;
   replayActive() { return !!this.rp; }
   private recordTick() {
     const sim = this.sim, ac = sim.aircraft, c = sim.controls;
     if (this.rp || sim.paused || !this.started || this.director || ac.def.drone || ac.crashed) return;
+    this.recorder.recordWeather(sim.simTime, sim.weather as never);
     this.recorder.record(sim.simTime, ac, c.throttle, (c.landingLight ? 1 : 0) | (c.beacon ? 2 : 0) | (c.strobes ? 4 : 0) | (c.navLights ? 8 : 0) | (c.taxiLight ? 16 : 0) | (c.reverse ? 32 : 0) | (c.gearDown ? 64 : 0), sim.weather.timeOfDay);
   }
   /** Opens the replay of the recorded flight (or closes it if it is open). */
@@ -193,11 +194,11 @@ class App implements MenuHost {
     if (this.rp) { this.replayClose(); return; }
     if (this.recorder.duration < 3) { this.hud.toast('Nothing to replay yet: fly for a few seconds first', 3); return; }
     const w = this.sim.weather;
-    this.replayBegin({ version: 1, aircraft: this.sim.def.id, airport: this.world.airport.icao, dayOfYear: w.dayOfYear, cloud: w.cloudCover, windDirection: w.windDirection, windSpeed: w.windSpeed, qnh: w.qnh, temperatureC: w.temperatureC, frames: this.recorder.frames.slice() });
+    this.replayBegin({ version: 1, aircraft: this.sim.def.id, airport: this.world.airport.icao, dayOfYear: w.dayOfYear, cloud: w.cloudCover, windDirection: w.windDirection, windSpeed: w.windSpeed, qnh: w.qnh, temperatureC: w.temperatureC, frames: this.recorder.frames.slice(), weather: this.recorder.weatherForBuffer() });
   }
   private replayBegin(replay: Replay) {
     const sim = this.sim, ac = sim.aircraft;
-    const live = { pos: ac.pos.clone(), q: ac.q.clone(), vel: ac.vel.clone(), omega: ac.omega.clone(), gearExt: ac.gearExt, flap: ac.flap, spoiler: ac.spoiler, elevator: ac.elevator, aileronL: ac.aileronL, aileronR: ac.aileronR, rudder: ac.rudder, controls: { ...sim.controls }, paused: sim.paused, tod: sim.weather.timeOfDay, realTime: sim.weather.realTime, view: this.rig.mode };
+    const live = { wx: { ...sim.weather }, pos: ac.pos.clone(), q: ac.q.clone(), vel: ac.vel.clone(), omega: ac.omega.clone(), gearExt: ac.gearExt, flap: ac.flap, spoiler: ac.spoiler, elevator: ac.elevator, aileronL: ac.aileronL, aileronR: ac.aileronR, rudder: ac.rudder, controls: { ...sim.controls }, paused: sim.paused, tod: sim.weather.timeOfDay, realTime: sim.weather.realTime, view: this.rig.mode };
     sim.paused = true; sim.weather.realTime = false; this.menu.hide(); this.hud.el.style.display = 'none';   // the instrument strip shows the live end of the flight, not the replay
     const bar = document.createElement('div');
     bar.style.cssText = 'position:fixed;left:50%;bottom:92px;transform:translateX(-50%);z-index:20;display:flex;gap:10px;align-items:center;padding:10px 16px;border-radius:10px;background:rgba(6,12,22,.86);color:#e8f1f7;font:600 13px system-ui,sans-serif;min-width:min(720px,92vw)';
@@ -236,7 +237,9 @@ class App implements MenuHost {
     if (this.rp) this.replayClose(false);
     if (rp.aircraft && this.aircraftDefs.some((d) => d.id === rp.aircraft)) this.selectAircraft(rp.aircraft);
     if (rp.airport && this.world.airports.some((a) => a.icao === rp.airport) && this.world.airport.icao !== rp.airport) { this.world.setAirport(rp.airport); await this.airportChanged(); }
-    const w = this.weather; w.realTime = false; w.dayOfYear = rp.dayOfYear || w.dayOfYear; w.cloudCover = (rp.cloud || w.cloudCover) as typeof w.cloudCover; w.windDirection = rp.windDirection; w.windSpeed = rp.windSpeed; w.qnh = rp.qnh; w.temperatureC = rp.temperatureC;
+    const w0 = rp.weather?.[0]; if (w0) { const { t: _t, ...rest } = w0; void _t; Object.assign(this.weather, rest); }
+    const w = this.weather; w.realTime = false;
+    if (!w0) { w.dayOfYear = rp.dayOfYear || w.dayOfYear; w.cloudCover = (rp.cloud || w.cloudCover) as typeof w.cloudCover; w.windDirection = rp.windDirection; w.windSpeed = rp.windSpeed; w.qnh = rp.qnh; w.temperatureC = rp.temperatureC; }   // files from before the weather was recorded
     const f = rp.frames[0];
     await this.fly({ kind: 'air', east: f.p[1], north: f.p[0], altFt: -f.p[2] / 0.3048, hdg: 0 });
     this.replayBegin(rp);
@@ -247,7 +250,7 @@ class App implements MenuHost {
     if (!restore) return;
     const sim = this.sim, ac = sim.aircraft, l = s.live;
     ac.pos = l.pos; ac.q = l.q; ac.vel = l.vel; ac.omega = l.omega; ac.gearExt = l.gearExt; ac.flap = l.flap; ac.spoiler = l.spoiler; ac.elevator = l.elevator; ac.aileronL = l.aileronL; ac.aileronR = l.aileronR; ac.rudder = l.rudder;
-    Object.assign(sim.controls, l.controls); sim.weather.timeOfDay = l.tod; sim.weather.realTime = l.realTime; sim.paused = true;
+    Object.assign(sim.controls, l.controls); Object.assign(sim.weather, l.wx); sim.weather.timeOfDay = l.tod; sim.weather.realTime = l.realTime; sim.paused = true;
     this.rig.setMode(l.view as never, ac);
     this.hud.toast('Back in the flight (paused): press P to resume', 4);
   }
@@ -260,6 +263,8 @@ class App implements MenuHost {
     ac.gearExt = f.gear; ac.flap = f.flap; ac.spoiler = f.spoiler; ac.elevator = f.el; ac.aileronL = f.al; ac.aileronR = f.ar; ac.rudder = f.rud;
     c.throttle = f.thr; c.landingLight = !!(f.bits & 1); c.beacon = !!(f.bits & 2); c.strobes = !!(f.bits & 4); c.navLights = !!(f.bits & 8); c.taxiLight = !!(f.bits & 16); c.reverse = !!(f.bits & 32); c.gearDown = !!(f.bits & 64);
     sim.weather.timeOfDay = f.tod;
+    const wx = weatherAt(s.replay.weather, s.t);   // the weather of that moment of the flight (clouds, wind, rain, visibility), not whatever is set now
+    if (wx) { const { t: _t, ...rest } = wx; void _t; Object.assign(sim.weather, rest); }
     const sl = s.bar.querySelector('[data-r=slider]') as HTMLInputElement | null; if (sl && document.activeElement !== sl) sl.value = String(s.t);
     const tm = s.bar.querySelector('[data-r=time]'); if (tm) tm.textContent = `${(s.t - f0).toFixed(1)} / ${(f1 - f0).toFixed(1)} s`;
     const pb = s.bar.querySelector('[data-r=play]'); if (pb) pb.textContent = s.playing ? '\u275a\u275a' : '\u25b6';

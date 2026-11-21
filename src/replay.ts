@@ -12,9 +12,13 @@ export interface ReplayFrame {
   /** Bit mask: 1 landing light, 2 beacon, 4 strobes, 8 nav lights, 16 taxi light, 32 reverse thrust, 64 gear lever down. Time of day (h). */
   bits: number; tod: number;
 }
+/** The weather at a moment of the flight (the time of day is recorded with every frame instead). */
+export interface WxSnap { t: number; windDirection: number; windSpeed: number; gustSpeed: number; turbulence: number; temperatureC: number; qnh: number; visibility: number; cloudCover: string; cloudBaseFt: number; rain: number; dayOfYear: number }
 export interface Replay {
   version: 1; aircraft: string; airport: string; dayOfYear: number; cloud: string; windDirection: number; windSpeed: number; qnh: number; temperatureC: number;
   frames: ReplayFrame[];
+  /** Weather snapshots, in time order; the first one is valid from the start of the replay. Missing in files from before this was recorded. */
+  weather?: WxSnap[];
 }
 
 export const REPLAY_HZ = 20;
@@ -30,10 +34,27 @@ export interface ReplaySource {
 
 export class ReplayRecorder {
   frames: ReplayFrame[] = [];
+  /** Weather changes during the recording (a snapshot is added whenever something changed). */
+  snaps: WxSnap[] = [];
   private last = -1e9;
   constructor(public maxSeconds = REPLAY_MAX_SECONDS) {}
   get duration() { return this.frames.length ? this.frames[this.frames.length - 1].t - this.frames[0].t : 0; }
-  clear() { this.frames = []; this.last = -1e9; }
+  clear() { this.frames = []; this.snaps = []; this.last = -1e9; }
+  /** Call with the current weather every frame: stores a snapshot when it differs from the last one. */
+  recordWeather(t: number, w: Omit<WxSnap, 't'>) {
+    const k = (x: Omit<WxSnap, 't'>) => `${x.windDirection}|${x.windSpeed}|${x.gustSpeed}|${x.turbulence}|${x.temperatureC}|${x.qnh}|${x.visibility}|${x.cloudCover}|${x.cloudBaseFt}|${x.rain}|${x.dayOfYear}`;
+    const l = this.snaps[this.snaps.length - 1];
+    if (l && k(l) === k(w)) return;
+    if (this.snaps.length >= 200) this.snaps.splice(1, 1);
+    this.snaps.push({ t: r(t, 3), windDirection: w.windDirection, windSpeed: w.windSpeed, gustSpeed: w.gustSpeed, turbulence: w.turbulence, temperatureC: w.temperatureC, qnh: w.qnh, visibility: w.visibility, cloudCover: w.cloudCover, cloudBaseFt: w.cloudBaseFt, rain: w.rain, dayOfYear: w.dayOfYear });
+  }
+  /** The snapshots that matter for the frames now in the buffer: the one in force at the first frame (moved to its time) and every later one. */
+  weatherForBuffer(): WxSnap[] {
+    if (!this.frames.length || !this.snaps.length) return [];
+    const t0 = this.frames[0].t; let i = 0;
+    while (i + 1 < this.snaps.length && this.snaps[i + 1].t <= t0) i++;
+    return [{ ...this.snaps[i], t: t0 }, ...this.snaps.slice(i + 1)];
+  }
   /** Call every frame with the simulated time; records at REPLAY_HZ. */
   record(t: number, a: ReplaySource, thr: number, bits: number, tod: number) {
     if (t < this.last) this.clear();   // time went backwards (a restart): start over
@@ -70,6 +91,13 @@ export function sampleReplay(frames: ReplayFrame[], t: number): ReplayFrame {
 const fin = (x: unknown, lim = 1e7) => (typeof x === 'number' && Number.isFinite(x) ? Math.max(-lim, Math.min(lim, x)) : 0);
 const tup = <N extends number>(a: unknown, n: N, lim: number): number[] | null => (Array.isArray(a) && a.length === n ? a.map((x) => fin(x, lim)) : null);
 
+/** The weather in force at time `t`. */
+export function weatherAt(snaps: WxSnap[] | undefined, t: number): WxSnap | null {
+  if (!snaps || !snaps.length) return null;
+  let w = snaps[0]; for (const x of snaps) { if (x.t <= t) w = x; else break; }
+  return w;
+}
+
 /** Parses and validates a replay file (untrusted input): returns null if it is not a usable replay. */
 export function parseReplay(text: string): Replay | null {
   let o: Record<string, unknown>;
@@ -85,6 +113,13 @@ export function parseReplay(text: string): Replay | null {
     frames.push({ t, p: p as ReplayFrame['p'], q: q.map((x) => x / qn) as ReplayFrame['q'], v: v as ReplayFrame['v'], gear: fin(f.gear, 1), flap: fin(f.flap, 3), spoiler: fin(f.spoiler, 1), el: fin(f.el, 3), al: fin(f.al, 3), ar: fin(f.ar, 3), rud: fin(f.rud, 3), thr: fin(f.thr, 1), bits: Math.max(0, Math.min(255, Math.round(fin(f.bits, 255)))), tod: fin(f.tod, 48) });
   }
   const s = (x: unknown, n = 12) => String(x ?? '').slice(0, n).replace(/[^A-Za-z0-9_-]/g, '');
-  return { version: 1, aircraft: s(o.aircraft), airport: s(o.airport, 6), dayOfYear: Math.round(fin(o.dayOfYear, 366)), cloud: s(o.cloud, 4), windDirection: fin(o.windDirection, 360), windSpeed: fin(o.windSpeed, 200),
+  const snaps: WxSnap[] = [];
+  if (Array.isArray(o.weather)) for (const x of (o.weather as Record<string, unknown>[]).slice(0, 200)) {
+    if (!x || typeof x !== 'object') continue;
+    snaps.push({ t: fin(x.t, 1e6), windDirection: fin(x.windDirection, 360), windSpeed: fin(x.windSpeed, 200), gustSpeed: fin(x.gustSpeed, 200), turbulence: Math.max(0, Math.min(1, fin(x.turbulence, 1))), temperatureC: fin(x.temperatureC, 70),
+      qnh: Math.max(900, Math.min(1100, fin(x.qnh, 1100))), visibility: Math.max(50, Math.min(100000, fin(x.visibility, 100000))), cloudCover: s(x.cloudCover, 4), cloudBaseFt: Math.max(0, Math.min(40000, fin(x.cloudBaseFt, 40000))), rain: Math.max(0, Math.min(1, fin(x.rain, 1))), dayOfYear: Math.round(fin(x.dayOfYear, 366)) });
+  }
+  snaps.sort((a, b) => a.t - b.t);
+  return { version: 1, weather: snaps, aircraft: s(o.aircraft), airport: s(o.airport, 6), dayOfYear: Math.round(fin(o.dayOfYear, 366)), cloud: s(o.cloud, 4), windDirection: fin(o.windDirection, 360), windSpeed: fin(o.windSpeed, 200),
     qnh: Math.max(900, Math.min(1100, fin(o.qnh, 1100))), temperatureC: fin(o.temperatureC, 70), frames };
 }
