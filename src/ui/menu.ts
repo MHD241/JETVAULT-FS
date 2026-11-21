@@ -84,7 +84,7 @@ export interface MenuHost {
   replayOpen(): void;
 }
 
-type Tab = 'home' | 'credits' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'director' | 'multiplayer' | 'controls' | 'training' | 'about';
+type Tab = 'home' | 'credits' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'director' | 'multiplayer' | 'help' | 'market' | 'controls' | 'training' | 'about';
 
 
 export class Menu {
@@ -172,14 +172,17 @@ export class Menu {
     let sd = 99; const rnd = () => ((sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0) / 4294967296);
     stars.style.boxShadow = Array.from({ length: 140 }, () => `${Math.round(rnd() * 1900)}px ${Math.round(rnd() * 1100)}px 0 ${rnd() < 0.2 ? 1 : 0}px rgba(255,255,255,${(0.25 + rnd() * 0.6).toFixed(2)})`).join(',');
     const wrap = document.createElement('div'); wrap.className = 'jv-globe-wrap'; wrap.appendChild(this.globe.canvas);
-    const tiles: [string, string, string, Tab][] = [
-      ['t', 'World Map', 'map', 'map'], ['b', 'Airports', 'airports', 'airports'], ['c', 'Fly Now', 'free', 'fly'],
-      ['d', 'Weather', 'weather', 'weather'], ['e', 'Aircraft', 'aircraft', 'aircraft'], ['w', 'Settings', 'settings', 'settings'],
+    // area, title, picture, page, available (a greyed tile is not built yet)
+    const tiles: [string, string, string, Tab, boolean][] = [
+      ['f', 'Free Flight', 'free', 'fly', true], ['k', 'Career', 'airports', 'fly', false], ['l', 'Challenges', 'map', 'fly', false],
+      ['m', 'Marketplace', 'aircraft', 'market', true], ['h', 'Help', 'settings', 'help', true],
     ];
     const mosaic = document.createElement('div'); mosaic.className = 'jv-mosaic';
-    for (const [area, title, img, tab] of tiles) {
-      const t = document.createElement('button'); t.className = `jv-tile t-${area}`; t.style.backgroundImage = `url(./menu/${img}.jpg)`;
-      t.innerHTML = `<span>${title}</span>`; t.onclick = () => this.go(tab); mosaic.appendChild(t);
+    for (const [area, title, img, tab, on] of tiles) {
+      const t = document.createElement('button'); t.className = `jv-tile t-${area}${on ? '' : ' off'}`; t.style.backgroundImage = `url(./menu/${img}.jpg)`;
+      t.innerHTML = `<span>${title}</span>${on ? '' : '<em>COMING SOON</em>'}`;
+      if (on) t.onclick = () => this.go(tab); else t.setAttribute('aria-disabled', 'true');
+      mosaic.appendChild(t);
     }
     const hints = document.createElement('div'); hints.className = 'jv-hints';
     hints.innerHTML = `<button data-h="resume"><kbd>Esc</kbd> Resume flight</button><button data-h="controls"><kbd>?</kbd> Controls</button><button data-h="about"><kbd>i</kbd> About JetVault</button><button data-h="credits"><kbd>\u2605</kbd> Acknowledgements</button>`;
@@ -203,14 +206,15 @@ export class Menu {
     const h = this.host;
     s.innerHTML = '';
     (this.footer.querySelector('[data-f=resume]') as HTMLElement).style.display = this.host.canResume() ? '' : 'none';
-    const titles: Record<Tab, string> = { home: 'Home', credits: 'Acknowledgements', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', director: 'Director', multiplayer: 'Multiplayer', controls: 'Controls', training: 'Training', about: 'About JetVault' };
+    const titles: Record<Tab, string> = { home: 'Home', credits: 'Acknowledgements', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', director: 'Director', multiplayer: 'Multiplayer', help: 'Help', market: 'Marketplace', controls: 'Controls', training: 'Training', about: 'About JetVault' };
     const pt = this.el.querySelector('.jv-ptitle'); if (pt) pt.textContent = titles[this.tab];
     const fb = this.footer.querySelector('[data-f=fly]') as HTMLElement;
     fb.style.display = ['fly', 'aircraft', 'airports', 'map'].includes(this.tab) ? '' : 'none';
     fb.textContent = this.tab === 'fly' && this.step < 4 ? 'NEXT \u203a' : 'FLY';
     if (this.tab === 'fly') this.renderFly(s);
     else if (this.tab === 'map') this.renderMap(s);
-    else if (this.tab === 'aircraft') this.renderAircraft(s);
+    else if (this.tab === 'aircraft' || this.tab === 'market') this.renderAircraft(s);
+    else if (this.tab === 'help') this.renderHelp(s);
     else if (this.tab === 'airports') {
       s.innerHTML = `<h2>Airport Selection</h2><p>Scotland is one continuous map: Copernicus terrain and land cover everywhere, with full detail (satellite imagery, roads, buildings, airfield) around Edinburgh Airport (the only airport enabled for now).</p>`;
       const grid = document.createElement('div'); grid.className = 'jv-grid';
@@ -595,6 +599,14 @@ export class Menu {
       act.appendChild(b);
     }
     s.appendChild(act);
+  }
+
+  /** Help: controls, about, acknowledgements and settings. */
+  private renderHelp(s: HTMLElement) {
+    s.innerHTML = '<h2>Help</h2><div class="jv-grid"></div>';
+    const grid = s.querySelector('.jv-grid') as HTMLElement;
+    const items: [Tab, string, string][] = [['controls', 'Controls', 'Keyboard, mouse and touch controls'], ['settings', 'Settings', 'Graphics, controls and sensitivity'], ['about', 'About JetVault', 'Version and what the simulator models'], ['credits', 'Acknowledgements', 'The people whose work is in the game, and the data sources']];
+    for (const [tab, t, d] of items) { const c = document.createElement('div'); c.className = 'jv-card'; c.innerHTML = `<b>${t}</b><span>${d}</span>`; c.onclick = () => this.go(tab); grid.appendChild(c); }
   }
 
   /** Multiplayer page: one player hosts a room and shares its 5-letter code, the others join with it. Players see each other's aircraft in the same sky. */

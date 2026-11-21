@@ -160,13 +160,20 @@ body.touch .jv-minimap { width: 150px; height: 150px; }
 .jv-globe-wrap { position: absolute; right: -4%; top: 0; bottom: 0; width: 72%; pointer-events: none; }
 .jv-globe { width: 100%; height: 100%; display: block; }
 .jv-mosaic { position: absolute; left: 44px; top: 74px; bottom: 96px; width: min(440px, 46vw); display: grid; gap: 4px;
-  grid-template-columns: 1fr 1fr; grid-template-rows: 1.15fr 1fr 1fr 1fr 1.15fr; grid-template-areas: "t t" "b c" "d c" "d e" "w w"; }
+  grid-template-columns: 1fr 1fr; grid-template-rows: 1.7fr 1fr 1fr; grid-template-areas: "f f" "k l" "m h"; }
 .jv-tile { all: unset; box-sizing: border-box; position: relative; cursor: pointer; overflow: hidden; background-size: cover; background-position: center; background-color: #14223a; min-height: 0;
   transition: filter .15s, transform .15s, outline-color .15s; outline: 2px solid transparent; outline-offset: -2px; }
 .jv-tile::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, .5) 0%, rgba(0, 0, 0, 0) 38%); }
 .jv-tile span { position: absolute; left: 10px; top: 8px; font-size: 15px; font-weight: 600; letter-spacing: .01em; text-shadow: 0 1px 5px rgba(0, 0, 0, .8); }
 .jv-tile:hover { filter: brightness(1.18) saturate(1.1); outline-color: #fff; z-index: 1; }
 .jv-tile:active { transform: scale(.99); }
+.jv-tile.t-f { grid-area: f; } .jv-tile.t-k { grid-area: k; } .jv-tile.t-l { grid-area: l; } .jv-tile.t-m { grid-area: m; } .jv-tile.t-h { grid-area: h; }
+.jv-tile.t-f span { font-size: 20px; }
+/* a tile that is not built yet: greyed out, not clickable */
+.jv-tile.off { cursor: default; filter: grayscale(1) brightness(.55); }
+.jv-tile.off:hover { filter: grayscale(1) brightness(.55); outline-color: transparent; }
+.jv-tile.off:active { transform: none; }
+.jv-tile em { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font-style: normal; font-size: 12px; font-weight: 700; letter-spacing: .18em; padding: 6px 12px; border: 1px solid rgba(255,255,255,.55); background: rgba(6,12,22,.7); color: #fff; }
 .jv-tile.t-t { grid-area: t; } .jv-tile.t-b { grid-area: b; } .jv-tile.t-c { grid-area: c; } .jv-tile.t-d { grid-area: d; } .jv-tile.t-e { grid-area: e; } .jv-tile.t-w { grid-area: w; }
 .jv-tile.t-c span { font-size: 17px; }
 .jv-hints { position: absolute; left: 40px; bottom: 28px; display: flex; gap: 26px; font-size: 12.5px; color: rgba(255, 255, 255, .85); }
