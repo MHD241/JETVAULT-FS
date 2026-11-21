@@ -558,12 +558,24 @@ if (gWater > 0.01) {
 }
 if (uNight > 0.01) {
   vec2 en3 = vec2(vWorldPos.x, -vWorldPos.z);
-  float sp = hash12(floor(en3 / 9.0));
-  // small warm lamp points (a lamp is ~1 m across, not a lit 9 m square), brighter windows glow stays in the building shader
-  vec2 lp = fract(en3 / 9.0) - 0.5;
-  float lamp = smoothstep(1.4, 0.15, length(lp) * 9.0);
-  float street = step(0.96, sp) * gBuilt * lamp;
-  totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * street * uNight * 1.6;
+  // street lamps: one in about half of the 18 m cells of built-up land, each lighting a soft pool of ground (about 6 m) with a hot core: lit streets, not dots.
+  // Where a pixel covers more than a pool the pools are replaced by their average (varying slowly over 150 m), so a far city is one steady glow, never sparkle.
+  vec2 cp = en3 / 18.0, cid = floor(cp);
+  // the pools overlap their neighbours, so the nearest lamps of the 3 x 3 cells around are summed (a pool clipped at its own cell would show as a square)
+  float pool = 0.0, core = 0.0;
+  for (int oy = -1; oy <= 1; oy++) for (int ox = -1; ox <= 1; ox++) {
+    vec2 c2 = cid + vec2(float(ox), float(oy));
+    float has = step(0.58, hash12(c2));
+    vec2 jit = vec2(hash12(c2 + 7.0), hash12(c2 + 13.0)) * 0.5 + 0.25;
+    float dl = length((cp - c2 - jit) * 18.0);
+    pool += exp(-dl * dl / 60.0) * has;
+    core += smoothstep(1.5, 0.15, dl) * has;
+  }
+  pool = min(pool, 1.0);
+  float res = 1.0 - smoothstep(5.0, 14.0, length(fwidth(en3)));
+  float avgPool = 0.40 * (0.6 + 0.6 * hash12(floor(en3 / 150.0)));
+  float lit = mix(avgPool, pool, res);
+  totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * gBuilt * (lit * 0.30 + core * res * 1.5) * uNight;
   // aprons and taxiways are lit at night (apron floodlights, spill light): a faint warm glow so the pavement reads against the dark grass
   totalEmissiveRadiance += vec3(0.62, 0.55, 0.42) * gPaved * uNight * 0.12;
 }

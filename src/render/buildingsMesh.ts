@@ -111,7 +111,7 @@ if (vWall.z > 4.5) {
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.06, 0.07), win * 0.85);
 }`)
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.15, gWin);')
-        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(1.0, 0.78, 0.5) * gWin * uNight * 0.8;');
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(1.0, 0.78, 0.5) * gWin * uNight * 0.9;\ntotalEmissiveRadiance += vec3(1.0, 0.72, 0.4) * (1.0 - smoothstep(0.0, 14.0, vWall.y)) * step(0.5, vWall.z) * uNight * 0.12;   // street light on the ground floor');
     };
     return mat;
   }
