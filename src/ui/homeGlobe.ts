@@ -75,7 +75,7 @@ export class HomeGlobe {
     try {
       this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true });
     } catch { this.renderer = null; return; }   // no WebGL: the menu just has no globe
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
     this.renderer.setClearColor(0x000000, 0);
     this.earth = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), new THREE.MeshStandardMaterial({ map: makeEarthTexture(), roughness: 0.85, metalness: 0 }));
     this.earth.rotation.set(0.32, 5.45, 0);   // the Americas face the viewer first

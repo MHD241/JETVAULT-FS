@@ -338,7 +338,7 @@ export class Menu {
       if (flat) return; flat = true;
       cta.style.display = 'none';
       await this.globe.zoomTo(54.3, -3.2, 1500);
-      wrap.classList.add('flat');
+      wrap.classList.add('flat'); this.globe.stop();   // the flat map covers the globe: stop drawing it
       const map = this.makeMap(cv, { loaded: refresh, picked: refresh }); this.locMap = map;
       map.onMode = (m) => { back.style.display = m === 'uk' ? 'none' : ''; };
       back.onclick = () => map.showUK();

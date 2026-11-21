@@ -35,6 +35,7 @@ import { InputManager, loadInputSettings } from './input/input';
 import { Hud } from './ui/hud';
 import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
 import { Vec3, Quat, clamp, moveToward, KT } from './core/math';
+import { effectivePixelRatio, AutoScale } from './pixelBudget';
 import { ReplayRecorder, Replay, sampleReplay, parseReplay, weatherAt } from './replay';
 import type { FlightControls } from './sim/controls';
 import { AutoTrim, trimFor, stallGuardTrim } from './sim/assists';
@@ -310,7 +311,7 @@ class App implements MenuHost {
 
   constructor() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', logarithmicDepthBuffer: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * this.graphics.renderScale);
+    this.applyPixelRatio();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.55;
@@ -804,9 +805,15 @@ class App implements MenuHost {
   resume() { this.sim.paused = false; this.menu.hide(); (document.activeElement as HTMLElement | null)?.blur?.(); this.renderer.domElement.focus(); }
   canResume() { return this.started && !this.sim.aircraft.crashed; }
   applyWeather(w: WeatherSettings) { this.weather = w; this.sim.setWeather(w); this.hud?.toast('Weather applied'); }
+  /** Sharpness: the quality scale times the automatic scale, held to a pixel budget (a 4.5K iMac would otherwise draw about 6 million pixels). */
+  private autoScale = new AutoScale(); private menuFrame = 0;
+  private applyPixelRatio() {
+    this.renderer.setPixelRatio(effectivePixelRatio(window.innerWidth, window.innerHeight, window.devicePixelRatio, this.graphics.renderScale * this.autoScale.scale));
+    this.grade?.setSize(window.innerWidth, window.innerHeight);
+  }
   applyGraphics(g: GraphicsSettings) {
     this.graphics = g;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5) * g.renderScale);
+    this.applyPixelRatio();
     if (this.grade) { this.grade.setSize(window.innerWidth, window.innerHeight); this.grade.setQuality(g.fx ?? (g.terrainDetail > 1.2 ? 'full' : g.renderScale < 0.8 ? 'min' : 'mid')); }
     this.renderer.shadowMap.enabled = g.shadows;
     this.env.sun.castShadow = g.shadows;
@@ -823,6 +830,7 @@ class App implements MenuHost {
   }
 
   private resize() {
+    this.applyPixelRatio();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.grade?.setSize(window.innerWidth, window.innerHeight);
     this.rig.camera.aspect = window.innerWidth / window.innerHeight;
@@ -1107,6 +1115,8 @@ class App implements MenuHost {
     }
     this.input.consume(); // legacy bindings are disabled in the simplified control scheme
     this.replayTick(dt);
+    this.menuFrame = (this.menuFrame + 1) % 4;
+    const drawWorld = !this.menu.open || (!this.menu.home && this.menuFrame === 0);   // see where the world is drawn below
     for (const ev of this.simple.consume()) { if ((!this.director && !this.rp) || ev === 'menu' || (this.rp && ev === 'camera')) this.handleSimple(ev); }   // in Director mode the keys are the camera's, only Esc (menu) still works
     if (!this.menu.open) {
       if (!this.director && !this.rp) this.simple.update(dt, sim.controls, ac);
@@ -1123,7 +1133,7 @@ class App implements MenuHost {
     if (PRO) {
       sea.t = performance.now() / 1000; sea.amp = seaAmpFromWind(sim.weather.windSpeed);
       if (!this.seaSurface) { this.seaSurface = new SeaSurface(this.terrain.uniforms.uDetail.value as THREE.Texture, this.world, this.renderer); this.scene.add(this.seaSurface.group); }
-      { const cp = this.rig.camera.position; this.seaSurface.update(cp, this.env.night, this.world.landAt(cp.x, -cp.z) === LC.WATER && this.world.terrain.heightAt(cp.x, -cp.z) < 3 && cp.y < seaHeight(cp.x, -cp.z)); }
+      if (drawWorld) { const cp = this.rig.camera.position; this.seaSurface.update(cp, this.env.night, this.world.landAt(cp.x, -cp.z) === LC.WATER && this.world.terrain.heightAt(cp.x, -cp.z) < 3 && cp.y < seaHeight(cp.x, -cp.z)); }
       while (ac.waterImpacts.length) { const v = ac.waterImpacts.shift()!; const p = nedToThree(ac.pos); p.y = this.world.waterSurface(ac.pos.y, ac.pos.x) ?? seaHeight(ac.pos.y, ac.pos.x); if (v > 6) { this.waterFx.impact(p, v); addSurge(ac.pos.y, ac.pos.x, Math.min(3.0, v / 30)); } }
     }
     if (PRO && !sim.paused) this.waterFx.update(dt * sim.timeScale, ac, (e, n) => this.world.isWater(e, n), (e, n) => this.world.waterSurface(e, n) ?? seaHeight(e, n));
@@ -1277,8 +1287,10 @@ class App implements MenuHost {
     if (!this.menu.open) this.minimap?.update(ac);
     if (this.menu.open) this.menu.drawMap();
 
+    // nobody sees the world behind the opaque Home screen, and only dimly behind the other menu pages: do not draw it there (this is most of the GPU work)
+    if (!this.menu.open && !sim.paused && !this.director) { const s = this.autoScale.update(dt); if (s !== null) { this.applyPixelRatio(); this.hud.toast(`Resolution ${Math.round(s * 100)} % to keep the frame rate up`, 2); } } else this.autoScale.reset();
     this.renderer.toneMappingExposure = this.env.tune.exposure * (1 + 1.6 * this.env.night); // eye adaptation to the dark
-    if (this.grade) {
+    if (!drawWorld) { /* menu: skip */ } else if (this.grade) {
       // sun position on screen (z = 1 when the sun is in front of the camera): drives the glare veil
       const sp = this.env.sunDir.clone().multiplyScalar(50000).add(cam.position).project(cam);
       const fwd = new THREE.Vector3(); cam.getWorldDirection(fwd);
