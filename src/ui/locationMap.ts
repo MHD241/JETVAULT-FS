@@ -12,9 +12,14 @@ export interface LocationMapHost {
   stands(): [number, number, number][];
   pickedStand(): number | null;
   onPick(index: number): void;
+  /** A "final approach" star was picked (the runway end's designator) / which one is picked now. */
+  onPickFinal(ident: string): void;
+  pickedFinal(): string | null;
   visible(icao: string): boolean;
 }
 
+/** How far in front of a runway end its FINAL star is drawn (metres): symbolic, the real start distance depends on the aircraft. */
+const FINAL_DIST = 1800;
 interface View { cx: number; cy: number; half: number }
 const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
@@ -24,7 +29,7 @@ export class LocationMap {
   private mode: 'uk' | 'loading' | 'airport' = 'uk';
   private icao = '';
   private img: HTMLImageElement | null = null;
-  private hover: { kind: 'airport' | 'stand'; i: number } | null = null;
+  private hover: { kind: 'airport' | 'stand' | 'final'; i: number } | null = null;
   private drag: { x: number; y: number; cx: number; cy: number; moved: boolean } | null = null;
   private dead = false;
   onMode: ((m: 'uk' | 'loading' | 'airport') => void) | null = null;
@@ -68,13 +73,20 @@ export class LocationMap {
     // fit the view to the runways and stands
     const ap = this.h.world.airport; const pts: [number, number][] = [...ap.runways.flatMap((r) => r.ends.map((e) => [e.x, e.y] as [number, number])), ...this.h.stands().map((s) => [s[0], s[1]] as [number, number])];
     const x0 = Math.min(...pts.map((p) => p[0])), x1 = Math.max(...pts.map((p) => p[0])), y0 = Math.min(...pts.map((p) => p[1])), y1 = Math.max(...pts.map((p) => p[1]));
-    const half = Math.max(900, Math.max(x1 - x0, y1 - y0) * 0.62 + 250);
-    this.mode = 'airport'; this.onMode?.('airport'); this.go({ cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, half }, 700);
+    const fp = this.finals().flatMap((f) => [[f.x, f.y], [f.tx, f.ty]]);   // the view has to hold the FINAL stars too
+    const X0 = Math.min(x0, ...fp.map((p) => p[0])), X1 = Math.max(x1, ...fp.map((p) => p[0])), Y0 = Math.min(y0, ...fp.map((p) => p[1])), Y1 = Math.max(y1, ...fp.map((p) => p[1]));
+    const half = Math.max(900, Math.max(X1 - X0, Y1 - Y0) * 0.56 + 200);
+    this.mode = 'airport'; this.onMode?.('airport'); this.go({ cx: (X0 + X1) / 2, cy: (Y0 + Y1) / 2, half }, 700);
   }
 
-  private hit(px: number, py: number): { kind: 'airport' | 'stand'; i: number } | null {
+  /** The final-approach stars: one on the extended centreline in front of every runway end. */
+  private finals(): { ident: string; x: number; y: number; tx: number; ty: number }[] {
+    const D = FINAL_DIST;
+    return this.h.world.airport.runways.flatMap((r) => r.ends).map((e) => { const h = (e.hdgTrue * Math.PI) / 180; return { ident: e.ident, tx: e.x, ty: e.y, x: e.x - Math.sin(h) * D, y: e.y - Math.cos(h) * D }; });
+  }
+  private hit(px: number, py: number): { kind: 'airport' | 'stand' | 'final'; i: number } | null {
     if (this.mode === 'uk') { let best = -1, d = 16; this.airports().forEach((a, i) => { const [x, y] = this.P(a.x, a.y), dd = Math.hypot(x - px, y - py); if (dd < d) { d = dd; best = i; } }); return best >= 0 ? { kind: 'airport', i: best } : null; }
-    if (this.mode === 'airport') { let best = -1, d = 14; this.h.stands().forEach((s, i) => { const [x, y] = this.P(s[0], s[1]), dd = Math.hypot(x - px, y - py); if (dd < d) { d = dd; best = i; } }); return best >= 0 ? { kind: 'stand', i: best } : null; }
+    if (this.mode === 'airport') { let fb = -1, fd = 18; this.finals().forEach((f, i) => { const [x, y] = this.P(f.x, f.y), dd = Math.hypot(x - px, y - py); if (dd < fd) { fd = dd; fb = i; } }); if (fb >= 0) return { kind: 'final', i: fb }; let best = -1, d = 14; this.h.stands().forEach((s, i) => { const [x, y] = this.P(s[0], s[1]), dd = Math.hypot(x - px, y - py); if (dd < d) { d = dd; best = i; } }); return best >= 0 ? { kind: 'stand', i: best } : null; }
     return null;
   }
   private move(e: PointerEvent) {
@@ -89,7 +101,7 @@ export class LocationMap {
   private up(e: PointerEvent) {
     const d = this.drag; this.drag = null; if (!d || d.moved || this.anim || this.mode === 'loading') return;
     const [px, py] = this.pos(e), h = this.hit(px, py); if (!h) return;
-    if (h.kind === 'airport') void this.open(this.airports()[h.i].icao); else this.h.onPick(h.i);
+    if (h.kind === 'airport') void this.open(this.airports()[h.i].icao); else if (h.kind === 'final') this.h.onPickFinal(this.finals()[h.i].ident); else this.h.onPick(h.i);
     this.draw();
   }
   private wheel(e: WheelEvent) {
@@ -127,6 +139,12 @@ export class LocationMap {
       const picked = this.h.pickedStand();
       this.h.stands().forEach((s, i) => { const [x, y] = this.P(s[0], s[1]); const sel = i === picked, hv = this.hover?.kind === 'stand' && this.hover.i === i; this.star(x, y, sel ? 11 : hv ? 10 : 6.5, sel ? '#ffd24a' : hv ? '#ffffff' : '#7fd0ff'); });
       if (this.hover?.kind === 'stand') { const s = this.h.stands()[this.hover.i], [x, y] = this.P(s[0], s[1]); this.label(`Gate ${this.hover.i + 1}`, x + 12, y - 10, 13); }
+      const pf = this.h.pickedFinal();
+      this.finals().forEach((f, i) => {
+        const [x, y] = this.P(f.x, f.y), [tx, ty] = this.P(f.tx, f.ty), sel = f.ident === pf, hv = this.hover?.kind === 'final' && this.hover.i === i;
+        g.setLineDash([7, 6]); g.beginPath(); g.moveTo(x, y); g.lineTo(tx, ty); g.strokeStyle = sel ? 'rgba(255,210,74,.95)' : 'rgba(255,255,255,.7)'; g.lineWidth = 2; g.stroke(); g.setLineDash([]);
+        this.star(x, y, sel ? 14 : hv ? 13 : 10, sel ? '#ffd24a' : '#ff9d4a'); this.label(`FINAL ${f.ident}`, x + 14, y + 5, 13);
+      });
       this.label(`${ap.icao} ${ap.name}`, 16, 28, 18);
     } else if (this.mode === 'loading') {
       this.label('Loading the airport...', 16, 28, 18);

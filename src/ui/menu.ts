@@ -92,6 +92,7 @@ export class Menu {
   private section: HTMLElement;
   private footer!: HTMLElement;
   private globe = new HomeGlobe();
+  private globeWrap!: HTMLElement;
   private homeEl!: HTMLElement;
   home = true;
   private step = 1;
@@ -147,7 +148,7 @@ export class Menu {
   setHome(on: boolean) {
     this.home = on;
     this.el.classList.toggle('home', on);
-    if (on) { this.refreshHome(); this.globe.start(); } else { this.globe.stop(); this.render(); }
+    if (on) { this.refreshHome(); this.globeWrap.appendChild(this.globe.canvas); this.globe.reset(); this.globe.onClick = () => this.go('fly'); this.globe.start(); } else { this.globe.stop(); this.render(); }
   }
   private updateCoins() { this.el.querySelectorAll('[data-c=coins]').forEach((e) => { e.innerHTML = `<span class="jc">\u25c8</span> ${wallet.coins.toLocaleString()} JetCoins`; }); }
   /** A short message at the top of the menu. */
@@ -171,7 +172,7 @@ export class Menu {
     const stars = document.createElement('div'); stars.className = 'jv-stars';
     let sd = 99; const rnd = () => ((sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0) / 4294967296);
     stars.style.boxShadow = Array.from({ length: 140 }, () => `${Math.round(rnd() * 1900)}px ${Math.round(rnd() * 1100)}px 0 ${rnd() < 0.2 ? 1 : 0}px rgba(255,255,255,${(0.25 + rnd() * 0.6).toFixed(2)})`).join(',');
-    const wrap = document.createElement('div'); wrap.className = 'jv-globe-wrap'; wrap.appendChild(this.globe.canvas);
+    const wrap = document.createElement('div'); wrap.className = 'jv-globe-wrap'; wrap.appendChild(this.globe.canvas); this.globeWrap = wrap;
     // area, title, picture, page, available (a greyed tile is not built yet)
     const tiles: [string, string, string, Tab, boolean][] = [
       ['f', 'Free Flight', 'free', 'fly', true], ['k', 'Career', 'airports', 'fly', false], ['l', 'Challenges', 'map', 'fly', false],
@@ -205,6 +206,7 @@ export class Menu {
     const s = this.section;
     const h = this.host;
     s.innerHTML = '';
+    if (!this.home && !(this.tab === 'fly' && this.step === 2)) this.globe.stop();   // the globe is only drawn on the Home screen and in the location step
     (this.footer.querySelector('[data-f=resume]') as HTMLElement).style.display = this.host.canResume() ? '' : 'none';
     const titles: Record<Tab, string> = { home: 'Home', credits: 'Acknowledgements', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', director: 'Director', multiplayer: 'Multiplayer', help: 'Help', market: 'Marketplace', controls: 'Controls', training: 'Training', about: 'About JetVault' };
     const pt = this.el.querySelector('.jv-ptitle'); if (pt) pt.textContent = titles[this.tab];
@@ -270,33 +272,85 @@ export class Menu {
     else this.renderReady(body);
   }
 
+  /** What was picked on the map: a gate (by position, so the right stand is found for whichever aircraft is chosen) or a runway's final approach. */
+  private pick: { gate?: { x: number; y: number }; final?: string } = {};
+  /** Gate starts: ready to fly (the default here; MSFS starts parked aircraft cold and dark) or cold and dark. */
+  private coldDark = false;
+  private standsOf(): [number, number, number][] { const ap = this.host.world.airport; return (this.host.aircraft.def.profile.standClearance > 12 && ap.standsJet?.length ? ap.standsJet : ap.stands) as [number, number, number][]; }
+  private nearestStand(g: { x: number; y: number }): number {
+    let best = 0, d = Infinity; this.standsOf().forEach((s, i) => { const dd = Math.hypot(s[0] - g.x, s[1] - g.y); if (dd < d) { d = dd; best = i; } }); return best;
+  }
+  /** The spawn to fly: a picked gate or final approach is resolved against the aircraft that is selected now. */
+  private resolvedSpawn(): AnySpawn {
+    const def = this.host.aircraft.def;
+    if (this.pick.final) return { kind: 'approach', ident: this.pick.final, distanceNm: def.profile.standClearance > 12 ? 6 : 3 };
+    if (this.pick.gate && this.standsOf().length) return { kind: 'stand', index: this.nearestStand(this.pick.gate), coldAndDark: this.coldDark };
+    if (this.spawn.kind === 'stand') return { ...this.spawn, coldAndDark: this.coldDark };
+    return this.spawn;
+  }
+  private makeMap(cv: HTMLCanvasElement, cb: { loaded: () => void; picked: () => void }): LocationMap {
+    const h = this.host;
+    return new LocationMap(cv, {
+      world: h.world, hillshade: () => this.hillshadeCanvas(), stands: () => this.standsOf(), visible: (i) => airportVisible(i),
+      select: async (icao) => { h.world.setAirport(icao); this.pick = {}; this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; await h.airportChanged(); cb.loaded(); },
+      pickedStand: () => (this.pick.gate ? this.nearestStand(this.pick.gate) : null),
+      onPick: (i) => { const s = this.standsOf()[i]; this.pick = { gate: { x: s[0], y: s[1] } }; cb.picked(); },
+      onPickFinal: (id) => { this.pick = { final: id }; cb.picked(); },
+      pickedFinal: () => this.pick.final ?? null,
+    });
+  }
+
   private locMap: LocationMap | null = null;
+  /**
+   * Free Flight, step 2 (as in MSFS: after the aircraft): the globe. Click it (or search an ICAO code) and it zooms into the UK, where the flat map takes over
+   * with a star and code at every airport; click one for a bird's-eye view with a star at every gate and an orange FINAL star at every runway end.
+   */
   private renderLocation(body: HTMLElement) {
     this.locMap?.destroy(); this.locMap = null;
-    const def = this.host.aircraft.def;
-    const glider = !!def.glider;
-    if (glider) { this.renderLocationList(body); return; }
-    const h = this.host;
-    body.insertAdjacentHTML('beforeend', '<h3>Where do you want to start?</h3><p class="hint">Pick an airport star on the map. It zooms in to a bird\'s-eye view; pick a gate star to start parked there, or choose a runway or a final approach below.</p>');
+    const h = this.host, def = h.aircraft.def;
+    if (def.glider) { this.renderLocationList(body); return; }
+    body.insertAdjacentHTML('beforeend', '<h3>Where do you want to start?</h3>');
+    // search by ICAO code
+    const sr = document.createElement('div'); sr.className = 'jv-row';
+    sr.innerHTML = '<label>Search</label><input type="text" maxlength="4" placeholder="ICAO code, e.g. EGLL" style="width:190px;text-transform:uppercase"><button class="jv-btn">GO</button><span class="msg" style="margin-left:12px"></span>';
+    const sin = sr.querySelector('input') as HTMLInputElement, sgo = sr.querySelector('button') as HTMLButtonElement, smsg = sr.querySelector('.msg') as HTMLElement;
+    sin.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') sgo.click(); };
+    // the globe and, over it, the flat map
     const wrap = document.createElement('div'); wrap.className = 'jv-locmap';
+    wrap.appendChild(this.globe.canvas); this.globe.reset(); this.globe.start();
     const cv = document.createElement('canvas'); cv.width = cv.height = 900; cv.className = 'jv-map'; cv.style.touchAction = 'none';
-    const back = document.createElement('button'); back.className = 'jv-btn ghost'; back.textContent = '\u2039 UK MAP'; back.style.display = 'none'; back.style.margin = '8px 0';
+    const cta = document.createElement('div'); cta.className = 'cta'; cta.innerHTML = '<span>\u2605</span> Click the globe to choose where to fly';
+    const back = document.createElement('button'); back.className = 'jv-btn ghost'; back.textContent = '\u2039 BACK'; back.style.display = 'none'; back.style.margin = '8px 8px 0 0';
+    wrap.append(cv, cta);
     const info = document.createElement('div'); info.className = 'jv-sum'; info.style.marginTop = '8px';
+    const opts = document.createElement('div'); opts.className = 'jv-row'; opts.style.marginTop = '8px';
     const cards = document.createElement('div');
-    const standsOf = (): [number, number, number][] => { const ap = h.world.airport; return (def.profile.standClearance > 12 && ap.standsJet?.length ? ap.standsJet : ap.stands) as [number, number, number][]; };
-    const refresh = () => { info.innerHTML = `<div><span>Start</span><b>${h.world.airport.icao} ${h.world.airport.name}</b><i>${this.spawnLabel()}</i></div>`; this.startCards(cards, refresh); this.locMap?.draw(); };
-    const map = new LocationMap(cv, {
-      world: h.world, hillshade: () => this.hillshadeCanvas(), stands: standsOf, visible: (i) => airportVisible(i),
-      select: async (icao) => { h.world.setAirport(icao); this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; await h.airportChanged(); refresh(); },
-      pickedStand: () => (this.spawn.kind === 'stand' ? this.spawn.index : null),
-      onPick: (i) => { const cd = this.spawn.kind === 'stand' && this.spawn.coldAndDark; this.spawn = { kind: 'stand', index: i, coldAndDark: cd }; refresh(); },
-    });
-    this.locMap = map;
-    map.onMode = (m) => { back.style.display = m === 'uk' ? 'none' : ''; };
-    back.onclick = () => map.showUK();
-    wrap.append(cv, back); body.append(wrap, info, cards);
+    const refresh = () => {
+      const gate = this.resolvedSpawn().kind === 'stand';
+      info.innerHTML = `<div><span>Start</span><b>${h.world.airport.icao} ${h.world.airport.name}</b><i>${this.spawnLabel()}</i></div>`;
+      opts.style.display = gate ? '' : 'none';
+      opts.innerHTML = gate ? `<label>Aircraft state</label><select><option value="0" ${this.coldDark ? '' : 'selected'}>Ready to fly (engines running)</option><option value="1" ${this.coldDark ? 'selected' : ''}>Cold and dark</option></select>` : '';
+      (opts.querySelector('select') as HTMLSelectElement | null)?.addEventListener('change', (e) => { this.coldDark = (e.target as HTMLSelectElement).value === '1'; refresh(); });
+      this.startCards(cards, refresh); this.locMap?.draw();
+    };
+    let flat = false;
+    const showFlat = async () => {
+      if (flat) return; flat = true;
+      cta.style.display = 'none';
+      await this.globe.zoomTo(54.3, -3.2, 1500);
+      wrap.classList.add('flat');
+      const map = this.makeMap(cv, { loaded: refresh, picked: refresh }); this.locMap = map;
+      map.onMode = (m) => { back.style.display = m === 'uk' ? 'none' : ''; };
+      back.onclick = () => map.showUK();
+    };
+    this.globe.onClick = () => void showFlat();
+    sgo.onclick = async () => {
+      const code = sin.value.trim().toUpperCase(), a = h.world.airports.find((x) => x.icao === code && airportVisible(x.icao));
+      if (!a) { smsg.textContent = `No airport with the code "${code}". Available: ${h.world.airports.filter((x) => airportVisible(x.icao)).map((x) => x.icao).join(', ')}`; return; }
+      smsg.textContent = ''; await showFlat(); void this.locMap?.open(code);
+    };
+    body.append(sr, wrap, back, info, opts, cards);
     refresh();
-    // the airport that is current starts zoomed in, as a convenience for people who just want to fly from there
   }
   /** The start-type cards (runway, final approach) of the current airport; `after` runs when one is chosen. */
   private startCards(body: HTMLElement, after: () => void) {
