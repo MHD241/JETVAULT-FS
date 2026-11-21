@@ -8,6 +8,7 @@ import { InputSettings, saveInputSettings } from '../input/input';
 import { airportCentre } from '../world/airport';
 import { World } from '../world/world';
 import { HomeGlobe } from './homeGlobe';
+import { LocationMap } from './locationMap';
 import { PRO } from '../config';
 import type { DirectorShot } from '../director';
 import { SHOTS } from '../shotList';
@@ -265,10 +266,59 @@ export class Menu {
     else this.renderReady(body);
   }
 
+  private locMap: LocationMap | null = null;
   private renderLocation(body: HTMLElement) {
+    this.locMap?.destroy(); this.locMap = null;
+    const def = this.host.aircraft.def;
+    const glider = !!def.glider;
+    if (glider) { this.renderLocationList(body); return; }
+    const h = this.host;
+    body.insertAdjacentHTML('beforeend', '<h3>Where do you want to start?</h3><p class="hint">Pick an airport star on the map. It zooms in to a bird\'s-eye view; pick a gate star to start parked there, or choose a runway or a final approach below.</p>');
+    const wrap = document.createElement('div'); wrap.className = 'jv-locmap';
+    const cv = document.createElement('canvas'); cv.width = cv.height = 900; cv.className = 'jv-map'; cv.style.touchAction = 'none';
+    const back = document.createElement('button'); back.className = 'jv-btn ghost'; back.textContent = '\u2039 UK MAP'; back.style.display = 'none'; back.style.margin = '8px 0';
+    const info = document.createElement('div'); info.className = 'jv-sum'; info.style.marginTop = '8px';
+    const cards = document.createElement('div');
+    const standsOf = (): [number, number, number][] => { const ap = h.world.airport; return (def.profile.standClearance > 12 && ap.standsJet?.length ? ap.standsJet : ap.stands) as [number, number, number][]; };
+    const refresh = () => { info.innerHTML = `<div><span>Start</span><b>${h.world.airport.icao} ${h.world.airport.name}</b><i>${this.spawnLabel()}</i></div>`; this.startCards(cards, refresh); this.locMap?.draw(); };
+    const map = new LocationMap(cv, {
+      world: h.world, hillshade: () => this.hillshadeCanvas(), stands: standsOf, visible: (i) => airportVisible(i),
+      select: async (icao) => { h.world.setAirport(icao); this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; await h.airportChanged(); refresh(); },
+      pickedStand: () => (this.spawn.kind === 'stand' ? this.spawn.index : null),
+      onPick: (i) => { const cd = this.spawn.kind === 'stand' && this.spawn.coldAndDark; this.spawn = { kind: 'stand', index: i, coldAndDark: cd }; refresh(); },
+    });
+    this.locMap = map;
+    map.onMode = (m) => { back.style.display = m === 'uk' ? 'none' : ''; };
+    back.onclick = () => map.showUK();
+    wrap.append(cv, back); body.append(wrap, info, cards);
+    refresh();
+    // the airport that is current starts zoomed in, as a convenience for people who just want to fly from there
+  }
+  /** The start-type cards (runway, final approach) of the current airport; `after` runs when one is chosen. */
+  private startCards(body: HTMLElement, after: () => void) {
+    body.innerHTML = '<h3>Or start on a runway or on final</h3>';
+    const ap = this.host.world.airport, def = this.host.aircraft.def, jet = def.profile.standClearance > 12;
+    const idents = ap.runways.flatMap((r) => r.ends.map((e) => e.ident));
+    const grid = document.createElement('div'); grid.className = 'jv-grid';
+    const opts: [AnySpawn, string, string][] = [
+      ...idents.map((id): [AnySpawn, string, string] => [{ kind: 'runway', ident: id }, `Runway ${id}`, jet ? 'Lined up, engines running, flaps 5' : 'Lined up, engine running']),
+      ...idents.slice(0, 2).map((id): [AnySpawn, string, string] => [{ kind: 'approach', ident: id, distanceNm: jet ? 6 : 3 }, `Final approach ${id}`, jet ? '6 nm, 3\u00b0 glidepath, flaps 30, gear down' : '3 nm, 3\u00b0 glidepath, flaps 10']),
+    ];
+    const key = (k: AnySpawn) => JSON.stringify({ ...k, coldAndDark: undefined });
+    for (const [k, t, d] of opts) {
+      const c = document.createElement('div');
+      c.className = 'jv-card' + (key(k) === key(this.spawn) ? ' sel' : '');
+      c.innerHTML = `<b>${t}</b><span>${d}</span>`;
+      c.onclick = () => { this.spawn = k; after(); };
+      grid.appendChild(c);
+    }
+    body.appendChild(grid);
+  }
+
+  private renderLocationList(body: HTMLElement) {
     const ap = this.host.world.airport;
     const def = this.host.aircraft.def;
-    const jet = def.id === 'b738';
+    const jet = def.profile.standClearance > 12;
     const glider = !!def.glider;
     body.insertAdjacentHTML('beforeend', `<h3>Airport</h3><div class="jv-grid"><div class="jv-card sel"><b>${ap.icao} ${ap.name}</b><span>${ap.runways.map((r) => `Runway ${r.id}`).join(', ')}<br>Change it under Airport Selection (the Home screen).</span></div></div><h3>Where do you start?</h3>`);
     const idents = ap.runways.flatMap((r) => r.ends.map((e) => e.ident));
@@ -367,13 +417,11 @@ export class Menu {
     };
   }
 
-  drawMap() {
-    const cv = this.mapCanvas;
-    if (!cv || !cv.isConnected) return;
-    const g = cv.getContext('2d')!;
+  /** The regional hillshade (terrain shading, land cover colours) as image data, `W` pixels square over the whole lo-resolution grid. */
+  private buildHillshade(W: number): ImageData {
     const grid = this.host.world.terrain.lo!;
-    const W = cv.width;
-    if (!this.hillshade) {
+    const g = document.createElement('canvas').getContext('2d')!;
+    {
       const img = g.createImageData(W, W);
       const lc = this.host.world.landcover;
       for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
@@ -388,8 +436,22 @@ export class Menu {
         const i = (y * W + x) * 4;
         img.data[i] = Math.min(255, col[0] * k); img.data[i + 1] = Math.min(255, col[1] * k); img.data[i + 2] = Math.min(255, col[2] * k); img.data[i + 3] = 255;
       }
-      this.hillshade = img;
+      return img;
     }
+  }
+  private hsCanvas: HTMLCanvasElement | null = null;
+  hillshadeCanvas(): HTMLCanvasElement {
+    if (!this.hsCanvas) { const c = document.createElement('canvas'); c.width = c.height = 900; c.getContext('2d')!.putImageData(this.hillshade && this.hillshade.width === 900 ? this.hillshade : this.buildHillshade(900), 0, 0); this.hsCanvas = c; }
+    return this.hsCanvas;
+  }
+
+  drawMap() {
+    const cv = this.mapCanvas;
+    if (!cv || !cv.isConnected) return;
+    const g = cv.getContext('2d')!;
+    const grid = this.host.world.terrain.lo!;
+    const W = cv.width;
+    if (!this.hillshade) this.hillshade = this.buildHillshade(W);
     g.putImageData(this.hillshade, 0, 0);
     const P = (e: number, n: number): [number, number] => [((e + grid.half) / (2 * grid.half)) * W, ((grid.half - n) / (2 * grid.half)) * W];
     g.font = '12px sans-serif';

@@ -249,3 +249,8 @@ body.touch .jv-minimap { width: 150px; height: 150px; }
 .jv-pill .jc { color: #ffc93c; margin-right: 6px; }
 .jv-menu nav .jv-pill.coins { order: 2; margin-left: auto; }
 .jv-notice { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); z-index: 5; background: rgba(8, 14, 28, .95); border: 1px solid var(--accent); padding: 12px 22px; font-size: 14px; max-width: min(640px, 90vw); text-align: center; box-shadow: 0 6px 30px rgba(0, 0, 0, .5); }
+
+/* Fly Now step 2: the UK map with airport stars, zooming into a bird's-eye view of the airport with gate stars */
+.jv-locmap { max-width: 760px; }
+.jv-locmap canvas.jv-map { width: min(100%, 62vh); }
+.jv-locmap canvas.jv-map { height: auto; border-radius: 8px; display: block; cursor: grab; }
