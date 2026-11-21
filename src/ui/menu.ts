@@ -160,7 +160,7 @@ export class Menu {
   /** Back: one step back inside Fly Now, otherwise to the home screen. */
   private goBack() { if (!this.home && this.tab === 'fly' && this.step > 1) { this.step--; this.render(); } else this.setHome(true); }
   /** The big button on the right: NEXT through the Fly Now steps, then FLY. */
-  private primary() { if (this.tab === 'fly' && this.step < 4) { this.step++; this.render(); } else this.host.fly(this.spawn); }
+  private primary() { if (this.tab === 'fly' && this.step < 4) { this.step++; this.render(); } else this.host.fly(this.resolvedSpawn()); }
   private refreshHome() {
     const r = this.homeEl.querySelector('[data-h=resume]') as HTMLElement | null; if (r) r.style.display = this.host.canResume() ? '' : 'none';
     const a = this.homeEl.querySelector('[data-h=airport]'); if (a) a.textContent = `${this.host.world.airport.icao} \u00b7 ${this.host.world.airport.name}`;
@@ -193,7 +193,11 @@ export class Menu {
     const top = document.createElement('div'); top.className = 'jv-hometop';
     top.innerHTML = `<div class="jv-pill"><span class="jv-logo"></span><b>JETVAULT</b></div><div class="jv-pill ap" data-h="airport"></div><div class="jv-pill ed">${PRO ? 'PRO' : 'FREE'}</div><div class="jv-pill coins" data-c="coins"></div><button class="jv-pill gear" title="Settings" aria-label="Settings">\u2699</button>`;
     (top.querySelector('.gear') as HTMLElement).onclick = () => this.go('settings');
-    h.append(stars, wrap, mosaic, hints, top);
+    // the globe is the way in to choosing where to fly: click it, it zooms to the UK, then the map takes over (see openHomeMap)
+    const cta = document.createElement('button'); cta.className = 'jv-globe-cta'; cta.innerHTML = '<span>\u2605</span> Click the globe to choose where to fly'; cta.onclick = () => void this.openHomeMap();
+    this.globe.onClick = () => void this.openHomeMap();
+    const mapEl = document.createElement('div'); mapEl.className = 'jv-homemap'; this.homeMapEl = mapEl;
+    h.append(stars, wrap, mosaic, hints, top, cta, mapEl);
     return h;
   }
 
@@ -266,6 +270,31 @@ export class Menu {
     else this.renderReady(body);
   }
 
+  /** What was picked on a map: a gate (by position, so the right stand is found for whichever aircraft is chosen later) or a runway's final approach. */
+  private pick: { gate?: { x: number; y: number }; final?: string } = {};
+  private standsOf(): [number, number, number][] { const ap = this.host.world.airport; return (this.host.aircraft.def.profile.standClearance > 12 && ap.standsJet?.length ? ap.standsJet : ap.stands) as [number, number, number][]; }
+  private nearestStand(g: { x: number; y: number }): number {
+    let best = 0, d = Infinity; this.standsOf().forEach((s, i) => { const dd = Math.hypot(s[0] - g.x, s[1] - g.y); if (dd < d) { d = dd; best = i; } }); return best;
+  }
+  /** The spawn to fly: a picked gate or final approach is resolved against the aircraft that is selected now. */
+  private resolvedSpawn(): AnySpawn {
+    const def = this.host.aircraft.def;
+    if (this.pick.final) return { kind: 'approach', ident: this.pick.final, distanceNm: def.profile.standClearance > 12 ? 6 : 3 };
+    if (this.pick.gate && this.standsOf().length) return { kind: 'stand', index: this.nearestStand(this.pick.gate), coldAndDark: this.spawn.kind === 'stand' && this.spawn.coldAndDark };
+    return this.spawn;
+  }
+  private makeMap(cv: HTMLCanvasElement, cb: { loaded: () => void; picked: () => void }): LocationMap {
+    const h = this.host;
+    return new LocationMap(cv, {
+      world: h.world, hillshade: () => this.hillshadeCanvas(), stands: () => this.standsOf(), visible: (i) => airportVisible(i),
+      select: async (icao) => { h.world.setAirport(icao); this.pick = {}; this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; await h.airportChanged(); cb.loaded(); },
+      pickedStand: () => (this.pick.gate ? this.nearestStand(this.pick.gate) : null),
+      onPick: (i) => { const s = this.standsOf()[i]; this.pick = { gate: { x: s[0], y: s[1] } }; cb.picked(); },
+      onPickFinal: (id) => { this.pick = { final: id }; cb.picked(); },
+      pickedFinal: () => this.pick.final ?? null,
+    });
+  }
+
   private locMap: LocationMap | null = null;
   private renderLocation(body: HTMLElement) {
     this.locMap?.destroy(); this.locMap = null;
@@ -279,14 +308,8 @@ export class Menu {
     const back = document.createElement('button'); back.className = 'jv-btn ghost'; back.textContent = '\u2039 UK MAP'; back.style.display = 'none'; back.style.margin = '8px 0';
     const info = document.createElement('div'); info.className = 'jv-sum'; info.style.marginTop = '8px';
     const cards = document.createElement('div');
-    const standsOf = (): [number, number, number][] => { const ap = h.world.airport; return (def.profile.standClearance > 12 && ap.standsJet?.length ? ap.standsJet : ap.stands) as [number, number, number][]; };
     const refresh = () => { info.innerHTML = `<div><span>Start</span><b>${h.world.airport.icao} ${h.world.airport.name}</b><i>${this.spawnLabel()}</i></div>`; this.startCards(cards, refresh); this.locMap?.draw(); };
-    const map = new LocationMap(cv, {
-      world: h.world, hillshade: () => this.hillshadeCanvas(), stands: standsOf, visible: (i) => airportVisible(i),
-      select: async (icao) => { h.world.setAirport(icao); this.spawn = { kind: 'stand', index: 0, coldAndDark: false }; await h.airportChanged(); refresh(); },
-      pickedStand: () => (this.spawn.kind === 'stand' ? this.spawn.index : null),
-      onPick: (i) => { const cd = this.spawn.kind === 'stand' && this.spawn.coldAndDark; this.spawn = { kind: 'stand', index: i, coldAndDark: cd }; refresh(); },
-    });
+    const map = this.makeMap(cv, { loaded: refresh, picked: refresh });
     this.locMap = map;
     map.onMode = (m) => { back.style.display = m === 'uk' ? 'none' : ''; };
     back.onclick = () => map.showUK();
@@ -309,7 +332,7 @@ export class Menu {
       const c = document.createElement('div');
       c.className = 'jv-card' + (key(k) === key(this.spawn) ? ' sel' : '');
       c.innerHTML = `<b>${t}</b><span>${d}</span>`;
-      c.onclick = () => { this.spawn = k; after(); };
+      c.onclick = () => { this.spawn = k; this.pick = {}; after(); };
       grid.appendChild(c);
     }
     body.appendChild(grid);
@@ -348,8 +371,8 @@ export class Menu {
   }
 
   private spawnLabel(): string {
-    const k = this.spawn;
-    return k.kind === 'stand' ? `Stand ${k.index + 1} (parked)` : k.kind === 'runway' ? `Runway ${k.ident}, lined up` : k.kind === 'approach' ? `Final approach to runway ${k.ident}, ${k.distanceNm} nm` : `Airborne at ${Math.round(k.altFt)} ft`;
+    const k = this.resolvedSpawn();
+    return k.kind === 'stand' ? `Gate ${k.index + 1} (parked)` : k.kind === 'runway' ? `Runway ${k.ident}, lined up` : k.kind === 'approach' ? `Final approach to runway ${k.ident}, ${k.distanceNm} nm` : `Airborne at ${Math.round(k.altFt)} ft`;
   }
 
   private renderReady(body: HTMLElement) {
@@ -595,6 +618,43 @@ export class Menu {
       act.appendChild(b);
     }
     s.appendChild(act);
+  }
+
+  // ---- the globe on the Home screen: zooms into the UK, then the map (stars, bird's-eye airport, gates and finals) ----
+  private homeMapEl!: HTMLElement; private homeLoc: LocationMap | null = null; private homeMapBusy = false;
+  private async openHomeMap() {
+    if (this.homeMapBusy || this.homeMapEl.classList.contains('on')) return;
+    this.homeMapBusy = true;
+    await this.globe.zoomTo(54.3, -3.2, 1700);
+    const el = this.homeMapEl; el.innerHTML = '';
+    const bar = document.createElement('div'); bar.className = 'bar';
+    const back = document.createElement('button'); back.className = 'jv-btn ghost'; back.textContent = '\u2039 GLOBE'; back.onclick = () => void this.closeHomeMap();
+    const ttl = document.createElement('b'); ttl.textContent = 'WHERE DO YOU WANT TO START?';
+    const up = document.createElement('button'); up.className = 'jv-btn ghost'; up.textContent = '\u2039 UK MAP'; up.style.display = 'none';
+    bar.append(back, ttl, up);
+    const cv = document.createElement('canvas'); cv.width = cv.height = 1000; cv.className = 'jv-map';
+    const hint = document.createElement('div'); hint.className = 'hint';
+    hint.textContent = 'Scroll to zoom, drag to move. Click an airport star to zoom in; then click a gate star to start parked there, or an orange FINAL star to start on final approach.';
+    el.append(bar, cv, hint);
+    const map = this.makeMap(cv, { loaded: () => { hint.textContent = `${this.host.world.airport.icao} ${this.host.world.airport.name}: click a gate star, or an orange FINAL star.`; }, picked: () => void this.homePicked() });
+    map.onMode = (m) => { up.style.display = m === 'uk' ? 'none' : ''; };
+    up.onclick = () => map.showUK();
+    this.homeLoc = map;
+    el.classList.add('on'); this.homeMapBusy = false;
+  }
+  private async closeHomeMap() {
+    if (this.homeMapBusy) return;
+    this.homeMapBusy = true;
+    this.homeMapEl.classList.remove('on'); this.homeLoc?.destroy(); this.homeLoc = null;
+    await this.globe.zoomOut();
+    this.homeMapBusy = false;
+  }
+  /** A gate or a final approach was picked on the Home map: back to the globe, then on to the aircraft step of Fly Now. */
+  private async homePicked() {
+    const label = this.spawnLabel(), icao = this.host.world.airport.icao;
+    await this.closeHomeMap();
+    this.go('fly'); this.step = 1; this.render();
+    this.notice(`Start: ${icao}, ${label}. Now choose your aircraft.`);
   }
 
   /** Multiplayer page: one player hosts a room and shares its 5-letter code, the others join with it. Players see each other's aircraft in the same sky. */

@@ -254,3 +254,14 @@ body.touch .jv-minimap { width: 150px; height: 150px; }
 .jv-locmap { max-width: 760px; }
 .jv-locmap canvas.jv-map { width: min(100%, 62vh); }
 .jv-locmap canvas.jv-map { height: auto; border-radius: 8px; display: block; cursor: grab; }
+
+/* Home screen: the globe is clickable; the map that takes over once it has zoomed into the UK */
+.jv-globe-cta { position: absolute; right: 6%; bottom: 84px; z-index: 3; padding: 10px 18px; border-radius: 22px; border: 1px solid rgba(255,255,255,.28); background: rgba(8,18,36,.72); color: #eaf2fb; font: 600 14px/1 var(--font, system-ui, sans-serif); letter-spacing: .03em; cursor: pointer; backdrop-filter: blur(6px); }
+.jv-globe-cta span { color: #ffd24a; margin-right: 6px; }
+.jv-globe-cta:hover { background: rgba(20,40,76,.85); }
+.jv-homemap { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: radial-gradient(ellipse at 50% 50%, rgba(8,18,36,.55), rgba(2,6,14,.9)); opacity: 0; visibility: hidden; transition: opacity .6s, visibility 0s .6s; }
+.jv-homemap.on { opacity: 1; visibility: visible; transition: opacity .6s; }
+.jv-homemap .bar { display: flex; align-items: center; gap: 18px; width: min(86vh, 88vw); color: #eaf2fb; letter-spacing: .12em; font-size: 14px; }
+.jv-homemap .bar b { flex: 1; }
+.jv-homemap canvas.jv-map { width: min(80vh, 88vw); height: auto; border-radius: 10px; box-shadow: 0 10px 60px rgba(0,0,0,.6); cursor: grab; touch-action: none; }
+.jv-homemap .hint { color: #b9c7d8; font-size: 13px; max-width: min(86vh, 88vw); text-align: center; }

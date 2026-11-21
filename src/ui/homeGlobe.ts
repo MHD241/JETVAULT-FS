@@ -66,6 +66,9 @@ export class HomeGlobe {
   private camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
   private earth!: THREE.Mesh;
   private raf = 0; private last = 0; private running = false;
+  private spin = true;
+  private anim: { t0: number; ms: number; from: [number, number, number]; to: [number, number, number]; done: () => void } | null = null;
+  onClick: (() => void) | null = null;
 
   constructor() {
     this.canvas.className = 'jv-globe';
@@ -85,6 +88,23 @@ export class HomeGlobe {
     this.scene.add(atm);
     const sun = new THREE.DirectionalLight(0xfff4e0, 3.6); sun.position.set(2.6, 1.0, 3.0); this.scene.add(sun, new THREE.AmbientLight(0x5575a5, 0.7));
     this.camera.position.set(0, 0, 4.6);
+    this.canvas.style.pointerEvents = 'auto'; this.canvas.style.cursor = 'pointer';
+    this.canvas.addEventListener('click', () => this.onClick?.());
+  }
+
+  /** Tilts and turns the earth so that (lat, lon) is in the middle of the view, and moves the camera in until that region fills it. Resolves when it has arrived. */
+  zoomTo(lat: number, lon: number, ms = 1600): Promise<void> {
+    const ry0 = this.earth.rotation.y, want = -Math.PI / 2 - (lon * Math.PI) / 180;
+    let d = (want - ry0) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
+    return this.tween([this.earth.rotation.x, ry0, this.camera.position.z], [(lat * Math.PI) / 180, ry0 + d, 1.5], ms);
+  }
+  /** Back out to the whole globe, spinning again. */
+  zoomOut(ms = 1200): Promise<void> {
+    return this.tween([this.earth.rotation.x, this.earth.rotation.y, this.camera.position.z], [0.32, this.earth.rotation.y, 4.6], ms).then(() => { this.spin = true; });
+  }
+  private tween(from: [number, number, number], to: [number, number, number], ms: number): Promise<void> {
+    this.spin = false;
+    return new Promise((res) => { this.anim = { t0: performance.now(), ms, from, to, done: res }; });
   }
 
   private resize() {
@@ -99,7 +119,12 @@ export class HomeGlobe {
     const loop = (now: number) => {
       if (!this.running) return;
       const dt = Math.min((now - this.last) / 1000, 0.1); this.last = now;
-      this.earth.rotation.y += dt * 0.035;
+      if (this.anim) {
+        const a = this.anim, k = Math.min(1, (now - a.t0) / a.ms), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+        this.earth.rotation.x = a.from[0] + (a.to[0] - a.from[0]) * e; this.earth.rotation.y = a.from[1] + (a.to[1] - a.from[1]) * e;
+        this.camera.position.z = Math.exp(Math.log(a.from[2]) + (Math.log(a.to[2]) - Math.log(a.from[2])) * e);
+        if (k >= 1) { this.anim = null; a.done(); }
+      } else if (this.spin) this.earth.rotation.y += dt * 0.035;
       if (this.canvas.clientWidth && Math.abs(this.renderer!.domElement.width - this.canvas.clientWidth * this.renderer!.getPixelRatio()) > 2) this.resize();
       this.renderer!.render(this.scene, this.camera);
       this.raf = requestAnimationFrame(loop);
