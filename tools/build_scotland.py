@@ -30,6 +30,8 @@ PATCHES = {
                  ident="EGPF", freq=dict(ATIS=129.2, GND=121.7, TWR=118.8, APP=119.1)),
     "egll": dict(name="London Heathrow Airport", lat=51.4706, lon=-0.4619, elev_ft=83, half=14400.0, img_half=9000.0,
                  ident="EGLL", freq={}),
+    "egkk": dict(name="London Gatwick Airport", lat=51.1481, lon=-0.1903, elev_ft=202, half=14400.0, img_half=9000.0,
+                 ident="EGKK", freq={}),
     "egpm": dict(name="Portmoak (Scottish Gliding Centre)", lat=56.191031, lon=-3.328505, elev_ft=350, half=12480.0, img_half=9000.0,
                  ident="EGPM", freq={}),
 }
@@ -90,18 +92,18 @@ def build_lo():
     print("done lo", n)
 
 
-def runways_for(pid, p):
+def runways_for(pid, p):  # p: the PATCHES entry
     if pid == "egpf":
         # OurAirports EGPF 05/23 (09/27 is closed). Elevations ft, displaced thresholds ft.
         r = [x for x in csv.DictReader(open(os.path.join(ROOT, "tools", "cache", "runways.csv"))) if x["airport_ident"] == "EGPF" and x["closed"] == "0"][0]
         return [dict(id="05/23", width_ft=float(r["width_ft"]), surface="asphalt", ends=[
             dict(ident="05", lat=float(r["le_latitude_deg"]), lon=float(r["le_longitude_deg"]), elev_ft=26, displaced_ft=0.0),
             dict(ident="23", lat=float(r["he_latitude_deg"]), lon=float(r["he_longitude_deg"]), elev_ft=21, displaced_ft=980.0)])]
-    if pid == "egll":
-        # OurAirports EGLL: 09L/27R and 09R/27L (both open). Elevations ft; displaced threshold only given for the 09 ends.
+    if pid in ("egll", "egkk"):
+        # OurAirports (EGLL: 09L/27R and 09R/27L; EGKK: 08R/26L and 08L/26R), all open. Elevations ft; displaced threshold only given for the 09 ends.
         out = []
         for r in csv.DictReader(open(os.path.join(ROOT, "tools", "cache", "runways.csv"))):
-            if r["airport_ident"] != "EGLL" or r["closed"] != "0":
+            if r["airport_ident"] != p["ident"] or r["closed"] != "0":
                 continue
             f = lambda k, d=0.0: float(r[k]) if r[k] else d
             out.append(dict(id=f"{r['le_ident']}/{r['he_ident']}", width_ft=f("width_ft", 164), surface="asphalt", ends=[
@@ -204,7 +206,7 @@ def build_patch(pid):
         hgt = q.get("height") or (3.2 * float(q["num_floors"]) + 1.0 if q.get("num_floors") else 8.0)
         airport_blds.append(dict(h=round(float(hgt), 1), pts=[[round(x, 2), round(y, 2)] for x, y in sg.polygon.orient(g, 1.0).exterior.coords][:-1]))
     # keep the download light: only buildings within BR metres of the airport (the 3D city is not needed further out)
-    BR = {"egpf": 5000.0, "egll": 7000.0}.get(pid, 3500.0)
+    BR = {"egpf": 5000.0, "egll": 7000.0, "egkk": 5000.0}.get(pid, 3500.0)
     feats = []
     for f in blds["features"]:
         c = sg.shape(f["geometry"]).centroid
@@ -255,6 +257,7 @@ def build_imagery(pid):
     Bk = "/vsicurl/https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/30"
     scenes = {"egpf": [f"{Bk}/U/UG/2025/5/S2C_30UUG_20250516_0_L2A/TCI.tif", f"{Bk}/U/VG/2025/5/S2C_30UVG_20250516_0_L2A/TCI.tif"],
               "egpm": [f"{Bk}/V/VH/2025/5/S2C_30VVH_20250516_0_L2A/TCI.tif"],
+              "egkk": [f"{Bk}/U/XB/2024/7/S2B_30UXB_20240729_0_L2A/TCI.tif", f"{Bk}/U/XB/2024/5/S2B_30UXB_20240520_0_L2A/TCI.tif", f"{Bk}/U/XB/2025/6/S2C_30UXB_20250619_0_L2A/TCI.tif"],
               "egll": [f"{Bk}/U/XC/2025/8/S2A_30UXC_20250817_0_L2A/TCI.tif", f"{Bk}/U/XC/2025/6/S2C_30UXC_20250619_0_L2A/TCI.tif", f"{Bk}/U/XC/2024/7/S2B_30UXC_20240719_0_L2A/TCI.tif"]}[pid]
     out = np.zeros((3, N, N), np.float32); have = np.zeros((N, N), bool)
     for url in scenes:

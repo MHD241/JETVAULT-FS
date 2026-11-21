@@ -57,6 +57,16 @@
    "buildings": 85762,
    "icao": "EGLL",
    "name": "London Heathrow Airport"
+  },
+  {
+   "id": "egkk",
+   "cx": 222632.00993856232,
+   "cy": -529633.6581154636,
+   "half": 14400.0,
+   "imgHalf": 9000.0,
+   "buildings": 50282,
+   "icao": "EGKK",
+   "name": "London Gatwick Airport"
   }
  ],
  "attribution": [
@@ -66,6 +76,7 @@
   "Runway thresholds: OurAirports (public domain)",
   "Contains modified Copernicus Sentinel data 2025 (Sentinel-2 L2A, tiles 30UVG/30VVH, 16 May 2025), processed by ESA",
   "Sentinel-2 true-colour imagery 16 May 2025: contains modified Copernicus Sentinel data (ESA)",
-  "Sentinel-2 imagery over Heathrow: Contains modified Copernicus Sentinel data 2024-2025 (L2A, tiles 30UXC)"
+  "Sentinel-2 imagery over Heathrow: Contains modified Copernicus Sentinel data 2024-2025 (L2A, tiles 30UXC)",
+  "Sentinel-2 imagery over Gatwick: Contains modified Copernicus Sentinel data 2024-2025 (L2A, tile 30UXB)"
  ]
 }

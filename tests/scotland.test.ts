@@ -9,9 +9,9 @@ import { DEFAULT_WEATHER } from '../src/sim/weather';
 
 describe('Scotland world', async () => {
   const world = await loadEGPH('all');
-  it('has four airports (Edinburgh, Glasgow, Portmoak, Heathrow) with ground data and patches inside the regional grid', () => {
-    expect(world.airports.map((a) => a.icao)).toEqual(['EGPH', 'EGPF', 'EGPM', 'EGLL']);
-    expect(world.terrain.patches.length).toBe(4);
+  it('has five airports (Edinburgh, Glasgow, Portmoak, Heathrow, Gatwick) with ground data and patches inside the regional grid', () => {
+    expect(world.airports.map((a) => a.icao)).toEqual(['EGPH', 'EGPF', 'EGPM', 'EGLL', 'EGKK']);
+    expect(world.terrain.patches.length).toBe(5);
     const lo = world.terrain.lo!;
     expect(lo.half).toBe(700000);   // the grid now covers all of Britain
     // a point in the Highlands comes from the regional grid and is high
