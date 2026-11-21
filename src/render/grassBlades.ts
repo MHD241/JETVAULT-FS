@@ -11,6 +11,9 @@ const hash = (a: number, b: number, s = 0) => {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 };
 
+/** Height of the grass blades relative to the original tufts (0.22 = about 6-15 cm close up: mown, airfield-short). */
+export const GRASS_HEIGHT = 0.22;
+
 export class GrassBlades {
   readonly group = new THREE.Group();
   private geo: THREE.BufferGeometry;
@@ -91,7 +94,7 @@ export class GrassBlades {
         if (share < 1 && hash(i, j, 42) > share * share) continue;
         if (this.world.isPaved(e, n)) continue;
         const h = this.world.terrain.heightAt(e, n);
-        pos.set(e, h, -n); q.setFromAxisAngle(up, hash(i, j, 3) * 6.283); const s = rg.scale * (0.8 + 0.7 * hash(i, j, 4)); sc.set(s, s * (0.8 + 0.5 * hash(i, j, 5)) * (rg.flat ?? 1), s);
+        pos.set(e, h, -n); q.setFromAxisAngle(up, hash(i, j, 3) * 6.283); const s = rg.scale * (0.8 + 0.7 * hash(i, j, 4)); sc.set(s, s * (0.8 + 0.5 * hash(i, j, 5)) * (rg.flat ?? 1) * GRASS_HEIGHT, s);
         mats.push(m4.compose(pos, q, sc).clone());
       }
       const im = new THREE.InstancedMesh(rg.flat ? this.geoFar : this.geo, this.mat, mats.length);
