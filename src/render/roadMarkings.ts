@@ -76,6 +76,20 @@ export class RoadMarkings {
     });
     this.patches.set(id, { roads, cells, all }); this.dirty = true;
   }
+  /** A random road near (e, n) within `radius` m (not a very short one): its class, points and a unique key; null if there is none. */
+  randomRoad(e: number, n: number, radius: number, rnd: () => number): { cls: string; pts: [number, number][]; key: string } | null {
+    const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * radius, qe = e + Math.cos(a) * d, qn = n + Math.sin(a) * d;
+    const k = (Math.floor(qe / CELL) + 4096) * 8192 + (Math.floor(qn / CELL) + 4096);
+    for (const [id, p] of this.patches) {
+      const l = p.all.get(k); if (!l || !l.length) continue;
+      for (let tries = 0; tries < 6; tries++) {
+        const i = l[Math.floor(rnd() * l.length)], [cls, pts] = p.roads[i];
+        if (pts.length < 2 || (cls === 'service' && rnd() < 0.5)) continue;
+        return { cls, pts, key: `${id}:${i}` };
+      }
+    }
+    return null;
+  }
   /** True where a road surface is (within `margin` m of a road's drawn width): grass and trees must not grow there. */
   onRoad(e: number, n: number, margin = 1): boolean {
     const k = (Math.floor(e / CELL) + 4096) * 8192 + (Math.floor(n / CELL) + 4096);

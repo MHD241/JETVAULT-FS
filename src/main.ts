@@ -37,6 +37,7 @@ import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
 import { Vec3, Quat, clamp, moveToward, KT } from './core/math';
 import { effectivePixelRatio, AutoScale } from './pixelBudget';
 import { RoadMarkings } from './render/roadMarkings';
+import { Traffic } from './render/traffic';
 import { ReplayRecorder, Replay, sampleReplay, parseReplay, weatherAt } from './replay';
 import type { FlightControls } from './sim/controls';
 import { AutoTrim, trimFor, stallGuardTrim } from './sim/assists';
@@ -182,7 +183,7 @@ class App implements MenuHost {
   private directorInput!: DirectorInput;
   private directorStarting = false;
   // ---- replay (replay.ts): the last minutes are recorded; playback draws the recorded pose with the flight model paused ----
-  private roadMarkings!: RoadMarkings;
+  private roadMarkings!: RoadMarkings; private traffic!: Traffic;
   private recorder = new ReplayRecorder();
   private rp: { replay: Replay; t: number; playing: boolean; speed: number; live: { wx: WeatherSettings; pos: Vec3; q: Quat; vel: Vec3; omega: Vec3; gearExt: number; flap: number; spoiler: number; elevator: number; aileronL: number; aileronR: number; rudder: number; controls: FlightControls; paused: boolean; tod: number; realTime: boolean | undefined; view: string }; bar: HTMLDivElement } | null = null;
   replayActive() { return !!this.rp; }
@@ -426,6 +427,7 @@ class App implements MenuHost {
     this.scene.add(this.aircraftGroup);
     this.scene.add(this.remotes.group);
     this.roadMarkings = new RoadMarkings((e, n) => this.world.terrain.heightAt(e, n)); this.scene.add(this.roadMarkings.group);
+    this.traffic = new Traffic(this.roadMarkings, (e, n) => this.world.terrain.heightAt(e, n)); this.scene.add(this.traffic.group);
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement | null)?.tagName === 'INPUT' || (e.target as HTMLElement | null)?.tagName === 'SELECT' || this.director) return;
       if (e.code === 'KeyV' && !e.repeat && !this.menu.open) this.replayOpen();
@@ -817,7 +819,7 @@ class App implements MenuHost {
   }
   applyGraphics(g: GraphicsSettings) {
     this.graphics = g;
-    this.applyPixelRatio();
+    this.applyPixelRatio(); this.traffic?.setDensity(g.renderScale < 0.8 ? 0.35 : 1);
     if (this.grade) { this.grade.setSize(window.innerWidth, window.innerHeight); this.grade.setQuality(g.fx ?? (g.terrainDetail > 1.2 ? 'full' : g.renderScale < 0.8 ? 'min' : 'mid')); }
     this.renderer.shadowMap.enabled = g.shadows;
     this.env.sun.castShadow = g.shadows;
@@ -1282,6 +1284,7 @@ class App implements MenuHost {
     if (inCockpit) this.cockpit.update(dt, this.env.night);
     this.terrain.update(cam.position, sim.simTime);
     this.roadMarkings.update(cam.position, ac.agl, this.env.night);
+    this.traffic.update(sim.paused || this.menu.open ? 0 : dt, cam.position, ac.agl, this.env.night);
     this.terrain.setNight(this.env.night);
     this.terrain.setWet(sim.weather.rain > 0.1 ? Math.min(1, sim.weather.rain * 1.5) : 0);
     for (const r of this.patchRender.values()) { r.airport.update(cam.position, this.env.lightLevel, window.innerHeight / 1000); r.buildings.update(cam.position, this.env.night); r.city?.update(cam.position, this.env.night); }
