@@ -78,6 +78,7 @@ export class Forest {
       const e = (i + hash(i, j, 1)) * st, n = (j + hash(i, j, 2)) * st;
       if ((e - E0) ** 2 + (n - N0) ** 2 > r2) continue;
       const lc = this.world.landAt(e, n);
+      if (this.world.roadTest?.(e, n)) continue;   // no trees on the road
       const dense = lc === LC.TREE;
       if (!dense && !(lc === LC.SHRUB && hash(i, j, 9) < 0.25) && !(lc === LC.BUILT && hash(i, j, 9) < 0.06)) continue;
       if (dense && hash(i, j, 3) > 0.9) continue; // small clearings

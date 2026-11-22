@@ -36,6 +36,7 @@ import { Hud } from './ui/hud';
 import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
 import { Vec3, Quat, clamp, moveToward, KT } from './core/math';
 import { effectivePixelRatio, AutoScale } from './pixelBudget';
+import { RoadMarkings } from './render/roadMarkings';
 import { ReplayRecorder, Replay, sampleReplay, parseReplay, weatherAt } from './replay';
 import type { FlightControls } from './sim/controls';
 import { AutoTrim, trimFor, stallGuardTrim } from './sim/assists';
@@ -181,6 +182,7 @@ class App implements MenuHost {
   private directorInput!: DirectorInput;
   private directorStarting = false;
   // ---- replay (replay.ts): the last minutes are recorded; playback draws the recorded pose with the flight model paused ----
+  private roadMarkings!: RoadMarkings;
   private recorder = new ReplayRecorder();
   private rp: { replay: Replay; t: number; playing: boolean; speed: number; live: { wx: WeatherSettings; pos: Vec3; q: Quat; vel: Vec3; omega: Vec3; gearExt: number; flap: number; spoiler: number; elevator: number; aileronL: number; aileronR: number; rudder: number; controls: FlightControls; paused: boolean; tod: number; realTime: boolean | undefined; view: string }; bar: HTMLDivElement } | null = null;
   replayActive() { return !!this.rp; }
@@ -347,6 +349,7 @@ class App implements MenuHost {
     // detail patches (terrain, imagery, roads, airfield, buildings) are streamed in near the aircraft and out behind it
     this.world.onPatchLoaded = (lp) => this.addPatchRender(lp);
     this.world.onPatchUnloaded = (id) => this.removePatchRender(id);
+    this.world.roadTest = (e, n) => this.roadMarkings.onRoad(e, n);   // grass and trees keep off the roads
     progress('Building airport and city');
     for (const lp of this.world.loaded.values()) await this.addPatchRender(lp);
     this.bridgeBtn = document.createElement('button');
@@ -422,6 +425,7 @@ class App implements MenuHost {
     this.aircraftGroup.matrixAutoUpdate = false;
     this.scene.add(this.aircraftGroup);
     this.scene.add(this.remotes.group);
+    this.roadMarkings = new RoadMarkings((e, n) => this.world.terrain.heightAt(e, n)); this.scene.add(this.roadMarkings.group);
     window.addEventListener('keydown', (e) => {
       if ((e.target as HTMLElement | null)?.tagName === 'INPUT' || (e.target as HTMLElement | null)?.tagName === 'SELECT' || this.director) return;
       if (e.code === 'KeyV' && !e.repeat && !this.menu.open) this.replayOpen();
@@ -485,7 +489,7 @@ class App implements MenuHost {
     const airport = this.world.airports[idx];
     let roads = null;
     let roadsJson: [string, [number, number][]][] | null = null;
-    try { roadsJson = JSON.parse(new TextDecoder().decode(await fetchBuf(`${base}/${pm.id}/roads.json`))); roads = buildRoadOverlay(roadsJson!, pm.cx, pm.cy, 2 * pm.imgHalf); } catch { /* optional data */ }
+    try { roadsJson = JSON.parse(new TextDecoder().decode(await fetchBuf(`${base}/${pm.id}/roads.json`))); roads = buildRoadOverlay(roadsJson!, pm.cx, pm.cy, 2 * pm.imgHalf); this.roadMarkings.addPatch(pm.id, roadsJson!); } catch { /* optional data */ }
     let imagery = null;
     try {
       const t = await new THREE.TextureLoader().loadAsync(`${base}/${pm.id}/imagery.jpg`);
@@ -538,7 +542,7 @@ class App implements MenuHost {
   }
 
   private removePatchRender(id: string) {
-    this.terrain.removePatch(id);
+    this.terrain.removePatch(id); this.roadMarkings.removePatch(id);
     this.jetBridges.removePatch(id);
     this.minimap?.removePatch(id);
     const r = this.patchRender.get(id);
@@ -1277,6 +1281,7 @@ class App implements MenuHost {
     if (this.mp) { this.mp.update(dt, () => this.mpMine()); this.remotes.update(this.mp.poses(), cam, dt); }
     if (inCockpit) this.cockpit.update(dt, this.env.night);
     this.terrain.update(cam.position, sim.simTime);
+    this.roadMarkings.update(cam.position, ac.agl, this.env.night);
     this.terrain.setNight(this.env.night);
     this.terrain.setWet(sim.weather.rain > 0.1 ? Math.min(1, sim.weather.rain * 1.5) : 0);
     for (const r of this.patchRender.values()) { r.airport.update(cam.position, this.env.lightLevel, window.innerHeight / 1000); r.buildings.update(cam.position, this.env.night); r.city?.update(cam.position, this.env.night); }

@@ -88,7 +88,7 @@ export class GrassBlades {
         // (organic, irregular borders) and thin the grass out across a soft band near the border instead of cutting it off
         const wx = e + 22 * Math.sin(e * 0.031 + n * 0.017) + 11 * Math.sin(n * 0.083 - e * 0.05), wy = n + 22 * Math.sin(n * 0.027 - e * 0.021) + 11 * Math.sin(e * 0.071 + n * 0.06);
         const isG = (x: number, y: number) => { const c = this.world.landAt(x, y); return c === LC.GRASS || c === LC.CROP; };
-        if (!isG(wx, wy)) continue;
+        if (!isG(wx, wy) || this.world.roadTest?.(e, n)) continue;
         let share = 1;
         { const R2 = 14 + 10 * hash(i, j, 41); share = (+isG(wx + R2, wy) + +isG(wx - R2, wy) + +isG(wx, wy + R2) + +isG(wx, wy - R2) + 1) / 5; }
         if (share < 1 && hash(i, j, 42) > share * share) continue;

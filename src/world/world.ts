@@ -142,6 +142,9 @@ export class World implements GroundQuery {
     return false;
   }
 
+  /** Set by the renderer: true where a road surface is (grass and trees keep off it). */
+  roadTest: ((east: number, north: number) => boolean) | null = null;
+
   landAt(east: number, north: number): number {
     for (const l of this.landcovers.values()) if (l.contains(east, north)) return l.at(east, north);
     return this.landcover ? this.landcover.at(east, north) : 0;
