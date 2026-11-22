@@ -16,8 +16,8 @@ export class BuildingsRenderer {
   constructor(buildings: Building[]) {
     this.group.name = 'buildings';
     const byTile = new Map<string, Building[]>();
-    // thinned out: every large building stays, only one in three of the small ones
-    buildings = buildings.filter((b, i) => (b.maxE - b.minE) * (b.maxN - b.minN) > 900 || i % 3 === 0);
+    // thinned out so streets and open ground read as a city: every large building (over 1500 m2) stays, one in three of the medium ones, one in eight of the small ones
+    buildings = buildings.filter((b, i) => { const a = (b.maxE - b.minE) * (b.maxN - b.minN); return a > 1500 || (a > 300 ? i % 3 === 0 : i % 8 === 0); });
     for (const b of buildings) {
       const key = `${Math.floor((b.minE + b.maxE) / 2 / TILE)},${Math.floor((b.minN + b.maxN) / 2 / TILE)}`;
       let l = byTile.get(key);

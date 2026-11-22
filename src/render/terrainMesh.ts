@@ -458,7 +458,7 @@ float gWater; float gBuilt; float gPaved;
     vec2 ruv = (en - uRoadsRect.xy) / uRoadsRect.z;
     if (ruv.x > 0.0 && ruv.y > 0.0 && ruv.x < 1.0 && ruv.y < 1.0) {
       vec4 rd = texture2D(uRoads, ruv);
-      col = mix(col, srgb(rd.rgb) * (0.9 + 0.2 * n2), rd.a * (1.0 - gWater) * (1.0 - 0.7 * gImg));
+      col = mix(col, srgb(rd.rgb) * (0.9 + 0.2 * n2), rd.a * (1.0 - gWater) * (1.0 - 0.2 * gImg));
     }
   }
   // airport pavement overlay (taxiways / aprons) drawn from OSM geometry
@@ -558,24 +558,35 @@ if (gWater > 0.01) {
 }
 if (uNight > 0.01) {
   vec2 en3 = vec2(vWorldPos.x, -vWorldPos.z);
-  // street lamps: one in about half of the 18 m cells of built-up land, each lighting a soft pool of ground (about 6 m) with a hot core: lit streets, not dots.
-  // Where a pixel covers more than a pool the pools are replaced by their average (varying slowly over 150 m), so a far city is one steady glow, never sparkle.
-  vec2 cp = en3 / 18.0, cid = floor(cp);
-  // the pools overlap their neighbours, so the nearest lamps of the 3 x 3 cells around are summed (a pool clipped at its own cell would show as a square)
+  // street lamps. With the road network (patches): a lamp every ~12 m along every road, each lighting a soft pool of ground (sigma about 5.5 m) with a hot core:
+  // the streets of the city are lit. Without roads: lamps scattered on built-up land. The pools of the 3 x 3 cells around are summed, because a pool clipped
+  // at its own cell would show as a square. Where a pixel covers more than a pool (far away) the pools give way to the road coverage itself (the mip map
+  // of the road texture is the average), a steady glow along the road network that cannot sparkle.
+  float CELL = 12.0;
+  vec2 cp = en3 / CELL, cid = floor(cp);
+  bool haveRoads = uRoadsRect.z > 0.0;
   float pool = 0.0, core = 0.0;
   for (int oy = -1; oy <= 1; oy++) for (int ox = -1; ox <= 1; ox++) {
     vec2 c2 = cid + vec2(float(ox), float(oy));
-    float has = step(0.58, hash12(c2));
-    vec2 jit = vec2(hash12(c2 + 7.0), hash12(c2 + 13.0)) * 0.5 + 0.25;
-    float dl = length((cp - c2 - jit) * 18.0);
-    pool += exp(-dl * dl / 60.0) * has;
-    core += smoothstep(1.5, 0.15, dl) * has;
+    vec2 lpos = (c2 + 0.5) * CELL;
+    float has;
+    if (haveRoads) {
+      vec2 ru = (lpos - uRoadsRect.xy) / uRoadsRect.z;
+      float onRoad = (ru.x > 0.0 && ru.y > 0.0 && ru.x < 1.0 && ru.y < 1.0) ? step(0.45, texture2D(uRoads, ru).a) : 0.0;
+      has = onRoad * step(0.15, hash12(c2));
+    } else {
+      has = step(0.9, hash12(c2));
+    }
+    float dl = length(en3 - lpos);
+    pool += exp(-dl * dl / 36.0) * has;
+    core += smoothstep(1.4, 0.15, dl) * has;
   }
   pool = min(pool, 1.0);
   float res = 1.0 - smoothstep(5.0, 14.0, length(fwidth(en3)));
-  float avgPool = 0.40 * (0.6 + 0.6 * hash12(floor(en3 / 150.0)));
+  float avgPool = 0.18 * (0.7 + 0.6 * hash12(floor(en3 / 150.0)));
+  if (haveRoads) { vec2 ra = (en3 - uRoadsRect.xy) / uRoadsRect.z; avgPool = (ra.x > 0.0 && ra.y > 0.0 && ra.x < 1.0 && ra.y < 1.0) ? texture2D(uRoads, ra).a * 0.55 : 0.0; }
   float lit = mix(avgPool, pool, res);
-  totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * gBuilt * (lit * 0.30 + core * res * 1.5) * uNight;
+  totalEmissiveRadiance += vec3(1.0, 0.72, 0.38) * smoothstep(0.15, 0.5, gBuilt) * (lit * 0.34 + core * res * 1.4) * uNight;
   // aprons and taxiways are lit at night (apron floodlights, spill light): a faint warm glow so the pavement reads against the dark grass
   totalEmissiveRadiance += vec3(0.62, 0.55, 0.42) * gPaved * uNight * 0.12;
 }

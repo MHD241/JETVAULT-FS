@@ -85,11 +85,11 @@ export function buildRoadOverlay(roads: [string, [number, number][]][], cx = 0, 
   cv.width = cv.height = px;
   const g = cv.getContext('2d')!;
   const k = px / size;
-  const width: Record<string, number> = { motorway: 24, trunk: 18, primary: 13, secondary: 10, tertiary: 8, residential: 6.5, unclassified: 6, living_street: 5, service: 4.5 };
+  const width: Record<string, number> = { motorway: 32, trunk: 24, primary: 17, secondary: 13, tertiary: 10.5, residential: 8.5, unclassified: 7.5, living_street: 6.5, service: 5.5 };   // wider than life: a 6 m pixel could not show a 5 m street, and the city should read as streets
   const order = ['service', 'living_street', 'unclassified', 'residential', 'tertiary', 'secondary', 'primary', 'trunk', 'motorway'];
   g.lineCap = 'round'; g.lineJoin = 'round';
   for (const cls of order) {
-    g.strokeStyle = cls === 'motorway' || cls === 'trunk' ? 'rgb(70,71,73)' : 'rgb(88,88,88)';
+    g.strokeStyle = cls === 'motorway' || cls === 'trunk' ? 'rgb(52,53,56)' : 'rgb(66,67,70)';
     g.lineWidth = Math.max(1, width[cls] * k);
     g.beginPath();
     for (const [c, pts] of roads) {
