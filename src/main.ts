@@ -61,6 +61,7 @@ import { KeyframeFlight } from './sim/keyframes';
 import { DirectorInput, DirectorShot } from './director';
 import { SHOTS } from './shotList';
 import { Multiplayer, PlayerState, WeatherShare } from './net/multiplayer';
+import { webglAvailable, showFatal } from './fatal';
 import { hostRoom, joinRoom, validCode, RoomTransport } from './net/transport';
 import { RemotePlayers } from './render/remotePlayers';
 import { generateCity } from './world/city';
@@ -1321,9 +1322,10 @@ class App implements MenuHost {
   }
 }
 
-const app = new App();
-app.init().catch((e) => {
-  console.error(e);
-  loadingMsg.textContent = `Failed to start: ${e.message}`;
-  loadingMsg.style.color = '#e5484d';
-});
+if (!webglAvailable()) showFatal(new Error('WebGL 2 is not available'));
+else {
+  try {
+    const app = new App();
+    app.init().catch((e) => { console.error(e); showFatal(e); });
+  } catch (e) { console.error(e); showFatal(e); }
+}

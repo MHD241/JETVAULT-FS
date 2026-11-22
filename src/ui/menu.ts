@@ -10,6 +10,7 @@ import { World } from '../world/world';
 import { HomeGlobe } from './homeGlobe';
 import { LocationMap } from './locationMap';
 import { PRO } from '../config';
+import { recommendPreset, currentMachine } from '../graphicsAuto';
 import type { DirectorShot } from '../director';
 import { SHOTS } from '../shotList';
 import { aircraftAvailable, wallet } from '../economy';
@@ -40,7 +41,8 @@ export const GRAPHICS_PRESETS: Record<GraphicsPreset, GraphicsSettings> = {
 
 const GFX_STORE = 'jetvault.gfx.v1';
 export function loadGraphics(): GraphicsSettings {
-  const d: GraphicsSettings = { ...GRAPHICS_PRESETS.high };
+  let auto: 'low' | 'high' = 'high'; try { auto = recommendPreset(currentMachine()); } catch { /* ignore */ }
+  const d: GraphicsSettings = { ...GRAPHICS_PRESETS[auto] };   // first launch: chosen from the screen and the machine (not saved until the player changes it)
   try { const s = localStorage.getItem(GFX_STORE); if (s) return { ...d, ...JSON.parse(s) }; } catch { /* ignore */ }
   return d;
 }
@@ -84,7 +86,7 @@ export interface MenuHost {
   replayOpen(): void;
 }
 
-type Tab = 'home' | 'credits' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'director' | 'multiplayer' | 'help' | 'market' | 'controls' | 'training' | 'about';
+type Tab = 'home' | 'credits' | 'fly' | 'map' | 'aircraft' | 'airports' | 'planner' | 'weather' | 'settings' | 'director' | 'multiplayer' | 'help' | 'market' | 'privacy' | 'controls' | 'training' | 'about';
 
 
 export class Menu {
@@ -208,7 +210,7 @@ export class Menu {
     s.innerHTML = '';
     if (!this.home && !(this.tab === 'fly' && this.step === 2)) this.globe.stop();   // the globe is only drawn on the Home screen and in the location step
     (this.footer.querySelector('[data-f=resume]') as HTMLElement).style.display = this.host.canResume() ? '' : 'none';
-    const titles: Record<Tab, string> = { home: 'Home', credits: 'Acknowledgements', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', director: 'Director', multiplayer: 'Multiplayer', help: 'Help', market: 'Marketplace', controls: 'Controls', training: 'Training', about: 'About JetVault' };
+    const titles: Record<Tab, string> = { home: 'Home', credits: 'Acknowledgements', fly: 'Fly Now', map: 'World Map', aircraft: 'Aircraft Selection', airports: 'Airport Selection', planner: 'Flight Planner', weather: 'Weather', settings: 'Settings', director: 'Director', multiplayer: 'Multiplayer', help: 'Help', market: 'Marketplace', privacy: 'Privacy', controls: 'Controls', training: 'Training', about: 'About JetVault' };
     const pt = this.el.querySelector('.jv-ptitle'); if (pt) pt.textContent = titles[this.tab];
     const fb = this.footer.querySelector('[data-f=fly]') as HTMLElement;
     fb.style.display = ['fly', 'aircraft', 'airports', 'map'].includes(this.tab) ? '' : 'none';
@@ -217,6 +219,7 @@ export class Menu {
     else if (this.tab === 'map') this.renderMap(s);
     else if (this.tab === 'aircraft' || this.tab === 'market') this.renderAircraft(s);
     else if (this.tab === 'help') this.renderHelp(s);
+    else if (this.tab === 'privacy') this.renderPrivacy(s);
     else if (this.tab === 'airports') {
       s.innerHTML = `<h2>Airport Selection</h2><p>Scotland is one continuous map: Copernicus terrain and land cover everywhere, with full detail (satellite imagery, roads, buildings, airfield) around Edinburgh Airport (the only airport enabled for now).</p>`;
       const grid = document.createElement('div'); grid.className = 'jv-grid';
@@ -248,7 +251,7 @@ export class Menu {
       <p>Boeing 737-800 (American Airlines) 3D model by <a href="https://www.cgtrader.com/designers/boy737?utm_source=credit&amp;utm_source=credit_item_page" target="_blank" rel="noopener" style="color:#8ab4ff">boy737</a> on CGTrader. Scaled, repositioned and converted to glTF.</p>
       <p>"UNDERPOLY: Free Sailplane Glider" (<a href="https://skfb.ly/oMDMu" target="_blank" rel="noopener" style="color:#8ab4ff">https://skfb.ly/oMDMu</a>) by UNDERPOLY Project is licensed under Creative Commons Attribution (<a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:#8ab4ff">http://creativecommons.org/licenses/by/4.0/</a>).</p>
       <p>"Boeing 737-800 Cockpit" (<a href="https://skfb.ly/oSGxK" target="_blank" rel="noopener" style="color:#8ab4ff">https://skfb.ly/oSGxK</a>) by hakai315 is licensed under Creative Commons Attribution (<a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener" style="color:#8ab4ff">http://creativecommons.org/licenses/by/4.0/</a>).</p>
-      <p>The 737-800 exterior mesh was supplied by the project owner as a free-to-use public model; its author and licence terms are NOT yet verified, and its original airline livery has been recoloured to a neutral scheme. The original third-party cockpit model (credited above) is available with ?oldcockpit; the default flight deck, the studio and all other textures and instrument artwork are original assets created for JetVault.
+      <p>The 737-800 exterior mesh is used under rights held by the project owner; its original airline livery has been recoloured to a neutral scheme. The original third-party cockpit model (credited above) is available with ?oldcockpit; the default flight deck, the studio and all other textures and instrument artwork are original assets created for JetVault.
       JetVault is not affiliated with Microsoft, Asobo, Textron Aviation or any airport operator.</p>`;
     }
   }
@@ -432,7 +435,7 @@ export class Menu {
     const BY = L('CC BY 4.0', 'http://creativecommons.org/licenses/by/4.0/');
     const groups: [string, [string, string, string, string][]][] = [
       ['Aircraft', [
-        ['Boeing 737-800 (exterior)', L('boy737', 'https://www.cgtrader.com/designers/boy737'), 'CGTrader; supplied as a free-to-use public model, its licence terms are not yet verified. Recoloured to a neutral scheme.', 'The 737-800'],
+        ['Boeing 737-800 (exterior)', L('boy737', 'https://www.cgtrader.com/designers/boy737'), 'CGTrader; used under rights held by the project owner. Recoloured to a neutral scheme.', 'The 737-800'],
         ['Boeing 737-800 Cockpit', L('hakai315', 'https://skfb.ly/oSGxK'), BY, 'Optional old flight deck (?oldcockpit)'],
         ['Airbus A320-200', L('Dlourine', 'https://sketchfab.com/3d-models/airbus-a320-200-02470bf974e645f78f5d9385a333e9e0'), BY, 'The A320'],
         ['A320 Cockpit 2', L('davidmarton1987', 'https://sketchfab.com/3d-models/a320-cockpit-2-5fb0c671a91042c1a9d8f2cf3e2df021'), BY, 'The flight deck of the A320, A340 and A350'],
@@ -445,7 +448,7 @@ export class Menu {
         ['Jetway', L('vishnevsky.yaroslav', 'https://skfb.ly/oUZou'), BY, 'Boarding bridges'],
         ['The Sun', L('tamminen', 'https://skfb.ly/oy8RZ'), BY, 'The sun'],
         ['Moon', L('Akshat', 'https://skfb.ly/6TwGU'), BY, 'The moon'],
-        ['City Buildings pack', '3DTGRL', 'CGTrader, free; licence terms not yet verified', 'Landmark towers (Pro)'],
+        ['City Buildings pack', '3DTGRL', 'CGTrader; used under rights held by the project owner', 'Landmark towers (Pro)'],
       ]],
     ];
     let html = '<p>JetVault is built on the work of many people. Thank you to everyone below.</p>';
@@ -655,11 +658,24 @@ export class Menu {
     s.appendChild(act);
   }
 
+  /** Privacy: what is stored and what leaves the device. Plain facts about this build. */
+  private renderPrivacy(s: HTMLElement) {
+    s.innerHTML = `<h2>Privacy</h2>
+      <h3>On your device</h3>
+      <p>JetVault keeps these in your browser's local storage, on your own device only: your graphics and control settings, your JetCoins, your name and your choice about multiplayer. There are no accounts, no cookies and no analytics in the game. Replays are only saved if you press SAVE, as a file you keep.</p>
+      <h3>When you open the game</h3>
+      <p>Like any website, the server that hosts the game sees your network address when your browser downloads the game's files. The game itself sends nothing else.</p>
+      <h3>Multiplayer</h3>
+      <p>Multiplayer connects players directly to each other (WebRTC). To introduce them, the free public PeerJS service sees the room code and the network addresses of the people connecting. Everybody in a room can see the others' network addresses, names, aircraft positions and chat messages. Nothing is stored after you leave the room. Only join rooms of people you trust, and do not share anything personal in the chat.</p>
+      <h3>Questions</h3>
+      <p>Contact details are on the JetVault website (jetvault.net).</p>`;
+  }
+
   /** Help: controls, about, acknowledgements and settings. */
   private renderHelp(s: HTMLElement) {
     s.innerHTML = '<h2>Help</h2><div class="jv-grid"></div>';
     const grid = s.querySelector('.jv-grid') as HTMLElement;
-    const items: [Tab, string, string][] = [['controls', 'Controls', 'Keyboard, mouse and touch controls'], ['settings', 'Settings', 'Graphics, controls and sensitivity'], ['about', 'About JetVault', 'Version and what the simulator models'], ['credits', 'Acknowledgements', 'The people whose work is in the game, and the data sources']];
+    const items: [Tab, string, string][] = [['controls', 'Controls', 'Keyboard, mouse and touch controls'], ['settings', 'Settings', 'Graphics, controls and sensitivity'], ['about', 'About JetVault', 'Version and what the simulator models'], ['credits', 'Acknowledgements', 'The people whose work is in the game, and the data sources'], ['privacy', 'Privacy', 'What the game stores, and what multiplayer shares']];
     for (const [tab, t, d] of items) { const c = document.createElement('div'); c.className = 'jv-card'; c.innerHTML = `<b>${t}</b><span>${d}</span>`; c.onclick = () => this.go(tab); grid.appendChild(c); }
   }
 
@@ -676,6 +692,11 @@ export class Menu {
     const name = () => { const n = nameIn.value.trim() || 'Pilot'; try { localStorage.setItem('jetvault.mpname', n); } catch { /* ignore */ } return n; };
     const st = document.createElement('div'); st.className = 'jv-notice-line';
     const busy = (t: string) => { st.textContent = t; };
+    const cons = document.createElement('label'); cons.style.cssText = 'display:flex;gap:10px;align-items:flex-start;margin:6px 0 10px;max-width:640px;font-size:13px;cursor:pointer';
+    let agreed = false; try { agreed = localStorage.getItem('jetvault.mpconsent') === '1'; } catch { /* ignore */ }
+    cons.innerHTML = `<input type="checkbox" ${agreed ? 'checked' : ''}><span>I understand that the other players in a room, and the public PeerJS connection service, can see my network address, my name, where I fly and what I type. (<a href="#" data-p="1" style="color:#8ab4ff">Privacy</a>)</span>`;
+    (cons.querySelector('[data-p]') as HTMLElement).onclick = (e) => { e.preventDefault(); this.go('privacy'); };
+    s.appendChild(cons);
     const actions = document.createElement('div'); actions.className = 'jv-row';
     const hostB = document.createElement('button'); hostB.className = 'jv-btn'; hostB.textContent = 'HOST A ROOM';
     hostB.onclick = () => { hostB.disabled = true; busy('Opening a room...'); h.mpHost(name()).then((c) => busy(`Room open. Share this code: ${c}`)).catch((e) => busy(`Could not open a room: ${(e as Error).message}`)).finally(() => { hostB.disabled = false; this.updateMp(); }); };
@@ -684,6 +705,9 @@ export class Menu {
     joinB.onclick = () => { joinB.disabled = true; busy('Connecting...'); h.mpJoin(codeIn.value.trim().toUpperCase(), name()).then(() => busy('Connected.')).catch((e) => busy((e as Error).message)).finally(() => { joinB.disabled = false; this.updateMp(); }); };
     const leaveB = document.createElement('button'); leaveB.className = 'jv-btn ghost'; leaveB.textContent = 'LEAVE ROOM'; leaveB.onclick = () => { h.mpLeave(); busy('Left the room.'); this.updateMp(); };
     actions.append(hostB, codeIn, joinB, leaveB); s.append(actions, st);
+    const gate = () => { hostB.disabled = joinB.disabled = !agreed; hostB.style.opacity = joinB.style.opacity = agreed ? '' : '0.45'; };
+    (cons.querySelector('input') as HTMLInputElement).onchange = (e) => { agreed = (e.target as HTMLInputElement).checked; try { localStorage.setItem('jetvault.mpconsent', agreed ? '1' : '0'); } catch { /* ignore */ } gate(); };
+    gate();
     const roster = document.createElement('div'); roster.className = 'jv-card'; this.mpRoster = roster; s.appendChild(roster);
     const log = document.createElement('div'); log.className = 'jv-card'; log.style.cssText = 'max-height:160px;overflow:auto;margin-top:10px'; this.mpLog = log; s.appendChild(log);
     const chat = document.createElement('div'); chat.className = 'jv-row';
