@@ -11,6 +11,7 @@ import { HomeGlobe } from './homeGlobe';
 import { LocationMap } from './locationMap';
 import { PRO } from '../config';
 import { recommendPreset, currentMachine } from '../graphicsAuto';
+import { stick, saveStickSens } from '../input/simpleControls';
 import type { DirectorShot } from '../director';
 import { SHOTS } from '../shotList';
 import { aircraftAvailable, wallet } from '../economy';
@@ -789,6 +790,7 @@ export class Menu {
     s.insertAdjacentHTML('beforeend', '<h3>Controls</h3>');
     const c = document.createElement('div'); c.className = 'jv-form';
     c.innerHTML = `
+      <label>Mouse sensitivity</label><input type="range" min="0.4" max="1.6" step="0.05" value="${stick.sens}" data-sens><span class="val">${Math.round(stick.sens * 100)} %</span>
       <label>Keyboard control rate</label><input type="range" min="0.5" max="4" step="0.1" value="${inp.keyRate}" data-i="keyRate"><span class="val">${inp.keyRate}</span>
       <label>Controller dead zone</label><input type="range" min="0" max="0.3" step="0.01" value="${inp.deadZone}" data-i="deadZone"><span class="val">${inp.deadZone}</span>
       <label>Controller response curve</label><input type="range" min="1" max="3" step="0.1" value="${inp.curve}" data-i="curve"><span class="val">${inp.curve}</span>
@@ -800,6 +802,7 @@ export class Menu {
       <label>Axis: pitch / roll / yaw / throttle</label><input type="text" data-i="axes" value="${inp.axes.pitch},${inp.axes.roll},${inp.axes.yaw},${inp.axes.throttle}"><span class="jv-dim">Gamepad API axis indices for your joystick or yoke</span>`;
     c.addEventListener('input', (e) => {
       const t = e.target as HTMLInputElement;
+      if (t.hasAttribute('data-sens')) { stick.sens = parseFloat(t.value); saveStickSens(); if (t.nextElementSibling) t.nextElementSibling.textContent = `${Math.round(stick.sens * 100)} %`; return; }
       if (t.hasAttribute('data-assists')) { this.host.setAssists(t.checked); return; }
       if (t.hasAttribute('data-arcade')) { this.host.setArcade(t.checked); return; }
       const k = t.dataset.i!;
