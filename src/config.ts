@@ -5,7 +5,7 @@
 export const FOCUS_MODE = true;
 export const FOCUS_AIRPORT = 'EGPH';
 /** Airports shown in the menus while FOCUS_MODE is on. */
-export const FOCUS_AIRPORTS = ['EGPH', 'EGLL', 'EGKK'];
+export const FOCUS_AIRPORTS = ['EGPH', 'EGLL', 'EGKK', 'EGPF'];
 export const FOCUS_AIRCRAFT = 'b738';
 export const airportVisible = (icao: string) => !FOCUS_MODE || FOCUS_AIRPORTS.includes(icao);
 
