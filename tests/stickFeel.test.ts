@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { loadEGPH, newSim, run, CALM_ISA } from './helpers';
+import { loadEGPH, newSim, CALM_ISA } from './helpers';
 import { World } from '../src/world/world';
 import { A320 } from '../src/sim/aircraft/airliners';
 import { speedAuthority } from '../src/input/simpleControls';
