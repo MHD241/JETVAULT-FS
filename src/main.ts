@@ -39,6 +39,7 @@ import { effectivePixelRatio, AutoScale } from './pixelBudget';
 import { RoadMarkings } from './render/roadMarkings';
 import { Traffic } from './render/traffic';
 import { Cabin, cabinSpec, seatChoices, eyeOf, Seat } from './render/cabin';
+import { TerminalWalk } from './render/terminalWalk';
 import { ReplayRecorder, Replay, sampleReplay, parseReplay, weatherAt } from './replay';
 import type { FlightControls } from './sim/controls';
 import { AutoTrim, trimFor, stallGuardTrim } from './sim/assists';
@@ -185,16 +186,45 @@ class App implements MenuHost {
   private director: { shot: DirectorShot; script: KeyframeFlight; t0: number; p0: THREE.Vector3; fwd0: THREE.Vector3; right0: THREE.Vector3; ground: number; state: 'count' | 'run' | 'cut'; until: number; cut: boolean; orbit: boolean } | null = null;
   private directorInput!: DirectorInput;
   private directorStarting = false;
+  // ---- the airport walk before a ride along (render/terminalWalk.ts): check-in, security, gate, boarding; then the cabin ----
+  private walk: TerminalWalk | null = null; private walkPtr: ((e: PointerEvent) => void) | null = null;
+  /** Starts the journey: the walk first, then the cabin (the walk has a skip button). */
+  mpRide(id: string) {
+    if (!this.mp || this.walk) return;
+    const pose = this.mp.poses().find((p) => p.id === id);
+    if (!pose) { this.hud.toast('That player is not in the air yet (no position received)', 3); return; }
+    if (this.riding) this.mpStopRide();
+    if (this.rp) this.replayClose(); if (this.director) this.directorStop(false);
+    const hash = [...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7), ap = this.world.airport, others = this.world.airports.filter((a) => a.icao !== ap.icao && airportVisible(a.icao));
+    const dest = (others[hash % Math.max(1, others.length)]?.name ?? 'AMSTERDAM').replace(/ (Airport|International).*$/i, '').replace(/^London /, '');
+    const pack = ['a320', 'a340', 'a350', 'c17'].includes(pose.ac) ? pose.ac : 'a320';
+    const info = { name: this.mp.name, icao: ap.icao, airportName: ap.name.replace(/ Airport$/, ''), flight: `JV ${1000 + (hash % 9000)}`, to: dest, seat: '6A', gate: String(10 + (hash % 20)), aircraft: pack };
+    this.sim.paused = true; this.menu.hide(); this.hud.el.style.display = 'none'; this.aircraftGroup.visible = false; document.body.classList.add('jv-riding');
+    const walk = new TerminalWalk(info); this.walk = walk;
+    walk.onDone = () => { this.walkEnd(); setTimeout(() => this.rideEnter(id), 0); };
+    this.walkPtr = (e) => { if (e.buttons & 1) walk.look(e.movementX, e.movementY); };
+    this.renderer.domElement.addEventListener('pointermove', this.walkPtr);
+    this.hud.toast('Airport: follow the glowing markers. Esc leaves the walk.', 4);
+    this.mpChanged?.();
+  }
+  private walkEnd() {
+    const w = this.walk; if (!w) return; this.walk = null; w.dispose();
+    if (this.walkPtr) { this.renderer.domElement.removeEventListener('pointermove', this.walkPtr); this.walkPtr = null; }
+    document.body.classList.remove('jv-riding'); this.aircraftGroup.visible = true; this.hud.el.style.display = '';
+  }
+  walkCancel() { if (!this.walk) return; this.walkEnd(); this.sim.paused = true; this.hud.toast('Left the airport walk (paused): press P to resume', 3); this.mpChanged?.(); }
+
   // ---- ride along (multiplayer): sit in a window seat of another player's aircraft; the local aircraft is replaced by theirs, the flight model stays paused ----
   private riding: { id: string; name: string; p: Vec3; q: Quat; fresh: boolean; yaw: number; pitch: number; cabin: Cabin; seat: Seat; el: HTMLDivElement; info: HTMLSpanElement; infoT: number; lastAlt: number; live: { pos: Vec3; q: Quat; vel: Vec3; omega: Vec3; paused: boolean; view: string; realTime: boolean | undefined } } | null = null;
   private rideNear = 0.5;
   mpRiding() { return this.riding?.id ?? null; }
   /** Mouse look: the camera rig normally, the head in a window seat when riding. */
   private look(dx: number, dy: number) {
+    if (this.walk) { this.walk.look(dx, dy); return; }
     const r = this.riding; if (!r) { this.rig.look(dx, dy); return; }
     r.yaw = clamp(r.yaw + dx * 0.004, -1.9, 1.9); r.pitch = clamp(r.pitch - dy * 0.004, -1.0, 1.0);   // yaw to the right is positive, from straight ahead
   }
-  mpRide(id: string) {
+  private rideEnter(id: string) {
     if (!this.mp) return;
     const pose = this.mp.poses().find((p) => p.id === id);
     if (!pose) { this.hud.toast('That player is not in the air yet (no position received)', 3); return; }
@@ -393,12 +423,12 @@ class App implements MenuHost {
     if (!validCode(code)) throw new Error('A room code is 5 letters or digits.');
     const net = await joinRoom(code); this.mpStart(net, name, false, code);
   }
-  mpLeave() { if (this.riding) this.mpStopRide(); if (!this.mp) return; this.mp.leave(); this.mp = null; this.mpCode = null; this.remotes.clear(); this.mpChanged?.(); }
+  mpLeave() { if (this.walk) this.walkCancel(); if (this.riding) this.mpStopRide(); if (!this.mp) return; this.mp.leave(); this.mp = null; this.mpCode = null; this.remotes.clear(); this.mpChanged?.(); }
   mpSay(text: string) { this.mp?.say(text); }
   mpState() { return this.mp ? { code: this.mpCode, host: this.mp.isHost, roster: this.mp.roster, log: this.mpLogLines, riding: this.riding?.id ?? null } : null; }
   /** This player's aircraft as sent to the others. */
   private mpMine(): PlayerState | null {
-    if (!this.started || this.riding) return null;   // a passenger sends nothing: the aircraft is the pilot's
+    if (!this.started || this.riding || this.walk) return null;   // a passenger sends nothing: the aircraft is the pilot's
     const ac = this.sim.aircraft, c = this.sim.controls, p = ac.worldPoint(new Vec3(0, 0, 0));
     return { name: '', ac: ac.def.id, p: [p.x, p.y, p.z], q: [ac.q.w, ac.q.x, ac.q.y, ac.q.z], v: [ac.vel.x, ac.vel.y, ac.vel.z], gear: ac.gearExt, flap: ac.flap, lights: (c.landingLight ? 1 : 0) | (c.beacon ? 2 : 0) | (c.strobes ? 4 : 0) | (c.navLights ? 8 : 0) };
   }
@@ -949,6 +979,7 @@ class App implements MenuHost {
   /** Simplified control events (keys G/F/B/C/Esc or touch buttons). */
   private handleSimple(ev: string) {
     const c = this.sim.controls, ac = this.sim.aircraft;
+    if (ev === 'menu' && this.walk) { this.walkCancel(); return; }
     if (ev === 'menu') { if (this.menu.open) { if (this.canResume()) this.resume(); } else { this.sim.paused = true; this.menu.show(); } return; }
     if (this.menu.open) return;
     if (ev === 'gear' && ac.def.retractableGear) { c.gearDown = !c.gearDown; this.hud.toast(c.gearDown ? 'Gear down' : 'Gear up'); }
@@ -1228,11 +1259,12 @@ class App implements MenuHost {
     this.input.consume(); // legacy bindings are disabled in the simplified control scheme
     this.replayTick(dt);
     this.rideTick(dt);
+    this.walk?.update(dt);
     this.menuFrame = (this.menuFrame + 1) % 4;
     const drawWorld = !this.menu.open || (!this.menu.home && this.menuFrame === 0);   // see where the world is drawn below
-    for (const ev of this.simple.consume()) { if ((!this.director && !this.rp && !this.riding) || ev === 'menu' || (this.rp && ev === 'camera')) this.handleSimple(ev); }   // in Director mode the keys are the camera's, only Esc (menu) still works
+    for (const ev of this.simple.consume()) { if ((!this.director && !this.rp && !this.riding && !this.walk) || ev === 'menu' || (this.rp && ev === 'camera')) this.handleSimple(ev); }   // in Director mode the keys are the camera's, only Esc (menu) still works
     if (!this.menu.open) {
-      if (!this.director && !this.rp && !this.riding) this.simple.update(dt, sim.controls, ac);
+      if (!this.director && !this.rp && !this.riding && !this.walk) this.simple.update(dt, sim.controls, ac);
       if (sim.def.drone) { const sp = droneSpeed(sim.controls.throttle, sim.def.drone), k = Math.round(sp); if (k !== this.lastDroneSpeed) { this.lastDroneSpeed = k; this.hud.toast(sp ? `Drone speed ${Math.round(sp * 1.944)} kt (${k} m/s)` : 'Drone motor off (keys 2-9 set the speed)'); } }
       if (!sim.paused && this.simple.assists && sim.def.profile.fixedTrim !== undefined && !sim.def.drone) {
         sim.controls.trim = sim.def.profile.fixedTrim;   // the trim stays at the set value (0 = neutral), on the ground and in the air
@@ -1388,7 +1420,7 @@ class App implements MenuHost {
     }
     for (const m of this.scene.children) if (m.renderOrder >= 2 && m.renderOrder <= 3) m.visible = m.visible && this.graphics.clouds;
     this.model.update(ac, sim.controls, sim.paused ? 0 : dt * sim.timeScale, this.env.night);
-    if (this.mp) { this.mp.update(dt, () => this.mpMine()); this.remotes.update(this.mp.poses(), cam, dt); }
+    if (this.mp) { this.mp.update(dt, () => this.mpMine()); this.remotes.setTagsVisible(!this.walk && !this.riding); this.remotes.update(this.mp.poses(), cam, dt); }
     if (inCockpit) this.cockpit.update(dt, this.env.night);
     this.terrain.update(cam.position, sim.simTime);
     this.roadMarkings.update(cam.position, ac.agl, this.env.night);
@@ -1406,7 +1438,8 @@ class App implements MenuHost {
     // nobody sees the world behind the opaque Home screen, and only dimly behind the other menu pages: do not draw it there (this is most of the GPU work)
     if (!this.menu.open && !sim.paused && !this.director) { const s = this.autoScale.update(dt); if (s !== null) { this.applyPixelRatio(); this.hud.toast(`Resolution ${Math.round(s * 100)} % to keep the frame rate up`, 2); } } else this.autoScale.reset();
     this.renderer.toneMappingExposure = this.env.tune.exposure * (1 + 1.6 * this.env.night); // eye adaptation to the dark
-    if (!drawWorld) { /* menu: skip */ } else if (this.grade) {
+    if (this.walk) this.walk.render(this.renderer);
+    else if (!drawWorld) { /* menu: skip */ } else if (this.grade) {
       // sun position on screen (z = 1 when the sun is in front of the camera): drives the glare veil
       const sp = this.env.sunDir.clone().multiplyScalar(50000).add(cam.position).project(cam);
       const fwd = new THREE.Vector3(); cam.getWorldDirection(fwd);

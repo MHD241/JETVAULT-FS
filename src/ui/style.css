@@ -269,3 +269,4 @@ body.touch .jv-minimap { width: 150px; height: 150px; }
 
 /* riding along as a passenger: the pause message must not show through the window */
 body.jv-riding .jv-msg { display: none !important; }
+body.jv-riding .jv-minimap { display: none !important; }

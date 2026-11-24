@@ -69,5 +69,7 @@ export class RemotePlayers {
     e.group.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry) m.geometry.dispose(); });
     this.entries.delete(id);
   }
+  /** Shows or hides the name tags (hidden while you are walking through the airport or riding inside an aircraft). */
+  setTagsVisible(v: boolean) { this.tags.style.display = v ? '' : 'none'; }
   clear() { for (const id of [...this.entries.keys()]) this.drop(id); }
 }
