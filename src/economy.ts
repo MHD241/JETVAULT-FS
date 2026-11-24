@@ -52,7 +52,7 @@ export const aircraftAvailable = (id: string) => wallet.owns(id);
  */
 export class FlightRewards {
   private airborne = false; private distM = 0; private sink = 0; private airT = 0;
-  update(dt: number, onGround: boolean, agl: number, groundSpeed: number, vertSpeedDown: number, crashed: boolean): { coins: number; km: number; label: string } | null {
+  update(dt: number, onGround: boolean, agl: number, groundSpeed: number, vertSpeedDown: number, crashed: boolean): { coins: number; km: number; label: string; sink: number } | null {
     if (crashed) { this.airborne = false; this.distM = 0; return null; }
     if (!onGround && agl > 6) {
       this.airborne = true; this.distM += groundSpeed * dt; this.airT += dt;
@@ -64,7 +64,7 @@ export class FlightRewards {
       const d = this.distM, t = this.airT, sink = this.sink; this.distM = 0; this.airT = 0; this.sink = 0;
       if (d < 2000 || t < 30) return null;    // a hop does not pay
       const b = landingBonus(sink), c = coinsForDistance(d) + b.coins;
-      return { coins: c, km: d / 1000, label: b.label };
+      return { coins: c, km: d / 1000, label: b.label, sink };
     }
     return null;
   }

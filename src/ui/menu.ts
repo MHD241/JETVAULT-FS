@@ -54,6 +54,9 @@ export type AnySpawn = SpawnKind | AirSpawn;
 export interface MenuHost {
   /** GeoFS-style forgiving handling (wings self-level). */
   assists: boolean;
+  /** Passengers on board (airliners): their comfort is judged and pays JetCoins (see passengers.ts). */
+  passengers: boolean;
+  setPassengers(on: boolean): void;
   setAssists(on: boolean): void;
   arcade: boolean;
   setArcade(on: boolean): void;
@@ -423,7 +426,11 @@ export class Menu {
     const form = document.createElement('div'); form.className = 'jv-form'; form.style.marginTop = '20px';
     form.innerHTML = `<label>Start view</label><select id="sv"><option value="cockpit" ${h.startView === 'cockpit' ? 'selected' : ''}>Cockpit</option><option value="chase" ${h.startView === 'chase' ? 'selected' : ''}>External (chase)</option></select><span></span>`;
     form.querySelector('#sv')!.addEventListener('change', (e) => { h.startView = (e.target as HTMLSelectElement).value as 'cockpit' | 'chase'; });
-    body.appendChild(form);
+    const big = h.aircraft.def.profile.standClearance > 12;
+    const pax = document.createElement('div'); pax.className = 'jv-form'; pax.style.marginTop = '12px';
+    pax.innerHTML = `<label>Passengers</label><select id="px" ${big ? '' : 'disabled'}><option value="0" ${h.passengers && big ? '' : 'selected'}>None</option><option value="1" ${h.passengers && big ? 'selected' : ''}>Carry passengers: smooth flying earns more JetCoins</option></select><span>${big ? '' : 'Airliners only'}</span>`;
+    pax.querySelector('#px')!.addEventListener('change', (e) => h.setPassengers((e.target as HTMLSelectElement).value === '1'));
+    body.append(form, pax);
     const help = document.createElement('p');
     help.innerHTML = 'Controls: mouse = fly, inverted (move from the centre of the screen; mouse up = nose down) · 1-9 = throttle (1 idle, 9 full) · Left/Right arrows = rudder · Space = brakes · F = flaps (cycles) · G = gear · B = spoilers · J = jet bridge (when parked at a gate) · K = parking brake · U = pushback · gliders: L/R = winch launch / release cable, N = BUNGEE launch (Mach 1), V = vario sound · C = cockpit/outside view · mouse wheel / pinch = zoom · right-drag or two-finger scroll = look · Esc = menu. On phones and tablets: joystick on the left, throttle slider on the right, buttons for the rest.';
     body.appendChild(help);

@@ -62,6 +62,7 @@ import { DirectorInput, DirectorShot } from './director';
 import { SHOTS } from './shotList';
 import { Multiplayer, PlayerState, WeatherShare } from './net/multiplayer';
 import { webglAvailable, showFatal } from './fatal';
+import { ComfortMeter, finalStars, passengerComment, paxCount, PAX_MULT } from './passengers';
 import { hostRoom, joinRoom, validCode, RoomTransport } from './net/transport';
 import { RemotePlayers } from './render/remotePlayers';
 import { generateCity } from './world/city';
@@ -273,6 +274,30 @@ class App implements MenuHost {
     const sl = s.bar.querySelector('[data-r=slider]') as HTMLInputElement | null; if (sl && document.activeElement !== sl) sl.value = String(s.t);
     const tm = s.bar.querySelector('[data-r=time]'); if (tm) tm.textContent = `${(s.t - f0).toFixed(1)} / ${(f1 - f0).toFixed(1)} s`;
     const pb = s.bar.querySelector('[data-r=play]'); if (pb) pb.textContent = s.playing ? '\u275a\u275a' : '\u25b6';
+  }
+  // passengers on board (passengers.ts)
+  passengers = false; private comfort = new ComfortMeter(); private paxOnBoard = 0; private paxPill: HTMLDivElement | null = null; private paxPillT = 0;
+  setPassengers(on: boolean) { this.passengers = on && this.sim.def.profile.standClearance > 12; }
+  private paxActive() { return this.passengers && this.sim.def.profile.standClearance > 12 && !this.sim.def.drone; }
+  private showFlightResult(r: { coins: number; km: number; label: string; sink: number }) {
+    const stars = finalStars(this.comfort, r.sink), mult = PAX_MULT[stars], coins = Math.round(r.coins * mult);
+    wallet.add(coins, r.km);
+    const fpm = Math.round(Math.abs(r.sink) * 196.85), c = this.comfort.comfort;
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;background:rgba(2,6,14,.62);font:15px/1.5 system-ui,sans-serif;color:#eaf2fb';
+    const box = document.createElement('div'); box.style.cssText = 'min-width:min(440px,90vw);padding:26px 30px;border-radius:12px;background:#0d1a30;border:1px solid rgba(255,255,255,.18);text-align:center';
+    const msg = passengerComment(stars, r.sink, this.comfort);
+    box.innerHTML = `<div style="letter-spacing:.14em;font-size:12px;opacity:.7">FLIGHT COMPLETE</div><div style="font-size:42px;color:#ffd24a;margin:6px 0">${'\u2605'.repeat(stars)}<span style="opacity:.25">${'\u2605'.repeat(5 - stars)}</span></div><div>${this.paxOnBoard} passengers \u00b7 comfort ${Math.round(c)} % \u00b7 landing ${fpm} fpm (${r.label})</div><div style="margin:10px 0;opacity:.9"></div><div style="font-size:20px;font-weight:700">+${coins} JetCoins</div><div style="opacity:.7;font-size:13px">${r.km.toFixed(1)} km \u00b7 trip ${r.coins} \u00d7 ${mult} for the passengers</div>`;
+    (box.children[3] as HTMLElement).textContent = msg;
+    const b = document.createElement('button'); b.className = 'jv-btn'; b.textContent = 'CONTINUE'; b.style.marginTop = '16px'; b.onclick = () => el.remove();
+    box.appendChild(b); el.appendChild(box); document.body.appendChild(el);
+    this.comfort.reset();
+  }
+  private updatePaxPill(dt: number) {
+    if (!this.paxActive() || this.menu.open || this.director || this.rp) { if (this.paxPill) this.paxPill.style.display = 'none'; return; }
+    this.paxPillT -= dt; if (this.paxPillT > 0 && this.paxPill) return; this.paxPillT = 0.5;
+    if (!this.paxPill) { const p = document.createElement('div'); p.style.cssText = 'position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:8;padding:5px 14px;border-radius:16px;background:rgba(6,12,22,.7);color:#eaf2fb;font:600 13px system-ui,sans-serif;pointer-events:none'; document.body.appendChild(p); this.paxPill = p; }
+    const s = this.comfort.liveStars; this.paxPill.style.display = ''; this.paxPill.textContent = `${this.paxOnBoard} passengers  ${'\u2605'.repeat(s)}${'\u2606'.repeat(5 - s)}`;
   }
   // multiplayer
   mpChanged: (() => void) | null = null;
@@ -689,6 +714,8 @@ class App implements MenuHost {
     else { const c = airportCentre(this.world.airport); await this.ensurePatchesNear(c.x, c.y); }
     const ac = this.sim.aircraft;
     ac.payload = [...this.payload];
+    this.comfort.reset(); this.paxOnBoard = 0;
+    if (this.paxActive()) { ac.payload = ac.def.stations.map((st) => st.max * 0.8); this.paxOnBoard = paxCount(ac.payload.reduce((a, b) => a + b, 0)); this.hud.toast(`${this.paxOnBoard} passengers on board: fly smoothly for a better rating`, 4); }
     ac.fuel = ac.def.tanks.map((t, i) => t.capacity * this.fuelFraction[i]);
     ac.updateMass();
     if (spawn.kind === 'air') this.sim.spawnAir(spawn.east, spawn.north, spawn.altFt, spawn.hdg);
@@ -1118,8 +1145,11 @@ class App implements MenuHost {
     const sim = this.sim, ac = sim.aircraft;
     if (!sim.paused && !this.menu.open && !ac.def.drone && !this.director) {   // JetCoins: paid when a flight ends with a landing
       const r = this.rewards.update(dt, ac.onGround, ac.agl, Math.hypot(ac.vel.x, ac.vel.y), Math.max(0, ac.vel.z), ac.crashed);
-      if (r) { wallet.add(r.coins, r.km); this.hud.toast(`+${r.coins} JetCoins  \u00b7  ${r.km.toFixed(1)} km flown, ${r.label}`, 6); }
+      if (this.paxActive()) this.comfort.update(dt * sim.timeScale, ac.loadFactor, (ac.euler[0] * 180) / Math.PI, (ac.euler[1] * 180) / Math.PI, !ac.onGround);
+      if (r && this.paxActive()) this.showFlightResult(r);
+      else if (r) { wallet.add(r.coins, r.km); this.hud.toast(`+${r.coins} JetCoins  \u00b7  ${r.km.toFixed(1)} km flown, ${r.label}`, 6); }
     }
+    this.updatePaxPill(dt);
     this.input.consume(); // legacy bindings are disabled in the simplified control scheme
     this.replayTick(dt);
     this.menuFrame = (this.menuFrame + 1) % 4;
