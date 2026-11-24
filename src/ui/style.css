@@ -266,3 +266,6 @@ body.touch .jv-minimap { width: 150px; height: 150px; }
 .jv-locmap .cta { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 8px 16px; border-radius: 20px; background: rgba(8,18,36,.78); border: 1px solid rgba(255,255,255,.25); color: #eaf2fb; font-size: 13px; font-weight: 600; pointer-events: none; white-space: nowrap; }
 .jv-locmap .cta span { color: #ffd24a; margin-right: 6px; }
 .jv-locmap canvas.jv-map { cursor: grab; }
+
+/* riding along as a passenger: the pause message must not show through the window */
+body.jv-riding .jv-msg { display: none !important; }

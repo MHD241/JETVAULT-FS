@@ -83,7 +83,10 @@ export interface MenuHost {
   mpJoin(code: string, name: string): Promise<void>;
   mpLeave(): void;
   mpSay(text: string): void;
-  mpState(): { code: string | null; host: boolean; roster: { name: string; me: boolean }[]; log: string[] } | null;
+  mpState(): { code: string | null; host: boolean; roster: { id: string; name: string; me: boolean }[]; log: string[]; riding: string | null } | null;
+  /** Ride along as a passenger in another player's aircraft (window seat), and stop. */
+  mpRide(id: string): void;
+  mpStopRide(): void;
   mpChanged: (() => void) | null;
   /** Opens the replay of the recorded flight (closes the menu). */
   replayOpen(): void;
@@ -730,7 +733,13 @@ export class Menu {
     if (!this.mpRoster || !this.mpLog) return;
     const m = this.host.mpState();
     const esc = (t: string) => t.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-    this.mpRoster.innerHTML = m ? `<b>Room ${m.code ?? ''} ${m.host ? '(you are the host)' : ''}</b><span>${m.roster.map((r) => esc(r.name) + (r.me ? ' (you)' : '')).join(' \u00b7 ')}</span>` : '<b>Not in a room</b><span>Host a room or join one with a code.</span>';
+    if (!m) this.mpRoster.innerHTML = '<b>Not in a room</b><span>Host a room or join one with a code.</span>';
+    else {
+      const rows = m.roster.map((r) => `<div style="display:flex;gap:12px;align-items:center;margin-top:6px"><span>${esc(r.name)}${r.me ? ' (you)' : ''}</span>${r.me ? '' : m.riding === r.id ? '<button class="jv-btn" data-stop="1" style="padding:4px 12px;min-width:0">STOP RIDING</button>' : `<button class="jv-btn ghost" data-ride="${esc(r.id)}" style="padding:4px 12px;min-width:0">RIDE ALONG</button>`}</div>`).join('');
+      this.mpRoster.innerHTML = `<b>Room ${m.code ?? ''} ${m.host ? '(you are the host)' : ''}</b>${rows}<span style="margin-top:8px">Ride along: sit in a window seat of another player's aircraft and watch their flight.</span>`;
+      this.mpRoster.querySelectorAll<HTMLElement>('[data-ride]').forEach((b) => { b.onclick = () => { this.host.mpRide(b.dataset.ride!); }; });
+      const st = this.mpRoster.querySelector<HTMLElement>('[data-stop]'); if (st) st.onclick = () => this.host.mpStopRide();
+    }
     this.mpLog.innerHTML = m && m.log.length ? m.log.slice(-30).map((l) => `<div>${esc(l)}</div>`).join('') : '<span>No messages yet.</span>';
     this.mpLog.scrollTop = this.mpLog.scrollHeight;
   }

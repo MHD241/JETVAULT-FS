@@ -13,6 +13,8 @@ interface Entry { id: string; ac: string; group: THREE.Group; model: AirlinerMod
 export class RemotePlayers {
   readonly group = new THREE.Group();
   private entries = new Map<string, Entry>();
+  /** Players whose aircraft is not drawn (you are riding inside it). */
+  readonly hidden = new Set<string>();
   private tags = document.createElement('div');
   private tmp = new THREE.Vector3();
   private m = new THREE.Matrix4();
@@ -40,6 +42,7 @@ export class RemotePlayers {
         e = { id: p.id, ac, group, model, tag, pos: new THREE.Vector3(), q: new THREE.Quaternion(), fresh: true };
         this.entries.set(p.id, e);
       }
+      const hid = this.hidden.has(p.id); e.group.visible = !hid; if (hid) e.tag.style.display = 'none';
       // network pose (NED, FRD) -> three.js: position and a basis from the attitude
       const target = new THREE.Vector3(p.p[1], -p.p[2], -p.p[0]);
       bodyMatrix(new Quat(p.q[0], p.q[1], p.q[2], p.q[3]), this.m);
@@ -51,7 +54,7 @@ export class RemotePlayers {
       const d = camera.position.distanceTo(e.pos);
       this.tmp.copy(e.pos); this.tmp.y += 6; this.tmp.project(camera);
       const on = this.tmp.z < 1 && d < 25000 && Math.abs(this.tmp.x) < 1.2 && Math.abs(this.tmp.y) < 1.2;
-      e.tag.style.display = on ? 'block' : 'none';
+      e.tag.style.display = on && !hid ? 'block' : 'none';
       if (on) {
         e.tag.style.left = `${(this.tmp.x * 0.5 + 0.5) * w}px`; e.tag.style.top = `${(-this.tmp.y * 0.5 + 0.5) * h}px`;
         e.tag.textContent = `${p.name} · ${p.ac.toUpperCase()} · ${d < 1000 ? Math.round(d) + ' m' : (d / 1000).toFixed(1) + ' km'}`;

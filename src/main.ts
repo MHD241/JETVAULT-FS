@@ -184,6 +184,77 @@ class App implements MenuHost {
   private director: { shot: DirectorShot; script: KeyframeFlight; t0: number; p0: THREE.Vector3; fwd0: THREE.Vector3; right0: THREE.Vector3; ground: number; state: 'count' | 'run' | 'cut'; until: number; cut: boolean; orbit: boolean } | null = null;
   private directorInput!: DirectorInput;
   private directorStarting = false;
+  // ---- ride along (multiplayer): sit in a window seat of another player's aircraft; the local aircraft is replaced by theirs, the flight model stays paused ----
+  private riding: { id: string; name: string; p: Vec3; q: Quat; fresh: boolean; yaw: number; pitch: number; side: -1 | 1; el: HTMLDivElement; win: HTMLDivElement; info: HTMLSpanElement; infoT: number; lastAlt: number; live: { pos: Vec3; q: Quat; vel: Vec3; omega: Vec3; paused: boolean; view: string; realTime: boolean | undefined } } | null = null;
+  mpRiding() { return this.riding?.id ?? null; }
+  private static readonly SEAT: Record<string, [number, number, number]> = { a320: [3.5, 1.0, -0.45], a340: [14, 1.4, -0.5], a350: [14, 1.5, -0.5], c17: [10, 1.6, -0.3], b738: [4, 1.0, -0.4] };
+  /** Mouse look: the camera rig normally, the head in a window seat when riding. */
+  private look(dx: number, dy: number) {
+    const r = this.riding; if (!r) { this.rig.look(dx, dy); return; }
+    r.yaw = clamp(r.yaw - r.side * dx * 0.004, -0.8, 0.8); r.pitch = clamp(r.pitch - dy * 0.004, -0.55, 0.55);
+  }
+  mpRide(id: string) {
+    if (!this.mp) return;
+    const pose = this.mp.poses().find((p) => p.id === id);
+    if (!pose) { this.hud.toast('That player is not in the air yet (no position received)', 3); return; }
+    if (this.riding) this.mpStopRide();
+    if (this.rp) this.replayClose(); if (this.director) this.directorStop(false);
+    const sim = this.sim, ac = sim.aircraft;
+    const live = { pos: ac.pos.clone(), q: ac.q.clone(), vel: ac.vel.clone(), omega: ac.omega.clone(), paused: sim.paused, view: this.rig.mode, realTime: sim.weather.realTime };
+    sim.paused = true; this.menu.hide(); this.hud.el.style.display = 'none';
+    this.aircraftGroup.visible = false; this.remotes.hidden.add(id); document.body.classList.add('jv-riding');
+    this.rig.setMode('free', ac); this.rig.freeLocked = true;
+    const el = document.createElement('div'); el.style.cssText = 'position:fixed;inset:0;z-index:12;pointer-events:none;overflow:hidden';
+    const win = document.createElement('div'); win.style.cssText = 'position:absolute;left:50%;top:50%;width:min(44vh,52vw);height:60vh;margin:-30vh 0 0 calc(min(44vh,52vw) / -2);border-radius:42% / 34%;box-shadow:0 0 0 200vmax #bcb7ab, inset 0 0 0 9px #e6e2d9, inset 0 0 36px rgba(0,0,0,.4);';
+    el.appendChild(win);
+    const bar = document.createElement('div'); bar.style.cssText = 'position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:12px;align-items:center;padding:8px 16px;border-radius:20px;background:rgba(6,12,22,.82);color:#eaf2fb;font:600 13px system-ui,sans-serif;pointer-events:auto';
+    const info = document.createElement('span'); bar.appendChild(info);
+    const mk = (t: string, fn: () => void) => { const b = document.createElement('button'); b.className = 'jv-btn'; b.textContent = t; b.style.cssText = 'padding:5px 12px;min-width:0'; b.onclick = fn; bar.appendChild(b); };
+    mk('OTHER SIDE', () => { if (this.riding) { this.riding.side = this.riding.side === 1 ? -1 : 1; this.riding.yaw = 0; } });
+    mk('STOP RIDING', () => this.mpStopRide());
+    el.appendChild(bar); document.body.appendChild(el);
+    this.riding = { id, name: this.mp.roster.find((r) => r.id === id)?.name ?? 'player', p: new Vec3(), q: new Quat(), fresh: true, yaw: 0, pitch: 0, side: -1, el, win, info, infoT: 0, lastAlt: 0, live };
+    this.hud.toast('Riding along: drag with the right mouse button to look around', 4);
+    this.mpChanged?.();
+  }
+  mpStopRide() {
+    const r = this.riding; if (!r) return;
+    this.riding = null; r.el.remove(); document.body.classList.remove('jv-riding'); this.remotes.hidden.delete(r.id); this.rig.freeLocked = false; this.hud.el.style.display = '';
+    const sim = this.sim, ac = sim.aircraft, l = r.live;
+    ac.pos = l.pos; ac.q = l.q; ac.vel = l.vel; ac.omega = l.omega; sim.weather.realTime = l.realTime; sim.paused = true;
+    this.aircraftGroup.visible = true; this.rig.setMode(l.view as never, ac);
+    this.hud.toast('Back in your own aircraft (paused): press P to resume', 4); this.mpChanged?.();
+  }
+  /** Each frame while riding: follows the other player's smoothed pose (written into the local aircraft so streaming, sky and shadows follow it) and places the head. */
+  private rideTick(dt: number) {
+    const r = this.riding; if (!r) return;
+    const pose = this.mp?.poses().find((p) => p.id === r.id);
+    if (!pose) { this.hud.toast(`${r.name} left`, 3); this.mpStopRide(); return; }
+    const k = r.fresh ? 1 : 1 - Math.exp(-Math.min(dt, 0.1) * 14); r.fresh = false;
+    r.p = new Vec3(r.p.x + (pose.p[0] - r.p.x) * k, r.p.y + (pose.p[1] - r.p.y) * k, r.p.z + (pose.p[2] - r.p.z) * k);
+    const dot = r.q.w * pose.q[0] + r.q.x * pose.q[1] + r.q.y * pose.q[2] + r.q.z * pose.q[3], s = dot < 0 ? -1 : 1;
+    const w = r.q.w + (s * pose.q[0] - r.q.w) * k, x = r.q.x + (s * pose.q[1] - r.q.x) * k, y = r.q.y + (s * pose.q[2] - r.q.y) * k, z = r.q.z + (s * pose.q[3] - r.q.z) * k, n = Math.hypot(w, x, y, z) || 1;
+    r.q = new Quat(w / n, x / n, y / n, z / n);
+    const sim = this.sim, ac = sim.aircraft;
+    ac.pos = r.p.clone(); ac.q = r.q.clone(); ac.vel = new Vec3(); ac.omega = new Vec3();
+    ac.agl = -ac.pos.z - this.world.terrain.heightAt(ac.pos.y, ac.pos.x);
+    r.infoT -= dt;
+    if (r.infoT <= 0) { const alt = -ac.pos.z, dtI = 0.5 - r.infoT; r.infoT = 0.5; const v = r.lastAlt ? Math.abs(alt - r.lastAlt) / dtI : 0; void v; r.lastAlt = alt; r.info.textContent = `Riding with ${r.name} \u00b7 ${this.sim.def.id === pose.ac ? '' : pose.ac.toUpperCase() + ' \u00b7 '}${Math.round(alt / 0.3048).toLocaleString()} ft`; }
+    r.win.style.transform = `translate(${(r.yaw * r.side * 40).toFixed(1)}vh, ${(r.pitch * 40).toFixed(1)}vh)`;
+    this.ridePose = pose.ac;
+  }
+  private ridePose = '';
+  /** The camera of the window seat (after the rig has run). */
+  private rideCamera(cam: THREE.PerspectiveCamera) {
+    const r = this.riding; if (!r) return;
+    const ac = this.sim.aircraft, R = bodyMatrix(ac.q);
+    const f = new THREE.Vector3().setFromMatrixColumn(R, 0), rt = new THREE.Vector3().setFromMatrixColumn(R, 1), dn = new THREE.Vector3().setFromMatrixColumn(R, 2);
+    const seat = App.SEAT[this.ridePose] ?? [3.5, 1.0, -0.45], datum = nedToThree(ac.worldPoint(new Vec3(0, 0, 0)));
+    const pos = datum.clone().addScaledVector(f, seat[0]).addScaledVector(rt, r.side * seat[1]).addScaledVector(dn, seat[2]);
+    const cp = Math.cos(r.pitch), d = new THREE.Vector3().addScaledVector(f, Math.sin(r.yaw) * cp).addScaledVector(rt, r.side * Math.cos(r.yaw) * cp).addScaledVector(dn, -Math.sin(r.pitch));
+    cam.position.copy(pos); cam.up.copy(dn).negate(); cam.lookAt(pos.clone().add(d));
+    if (cam.fov !== 55) { cam.fov = 55; cam.updateProjectionMatrix(); }
+  }
   // ---- replay (replay.ts): the last minutes are recorded; playback draws the recorded pose with the flight model paused ----
   private roadMarkings!: RoadMarkings; private traffic!: Traffic;
   private recorder = new ReplayRecorder();
@@ -318,12 +389,12 @@ class App implements MenuHost {
     if (!validCode(code)) throw new Error('A room code is 5 letters or digits.');
     const net = await joinRoom(code); this.mpStart(net, name, false, code);
   }
-  mpLeave() { if (!this.mp) return; this.mp.leave(); this.mp = null; this.mpCode = null; this.remotes.clear(); this.mpChanged?.(); }
+  mpLeave() { if (this.riding) this.mpStopRide(); if (!this.mp) return; this.mp.leave(); this.mp = null; this.mpCode = null; this.remotes.clear(); this.mpChanged?.(); }
   mpSay(text: string) { this.mp?.say(text); }
-  mpState() { return this.mp ? { code: this.mpCode, host: this.mp.isHost, roster: this.mp.roster, log: this.mpLogLines } : null; }
+  mpState() { return this.mp ? { code: this.mpCode, host: this.mp.isHost, roster: this.mp.roster, log: this.mpLogLines, riding: this.riding?.id ?? null } : null; }
   /** This player's aircraft as sent to the others. */
   private mpMine(): PlayerState | null {
-    if (!this.started) return null;
+    if (!this.started || this.riding) return null;   // a passenger sends nothing: the aircraft is the pilot's
     const ac = this.sim.aircraft, c = this.sim.controls, p = ac.worldPoint(new Vec3(0, 0, 0));
     return { name: '', ac: ac.def.id, p: [p.x, p.y, p.z], q: [ac.q.w, ac.q.x, ac.q.y, ac.q.z], v: [ac.vel.x, ac.vel.y, ac.vel.z], gear: ac.gearExt, flap: ac.flap, lights: (c.landingLight ? 1 : 0) | (c.beacon ? 2 : 0) | (c.strobes ? 4 : 0) | (c.navLights ? 8 : 0) };
   }
@@ -489,7 +560,7 @@ class App implements MenuHost {
       const wd = (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY;
       const notch = e.deltaMode !== 0 || (e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 40 && (wd === undefined || Math.abs(wd) % 120 === 0));
       if (notch) this.rig.zoom(e.deltaY < 0 ? 1 : -1);
-      else this.rig.look(-e.deltaX, -e.deltaY); // two-finger scroll moves the camera
+      else this.look(-e.deltaX, -e.deltaY); // two-finger scroll moves the camera
     }, { passive: false });
     this.renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
     this.bindTouchLook(this.renderer.domElement);
@@ -682,7 +753,7 @@ class App implements MenuHost {
       if (!p) return;
       const dx = e.clientX - p.x, dy = e.clientY - p.y;
       p.x = e.clientX; p.y = e.clientY;
-      if (pts.size === 1) this.rig.look(dx, dy);
+      if (pts.size === 1) this.look(dx, dy);
       else if (pts.size === 2) {
         const [a, b] = [...pts.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
@@ -695,7 +766,7 @@ class App implements MenuHost {
     // desktop: hold the right mouse button and move to look around
     let rmb = false;
     el.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse' && e.button === 2) { rmb = true; el.setPointerCapture(e.pointerId); e.preventDefault(); } });
-    el.addEventListener('pointermove', (e) => { if (rmb && e.pointerType === 'mouse') this.rig.look(e.movementX, e.movementY); });
+    el.addEventListener('pointermove', (e) => { if (rmb && e.pointerType === 'mouse') this.look(e.movementX, e.movementY); });
     el.addEventListener('pointerup', (e) => { if (e.pointerType === 'mouse' && e.button === 2) rmb = false; });
   }
 
@@ -1152,11 +1223,12 @@ class App implements MenuHost {
     this.updatePaxPill(dt);
     this.input.consume(); // legacy bindings are disabled in the simplified control scheme
     this.replayTick(dt);
+    this.rideTick(dt);
     this.menuFrame = (this.menuFrame + 1) % 4;
     const drawWorld = !this.menu.open || (!this.menu.home && this.menuFrame === 0);   // see where the world is drawn below
-    for (const ev of this.simple.consume()) { if ((!this.director && !this.rp) || ev === 'menu' || (this.rp && ev === 'camera')) this.handleSimple(ev); }   // in Director mode the keys are the camera's, only Esc (menu) still works
+    for (const ev of this.simple.consume()) { if ((!this.director && !this.rp && !this.riding) || ev === 'menu' || (this.rp && ev === 'camera')) this.handleSimple(ev); }   // in Director mode the keys are the camera's, only Esc (menu) still works
     if (!this.menu.open) {
-      if (!this.director && !this.rp) this.simple.update(dt, sim.controls, ac);
+      if (!this.director && !this.rp && !this.riding) this.simple.update(dt, sim.controls, ac);
       if (sim.def.drone) { const sp = droneSpeed(sim.controls.throttle, sim.def.drone), k = Math.round(sp); if (k !== this.lastDroneSpeed) { this.lastDroneSpeed = k; this.hud.toast(sp ? `Drone speed ${Math.round(sp * 1.944)} kt (${k} m/s)` : 'Drone motor off (keys 2-9 set the speed)'); } }
       if (!sim.paused && this.simple.assists && sim.def.profile.fixedTrim !== undefined && !sim.def.drone) {
         sim.controls.trim = sim.def.profile.fixedTrim;   // the trim stays at the set value (0 = neutral), on the ground and in the air
@@ -1263,6 +1335,7 @@ class App implements MenuHost {
     this.directorTick();
     if (this.editor?.active) this.editor.update(dt); else this.rig.update(ac, dt);
     const cam = this.rig.camera;
+    if (this.riding) this.rideCamera(cam);
     {
       // stall: the camera shudders with the airframe buffet and a banner flashes while the aircraft is stalled / about to
       const b = sim.paused ? 0 : ac.buffet;
