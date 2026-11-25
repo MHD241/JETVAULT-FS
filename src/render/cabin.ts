@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { PeopleField, Person, rng } from './people';
 
 export interface CabinSpec { id: string; x0: number; x1: number; radius: number; groups: number[]; pitch: number }
 export interface Seat { row: number; col: number; letter: string; x: number; y: number; window: boolean; aisle: boolean }
@@ -148,6 +149,30 @@ export class Cabin {
     this.group.add(new THREE.HemisphereLight(0xfff4e2, 0x6a7080, 0.5));
     for (let i = 0; i < 4; i++) { const p = new THREE.PointLight(0xfff0d6, 7, 9, 1.6); p.position.set(s.x0 + (L * (i + 0.5)) / 4, 0, cz + 0.35); this.group.add(p); }
   }
+  /** The wings and engines outside the windows (simple slabs): visible from the window seats beside and behind the wing root. */
+  addWings() {
+    const s = this.spec, r = s.radius, fz = floorZ(s), L = s.x1;
+    const half = 8.4 * r, rootLE = 0.42 * L, chord = 3.1 * r, sweep = 4.2 * r, tipChord = 0.95 * r, thick = 0.22;
+    const m = new THREE.MeshStandardMaterial({ color: 0xd9dde2, roughness: 0.55, metalness: 0.2 }), dark = new THREE.MeshStandardMaterial({ color: 0x8a9099, roughness: 0.5, metalness: 0.4 });
+    for (const side of [-1, 1]) {
+      // planform in (x, y) of the aircraft, extruded down (z is down in the body frame: the slab spans z .. z + thickness)
+      const shape = new THREE.Shape(); shape.moveTo(rootLE, 0); shape.lineTo(rootLE - sweep, half); shape.lineTo(rootLE - sweep - tipChord, half); shape.lineTo(rootLE - chord, 0); shape.closePath();
+      const g = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled: false }); g.scale(1, side, 1); const o = new THREE.Mesh(g, m); o.position.set(0, side * (r * 0.9), fz + 0.1 + 0.0); this.group.add(o);
+      const nacelle = new THREE.Mesh(new THREE.CylinderGeometry(0.62 * r * 0.5, 0.55 * r * 0.5, 3.0 * r * 0.55, 16).rotateZ(Math.PI / 2), dark); nacelle.position.set(rootLE - 1.4 * r, side * (r * 0.9 + 0.38 * half), fz + 0.1 + thick + 0.55 * r * 0.55); this.group.add(nacelle);
+    }
+  }
+  /** Passengers in about 65 % of the seats (not the one you are in), seated and facing forward. */
+  addPassengers(exceptRow: number, exceptCol: number, seed = 7) {
+    if (!this.spec.groups.length) return;
+    const rnd = rng(seed), fz = floorZ(this.spec), people: Person[] = [];
+    for (const seat of this.seats) { if ((seat.row === exceptRow && seat.col === exceptCol) || rnd() > 0.65) continue; people.push({ x: seat.x + 0.02, z: seat.y, y: 0.47, yaw: Math.PI / 2, seated: true, cloth: Math.floor(rnd() * 10), skin: Math.floor(rnd() * 6) }); }
+    // the seated body is built in a local frame with +z forward; here the aircraft frame has x forward, y right and z DOWN, so people are placed in the body frame via a rotated group
+    this.pax?.dispose(); if (this.pax) this.group.remove(this.pax.group);
+    const pf = new PeopleField(people.map((p) => ({ ...p, x: p.x, z: p.z }))); this.pax = pf;
+    // PeopleField works in a y-up frame (x forward, z to the right, y up from the floor); the matrix maps it to the body frame: (x, y, z) -> (x, z, floor - y)
+    pf.group.matrixAutoUpdate = false; pf.group.matrix.set(1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, fz, 0, 0, 0, 1); this.group.add(pf.group);
+  }
+  pax: PeopleField | null = null;
   private col(h: number) { return new THREE.Color(h); }
   update(t: number) { this.ad.update(t); }
   dispose() { this.group.traverse((o) => { const m = o as THREE.Mesh; m.geometry?.dispose?.(); }); this.ad.texture.dispose(); }

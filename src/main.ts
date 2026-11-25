@@ -40,6 +40,7 @@ import { RoadMarkings } from './render/roadMarkings';
 import { Traffic } from './render/traffic';
 import { Cabin, cabinSpec, seatChoices, eyeOf, Seat } from './render/cabin';
 import { TerminalWalk } from './render/terminalWalk';
+import { Ambience } from './audio/ambience';
 import { ReplayRecorder, Replay, sampleReplay, parseReplay, weatherAt } from './replay';
 import type { FlightControls } from './sim/controls';
 import { AutoTrim, trimFor, stallGuardTrim } from './sim/assists';
@@ -187,7 +188,7 @@ class App implements MenuHost {
   private directorInput!: DirectorInput;
   private directorStarting = false;
   // ---- the airport walk before a ride along (render/terminalWalk.ts): check-in, security, gate, boarding; then the cabin ----
-  private walk: TerminalWalk | null = null; private walkPtr: ((e: PointerEvent) => void) | null = null;
+  private ambience: Ambience | null = null; private walk: TerminalWalk | null = null; private walkPtr: ((e: PointerEvent) => void) | null = null;
   /** Starts the journey: the walk first, then the cabin (the walk has a skip button). */
   mpRide(id: string) {
     if (!this.mp || this.walk) return;
@@ -197,11 +198,13 @@ class App implements MenuHost {
     if (this.rp) this.replayClose(); if (this.director) this.directorStop(false);
     const hash = [...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7), ap = this.world.airport, others = this.world.airports.filter((a) => a.icao !== ap.icao && airportVisible(a.icao));
     const dest = (others[hash % Math.max(1, others.length)]?.name ?? 'AMSTERDAM').replace(/ (Airport|International).*$/i, '').replace(/^London /, '');
-    const pack = ['a320', 'a340', 'a350', 'c17'].includes(pose.ac) ? pose.ac : 'a320';
-    const info = { name: this.mp.name, icao: ap.icao, airportName: ap.name.replace(/ Airport$/, ''), flight: `JV ${1000 + (hash % 9000)}`, to: dest, seat: '6A', gate: String(10 + (hash % 20)), aircraft: pack };
+    const pack = ['a320', 'a340', 'a350', 'c17', 'b738'].includes(pose.ac) ? pose.ac : 'a320';
+    const def0 = this.aircraftDefs.find((d) => d.id === pose.ac && d.hull) ?? this.aircraftDefs.find((d) => d.id === 'a320')!, hull0 = def0.hull!, cab0 = new Cabin(cabinSpec(def0.id, hull0.x0, hull0.x1, hull0.radius)), choices0 = seatChoices(cab0.spec); cab0.dispose();
+    const info = { name: this.mp.name, icao: ap.icao, airportName: ap.name.replace(/ Airport$/, ''), flight: `JV ${1000 + (hash % 9000)}`, to: dest, seat: `${choices0[0]?.seat.row ?? 6}${choices0[0]?.seat.letter ?? 'A'}`, gate: String(10 + (hash % 20)), aircraft: pack, seatOptions: choices0.map((c) => c.label) };
     this.sim.paused = true; this.menu.hide(); this.hud.el.style.display = 'none'; this.aircraftGroup.visible = false; document.body.classList.add('jv-riding');
-    const walk = new TerminalWalk(info); this.walk = walk;
-    walk.onDone = () => { this.walkEnd(); setTimeout(() => this.rideEnter(id), 0); };
+    this.ambience?.stop(); this.ambience = new Ambience(); this.ambience.init();   // created inside the click that started the journey, so the browser allows sound
+    const walk = new TerminalWalk(info, this.ambience); this.walk = walk;
+    walk.onDone = (idx) => { this.walkEnd(); const s = choices0[idx]?.seat; setTimeout(() => this.rideEnter(id, s ? { row: s.row, col: s.col } : undefined), 0); };
     this.walkPtr = (e) => { if (e.buttons & 1) walk.look(e.movementX, e.movementY); };
     this.renderer.domElement.addEventListener('pointermove', this.walkPtr);
     this.hud.toast('Airport: follow the glowing markers. Esc leaves the walk.', 4);
@@ -212,7 +215,7 @@ class App implements MenuHost {
     if (this.walkPtr) { this.renderer.domElement.removeEventListener('pointermove', this.walkPtr); this.walkPtr = null; }
     document.body.classList.remove('jv-riding'); this.aircraftGroup.visible = true; this.hud.el.style.display = '';
   }
-  walkCancel() { if (!this.walk) return; this.walkEnd(); this.sim.paused = true; this.hud.toast('Left the airport walk (paused): press P to resume', 3); this.mpChanged?.(); }
+  walkCancel() { if (!this.walk) return; this.walkEnd(); this.ambience?.stop(); this.ambience = null; this.sim.paused = true; this.hud.toast('Left the airport walk (paused): press P to resume', 3); this.mpChanged?.(); }
 
   // ---- ride along (multiplayer): sit in a window seat of another player's aircraft; the local aircraft is replaced by theirs, the flight model stays paused ----
   private riding: { id: string; name: string; p: Vec3; q: Quat; fresh: boolean; yaw: number; pitch: number; cabin: Cabin; seat: Seat; el: HTMLDivElement; info: HTMLSpanElement; infoT: number; lastAlt: number; live: { pos: Vec3; q: Quat; vel: Vec3; omega: Vec3; paused: boolean; view: string; realTime: boolean | undefined } } | null = null;
@@ -224,7 +227,7 @@ class App implements MenuHost {
     const r = this.riding; if (!r) { this.rig.look(dx, dy); return; }
     r.yaw = clamp(r.yaw + dx * 0.004, -1.9, 1.9); r.pitch = clamp(r.pitch - dy * 0.004, -1.0, 1.0);   // yaw to the right is positive, from straight ahead
   }
-  private rideEnter(id: string) {
+  private rideEnter(id: string, seatPref?: { row: number; col: number }) {
     if (!this.mp) return;
     const pose = this.mp.poses().find((p) => p.id === id);
     if (!pose) { this.hud.toast('That player is not in the air yet (no position received)', 3); return; }
@@ -233,20 +236,22 @@ class App implements MenuHost {
     const sim = this.sim, ac = sim.aircraft;
     const live = { pos: ac.pos.clone(), q: ac.q.clone(), vel: ac.vel.clone(), omega: ac.omega.clone(), paused: sim.paused, view: this.rig.mode, realTime: sim.weather.realTime };
     sim.paused = true; this.menu.hide(); this.hud.el.style.display = 'none';
-    this.remotes.hidden.add(id); document.body.classList.add('jv-riding');
+    this.remotes.hidden.add(id); document.body.classList.add('jv-riding'); this.ambience?.start('cabin'); this.ambience?.chime(false);
     this.rig.setMode('free', ac); this.rig.freeLocked = true;
     // the cabin: built for the pilot's aircraft type (an airliner; anything else gets the A320 cabin) and fitted into the aircraft's body frame
     const def = this.aircraftDefs.find((d) => d.id === pose.ac && d.hull) ?? this.aircraftDefs.find((d) => d.id === 'a320')!, hull = def.hull!;
-    const cabin = new Cabin(cabinSpec(def.id, hull.x0, hull.x1, hull.radius)); this.aircraftGroup.add(cabin.group);
+    const cabin = new Cabin(cabinSpec(def.id, hull.x0, hull.x1, hull.radius)); this.aircraftGroup.add(cabin.group); cabin.addWings();
     this.model.root.visible = false; this.aircraftGroup.visible = true;
-    const choices = seatChoices(cabin.spec), first = choices.find((c) => c.seat.window && c.seat.y < 0) ?? choices[0];
+    const choices = seatChoices(cabin.spec), first = (seatPref ? choices.find((c) => c.seat.row === seatPref.row && c.seat.col === seatPref.col) : undefined) ?? choices.find((c) => c.seat.window && c.seat.y < 0) ?? choices[0];
+    cabin.addPassengers(first.seat.row, first.seat.col, [...id].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 5));
     const el = document.createElement('div'); el.style.cssText = 'position:fixed;inset:0;z-index:12;pointer-events:none;overflow:hidden';
-    const bar = document.createElement('div'); bar.style.cssText = 'position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:12px;align-items:center;padding:8px 16px;border-radius:20px;background:rgba(6,12,22,.82);color:#eaf2fb;font:600 13px system-ui,sans-serif;pointer-events:auto';
+    const bar = document.createElement('div'); bar.style.cssText = 'position:absolute;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:12px;align-items:center;padding:8px 16px;border-radius:20px;background:rgba(6,12,22,.82);color:#eaf2fb;font:600 13px system-ui,sans-serif;pointer-events:auto;white-space:nowrap';
     const info = document.createElement('span'); bar.appendChild(info);
     const sel = document.createElement('select'); sel.style.cssText = 'background:#111d33;color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:6px;padding:4px 8px';
     choices.forEach((c, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = c.label; o.selected = c === first; sel.appendChild(o); });
-    sel.onchange = () => { const r = this.riding; if (!r) return; r.seat = choices[Number(sel.value)].seat; r.yaw = r.seat.window ? (r.seat.y < 0 ? -0.9 : 0.9) : 0; r.pitch = 0; sel.blur(); };
+    sel.onchange = () => { const r = this.riding; if (!r) return; r.seat = choices[Number(sel.value)].seat; r.cabin.addPassengers(r.seat.row, r.seat.col, [...id].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 5)); r.yaw = r.seat.window ? (r.seat.y < 0 ? -0.9 : 0.9) : 0; r.pitch = 0; sel.blur(); };
     bar.appendChild(sel);
+    const snd = document.createElement('button'); snd.className = 'jv-btn ghost'; snd.style.cssText = 'padding:5px 12px;min-width:0'; const lab = () => { snd.textContent = this.ambience?.muted ? 'SOUND OFF' : 'SOUND ON'; }; lab(); snd.onclick = () => { this.ambience?.setMuted(!this.ambience.muted); lab(); }; if (this.ambience) bar.appendChild(snd);
     const stop = document.createElement('button'); stop.className = 'jv-btn'; stop.textContent = 'STOP RIDING'; stop.style.cssText = 'padding:5px 12px;min-width:0'; stop.onclick = () => this.mpStopRide(); bar.appendChild(stop);
     el.appendChild(bar); document.body.appendChild(el);
     this.riding = { id, name: this.mp.roster.find((r) => r.id === id)?.name ?? 'player', p: new Vec3(), q: new Quat(), fresh: true, yaw: first.seat.window ? (first.seat.y < 0 ? -0.9 : 0.9) : 0, pitch: 0, cabin, seat: first.seat, el, info, infoT: 0, lastAlt: 0, live };
@@ -255,7 +260,7 @@ class App implements MenuHost {
   }
   mpStopRide() {
     const r = this.riding; if (!r) return;
-    this.riding = null; r.el.remove(); document.body.classList.remove('jv-riding'); this.aircraftGroup.remove(r.cabin.group); r.cabin.dispose(); this.model.root.visible = true; this.rig.camera.near = this.rideNear; this.rig.camera.updateProjectionMatrix(); this.remotes.hidden.delete(r.id); this.rig.freeLocked = false; this.hud.el.style.display = '';
+    this.riding = null; r.el.remove(); this.ambience?.stop(); this.ambience = null; document.body.classList.remove('jv-riding'); this.aircraftGroup.remove(r.cabin.group); r.cabin.dispose(); this.model.root.visible = true; this.rig.camera.near = this.rideNear; this.rig.camera.updateProjectionMatrix(); this.remotes.hidden.delete(r.id); this.rig.freeLocked = false; this.hud.el.style.display = '';
     const sim = this.sim, ac = sim.aircraft, l = r.live;
     ac.pos = l.pos; ac.q = l.q; ac.vel = l.vel; ac.omega = l.omega; sim.weather.realTime = l.realTime; sim.paused = true;
     this.aircraftGroup.visible = true; this.rig.setMode(l.view as never, ac);

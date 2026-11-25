@@ -3,10 +3,13 @@
 // It is a generic terminal built from simple shapes (not a copy of the real terminal at each airport) in its own small scene; the game world waits, paused.
 import * as THREE from 'three';
 import { AirlinerModel } from './airlinerModel';
+import { B737Model } from './b737Model';
+import { PeopleField, Person, rng } from './people';
+import { Ambience } from '../audio/ambience';
 import { bodyMatrix } from './coords';
 import { Quat } from '../core/math';
 
-export interface WalkInfo { name: string; icao: string; airportName: string; flight: string; to: string; seat: string; gate: string; aircraft: string }
+export interface WalkInfo { name: string; icao: string; airportName: string; flight: string; to: string; seat: string; gate: string; aircraft: string; /** The seats to choose from at check-in (labels like "Row 6A (window, left)"). */ seatOptions?: string[] }
 export interface Rect { x0: number; x1: number; z0: number; z1: number }
 const R = 0.3;   // body radius
 
@@ -35,8 +38,8 @@ export class TerminalWalk {
   private hud = document.createElement('div'); private prompt = document.createElement('div'); private steps = document.createElement('div'); private ticket = document.createElement('div');
   private board!: { cv: HTMLCanvasElement; tex: THREE.CanvasTexture }; private markers: THREE.Mesh[] = []; private ropes: THREE.Object3D[] = [];
   private model: AirlinerModel | null = null; private ended = false; private flash = 0;
-  onDone: (() => void) | null = null;
-  constructor(private info: WalkInfo) {
+  onDone: ((seatIndex: number) => void) | null = null; seatIdx = 0; private people!: PeopleField; private chooser: HTMLDivElement | null = null;
+  constructor(private info: WalkInfo, private audio: Ambience | null = null) {
     this.scene.background = new THREE.Color(0x9fb6d0); this.scene.fog = new THREE.Fog(0xcfd8e4, 40, 170);
     this.build();
     this.hud.style.cssText = 'position:fixed;inset:0;z-index:30;pointer-events:none;font:600 14px system-ui,sans-serif;color:#eaf2fb';
@@ -48,6 +51,24 @@ export class TerminalWalk {
     this.hud.append(this.steps, this.prompt, this.ticket, help, skip); document.body.appendChild(this.hud);
     window.addEventListener('keydown', this.kd); window.addEventListener('keyup', this.ku);
     this.camera.position.set(this.x, 1.65, this.z); this.refreshSteps();
+    this.audio?.start('terminal');
+    // sound switch
+    const snd = document.createElement('button'); snd.className = 'jv-btn ghost'; snd.style.cssText = 'position:absolute;top:14px;right:170px;pointer-events:auto;padding:6px 12px;min-width:0'; const lab = () => { snd.textContent = this.audio?.muted ? 'SOUND OFF' : 'SOUND ON'; }; lab();
+    snd.onclick = () => { this.audio?.setMuted(!this.audio.muted); lab(); }; this.hud.appendChild(snd);
+    // touch controls: a joystick on the left, drag on the right half to look, and an E button
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) this.buildTouch();
+  }
+  private touchMove = { x: 0, y: 0 };
+  private buildTouch() {
+    const base = document.createElement('div'); base.style.cssText = 'position:absolute;left:28px;bottom:36px;width:130px;height:130px;border-radius:50%;background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.3);pointer-events:auto;touch-action:none';
+    const knob = document.createElement('div'); knob.style.cssText = 'position:absolute;left:35px;top:35px;width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.4)'; base.appendChild(knob);
+    const set = (e: PointerEvent) => { const r = base.getBoundingClientRect(), dx = (e.clientX - r.left - 65) / 65, dy = (e.clientY - r.top - 65) / 65, l = Math.hypot(dx, dy) || 1, k = Math.min(1, l) / l; this.touchMove = { x: dx * k, y: dy * k }; knob.style.transform = `translate(${dx * k * 35}px, ${dy * k * 35}px)`; };
+    base.onpointerdown = (e) => { base.setPointerCapture(e.pointerId); set(e); }; base.onpointermove = (e) => { if (e.buttons || e.pressure) set(e); };
+    base.onpointerup = base.onpointercancel = () => { this.touchMove = { x: 0, y: 0 }; knob.style.transform = ''; };
+    const look = document.createElement('div'); look.style.cssText = 'position:absolute;right:0;top:70px;width:55%;bottom:170px;pointer-events:auto;touch-action:none'; let lx = 0, ly = 0;
+    look.onpointerdown = (e) => { look.setPointerCapture(e.pointerId); lx = e.clientX; ly = e.clientY; }; look.onpointermove = (e) => { if (!(e.buttons || e.pressure)) return; this.look(e.clientX - lx, e.clientY - ly); lx = e.clientX; ly = e.clientY; };
+    const eb = document.createElement('button'); eb.className = 'jv-btn'; eb.textContent = 'E'; eb.style.cssText = 'position:absolute;right:28px;bottom:110px;width:70px;height:70px;border-radius:50%;pointer-events:auto;font-size:22px'; eb.onpointerdown = (e) => { e.preventDefault(); this.interact(); };
+    this.hud.append(look, base, eb);
   }
   private kd = (e: KeyboardEvent) => { if ((e.target as HTMLElement)?.tagName === 'INPUT') return; this.keys.add(e.code); if (e.code === 'KeyE' && !e.repeat) this.interact(); if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault(); };
   private ku = (e: KeyboardEvent) => { this.keys.delete(e.code); };
@@ -97,7 +118,17 @@ export class TerminalWalk {
     box(2.8, 1.0, 0.9, deskM, 70.4, 0, 0).rotation.y = 0; add(new THREE.PlaneGeometry(2.8, 0.7), new THREE.MeshBasicMaterial({ map: sign(`GATE ${this.info.gate}`, 256, 64, '#103a6b', '#ffffff') }), 70.0, 2.7, 0, -Math.PI / 2);
     // the aircraft outside the window (the real model), apron and sky
     add(new THREE.PlaneGeometry(400, 200).rotateX(-Math.PI / 2), mat(0x6e737b, { roughness: 1 }), 58, -0.02, -110);
-    this.model = new AirlinerModel(this.info.aircraft); this.model.load().then(() => { const r = this.model!.root; r.matrixAutoUpdate = false; const M = bodyMatrix(Quat.fromEuler(0, 0, Math.PI / 2)); M.setPosition(58, 3.9, -34); r.matrix.copy(M); sc.add(r); }).catch(() => undefined);   // nose east, parallel to the windows
+    if (this.info.aircraft === 'b738') { const b = new B737Model(); b.loadFull('./models/b738_full.bin').then(() => { const r = b.root; r.matrixAutoUpdate = false; const M = bodyMatrix(Quat.fromEuler(0, 0, Math.PI / 2)); M.setPosition(58, 3.85, -34); r.matrix.copy(M); sc.add(r); }).catch(() => undefined); }
+    else { this.model = new AirlinerModel(this.info.aircraft); this.model.load().then(() => { const r = this.model!.root; r.matrixAutoUpdate = false; const M = bodyMatrix(Quat.fromEuler(0, 0, Math.PI / 2)); M.setPosition(58, 3.9, -34); r.matrix.copy(M); sc.add(r); }).catch(() => undefined); }   // nose east, parallel to the windows
+    // people: a queue at check-in, strollers in the hall, a queue at security, passengers in the lounge
+    const rnd = rng(11), crowd: Person[] = [], pick = () => ({ cloth: Math.floor(rnd() * 10), skin: Math.floor(rnd() * 6) });
+    for (let i = 0; i < 9; i++) crowd.push({ x: 7 + i * 1.4 + rnd() * 0.3, z: -3.3 + (rnd() - 0.5) * 0.8, yaw: -Math.PI / 2, ...pick() });
+    for (let i = 0; i < 12; i++) { const z = (rnd() - 0.5) * 12; crowd.push({ x: 3 + rnd() * 18, z, yaw: 0, path: [[3 + rnd() * 6, z], [16 + rnd() * 8, z + (rnd() - 0.5) * 3]], speed: 0.7 + rnd() * 0.6, t: rnd() * 30, ...pick() }); }
+    for (let i = 0; i < 7; i++) crowd.push({ x: 27.5 + (i % 3) * 0.8, z: -4.2 + i * 1.3 + rnd() * 0.3, yaw: 0, ...pick() });
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) if (rnd() < 0.55) crowd.push({ x: 49 + c * 3.6, z: -3 + r * 2.4 - 3, y: 0.46, yaw: -Math.PI / 2, seated: true, ...pick() });
+    for (let i = 0; i < 12; i++) { const z = -8 + rnd() * 14; crowd.push({ x: 46 + rnd() * 4, z, yaw: 0, path: [[46 + rnd() * 3, z], [60 + rnd() * 8, z + (rnd() - 0.5) * 4]], speed: 0.8 + rnd() * 0.6, t: rnd() * 40, ...pick() }); }
+    for (let i = 0; i < 5; i++) crowd.push({ x: 50 + i * 4.6 + (rnd() - 0.5), z: 9.8, yaw: 0, ...pick() });
+    this.people = new PeopleField(crowd); sc.add(this.people.group);
     // markers: a glowing disc at each thing to do
     for (const st of STEPS) { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 0.04, 24), new THREE.MeshBasicMaterial({ color: 0x3cc8ff, transparent: true, opacity: 0.7 })); m.position.set(st.x, 0.03, st.z); sc.add(m); this.markers.push(m); }
     // ropes that block the next zone until the step is done
@@ -120,11 +151,24 @@ export class TerminalWalk {
   private interact() {
     const i = this.done.findIndex((d) => !d); if (i < 0 || i > 2) return;
     const st = STEPS[i]; if (Math.hypot(this.x - st.x, this.z - st.z) > 2.2) return;
-    this.done[i] = true; this.rects.push(ZONES[i + 1]); this.scene.remove(this.ropes[i]); this.markers[i].visible = false; this.flash = 1; this.refreshSteps(); this.drawBoard();
+    if (i === 0 && this.info.seatOptions?.length && !this.chooser) { this.chooseSeat(); return; }
+    this.complete(i);
+  }
+  /** Check-in: a list of seats to choose from (like picking a seat at the desk). */
+  private chooseSeat() {
+    const el = document.createElement('div'); this.chooser = el; el.style.cssText = 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:18px 22px;border-radius:12px;background:rgba(10,20,40,.94);border:1px solid rgba(255,255,255,.2);pointer-events:auto;min-width:300px';
+    el.innerHTML = '<div style="letter-spacing:.14em;font-size:12px;opacity:.7;margin-bottom:8px">CHOOSE YOUR SEAT</div>';
+    this.info.seatOptions!.forEach((label, k) => { const b = document.createElement('button'); b.className = 'jv-btn ghost'; b.textContent = label; b.style.cssText = 'display:block;width:100%;margin:5px 0;text-align:left'; b.onclick = () => { this.seatIdx = k; this.info.seat = (/Row (\d+[A-Z])/.exec(label)?.[1]) ?? this.info.seat; el.remove(); this.chooser = null; this.complete(0); }; el.appendChild(b); });
+    this.hud.appendChild(el);
+  }
+  private complete(i: number) {
+    this.done[i] = true; if (i === 1) this.audio?.announce(`Flight ${this.info.flight} to ${this.info.to} is now boarding at gate ${this.info.gate}.`); else this.audio?.chime(true); this.rects.push(ZONES[i + 1]); this.scene.remove(this.ropes[i]); this.markers[i].visible = false; this.flash = 1; this.refreshSteps(); this.drawBoard();
   }
   update(dt: number) {
-    this.t += dt; this.flash = Math.max(0, this.flash - dt);
-    const fwd = (this.keys.has('KeyW') || this.keys.has('ArrowUp') ? 1 : 0) - (this.keys.has('KeyS') || this.keys.has('ArrowDown') ? 1 : 0), str = (this.keys.has('KeyD') || this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('KeyA') || this.keys.has('ArrowLeft') ? 1 : 0);
+    this.t += dt; this.flash = Math.max(0, this.flash - dt); this.people.update(dt);
+    if (this.chooser) { this.prompt.style.display = 'none'; return; }
+    const fwd = Math.max(-1, Math.min(1, (this.keys.has('KeyW') || this.keys.has('ArrowUp') ? 1 : 0) - (this.keys.has('KeyS') || this.keys.has('ArrowDown') ? 1 : 0) - this.touchMove.y)), str = Math.max(-1, Math.min(1, (this.keys.has('KeyD') || this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('KeyA') || this.keys.has('ArrowLeft') ? 1 : 0) + this.touchMove.x));
+    if (fwd || str) this.audio?.step(this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'));
     const sp = (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight') ? 3.4 : 1.7) * dt;
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw), dx = (cy * fwd + sy * str) * sp, dz = (-sy * fwd + cy * str) * sp;   // yaw 0 faces +x; right is (sin, cos)
     [this.x, this.z] = slide(this.rects, this.x, this.z, dx, dz);
@@ -141,6 +185,6 @@ export class TerminalWalk {
   }
   render(r: THREE.WebGLRenderer) { const s = r.getSize(new THREE.Vector2()); this.camera.aspect = s.x / Math.max(1, s.y); this.camera.updateProjectionMatrix(); r.render(this.scene, this.camera); }
   /** Ends the walk (boarding complete or skipped). */
-  finish() { if (this.ended) return; this.ended = true; this.onDone?.(); }
+  finish() { if (this.ended) return; this.ended = true; this.onDone?.(this.seatIdx); }
   dispose() { window.removeEventListener('keydown', this.kd); window.removeEventListener('keyup', this.ku); this.hud.remove(); this.scene.traverse((o) => { const m = o as THREE.Mesh; m.geometry?.dispose?.(); }); }
 }
