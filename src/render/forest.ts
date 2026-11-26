@@ -22,18 +22,31 @@ export class Forest {
   count = 0;
   private cx = 1e9; private cz = 1e9;
   private meshes: THREE.InstancedMesh[] = [];
-  private mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  private mat: THREE.MeshLambertMaterial;
   private conifer: THREE.BufferGeometry; private broad: THREE.BufferGeometry;
 
   constructor(private world: World, private radius = 3200, private step = 9) {
-    const trunk = () => paint(new THREE.CylinderGeometry(0.22, 0.38, 3.4, 5).translate(0, 1.7, 0), 0.26, 0.19, 0.12);
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    mat.onBeforeCompile = (sh) => {
+      sh.vertexShader = sh.vertexShader.replace('#include <fog_vertex>', '#include <fog_vertex>\nvFPos = (modelMatrix * instanceMatrix * vec4(position,1.0)).xyz;');
+      sh.vertexShader = sh.vertexShader.replace('void main() {', 'varying vec3 vFPos;\nvoid main() {');
+      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'varying vec3 vFPos;\nvoid main() {');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <fog_fragment>',
+        'float dF = length(vFPos - cameraPosition);\n' +
+        'float aerF = (1.0 - exp(-dF * 0.00012)) * 0.65;\n' +
+        'float lumF = dot(gl_FragColor.rgb, vec3(0.2126, 0.7152, 0.0722));\n' +
+        'gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(lumF) * 1.03, clamp(aerF, 0.0, 0.65));\n' +
+        '#include <fog_fragment>');
+    };
+    this.mat = mat;
+    const trunk = () => paint(new THREE.CylinderGeometry(0.22, 0.38, 3.4, 5).translate(0, 1.7, 0), 0.22, 0.16, 0.10);
     this.conifer = mergeGeometries([trunk(),
-      paint(new THREE.ConeGeometry(2.6, 6.5, 7).translate(0, 5.6, 0), 0.08, 0.2, 0.1),
-      paint(new THREE.ConeGeometry(2.0, 5.5, 7).translate(0, 8.9, 0), 0.07, 0.19, 0.09),
-      paint(new THREE.ConeGeometry(1.3, 4.5, 7).translate(0, 12.0, 0), 0.06, 0.18, 0.08)])!;
+      paint(new THREE.ConeGeometry(2.6, 6.5, 7).translate(0, 5.6, 0), 0.06, 0.14, 0.08),
+      paint(new THREE.ConeGeometry(2.0, 5.5, 7).translate(0, 8.9, 0), 0.05, 0.13, 0.07),
+      paint(new THREE.ConeGeometry(1.3, 4.5, 7).translate(0, 12.0, 0), 0.045, 0.12, 0.065)])!;
     this.broad = mergeGeometries([trunk(),
-      paint(new THREE.IcosahedronGeometry(3.6, 1).scale(1, 0.85, 1).translate(0, 7.0, 0), 0.14, 0.27, 0.08),
-      paint(new THREE.IcosahedronGeometry(2.4, 1).translate(1.6, 8.6, 0.8), 0.17, 0.31, 0.09)])!;
+      paint(new THREE.IcosahedronGeometry(3.6, 1).scale(1, 0.85, 1).translate(0, 7.0, 0), 0.10, 0.19, 0.06),
+      paint(new THREE.IcosahedronGeometry(2.4, 1).translate(1.6, 8.6, 0.8), 0.12, 0.22, 0.07)])!;
     this.group.name = 'forest';
   }
 
@@ -89,7 +102,12 @@ export class Forest {
       const s = (dense ? 0.75 : 0.55) + hash(i, j, 6) * 0.8;
       q.setFromAxisAngle(up, hash(i, j, 7) * 6.283); pos.set(e, hgt - 0.3, -n); sc.set(s, s * (0.85 + hash(i, j, 8) * 0.5), s);
       m4.compose(pos, q, sc);
-      const t = 0.7 + hash(i, j, 10) * 0.5, col = new THREE.Color(t, t * (0.96 + hash(i, j, 11) * 0.12), t * 0.92);
+      const t = 0.72 + hash(i, j, 10) * 0.56;
+      const hue = hash(i, j, 11);
+      const col = hue < 0.35 ? new THREE.Color(t * 0.92, t, t * 0.88)          // cool green
+        : hue < 0.6 ? new THREE.Color(t, t * 0.96, t * 0.82)                   // olive
+        : hue < 0.82 ? new THREE.Color(t * 1.04, t * 0.98, t * 0.76)           // warm yellow-green
+        : new THREE.Color(t * 0.88, t * 0.92, t * 0.84);                        // dark muted
       if (kind) { cs.push(m4.clone()); cc.push(col); } else { bs.push(m4.clone()); bc.push(col); }
     }
     this.count = cs.length + bs.length;

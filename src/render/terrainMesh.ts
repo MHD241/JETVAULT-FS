@@ -344,9 +344,9 @@ float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yz
 vec3 srgb(vec3 c) { return pow(c, vec3(2.2)); }
 // ESA WorldCover class -> albedo, with per-field variation for cropland
 vec3 classColor(float cls, vec2 en, float n1) {
-  if (cls < 15.0) return srgb(vec3(0.16, 0.22, 0.12)) * (0.75 + 0.5 * n1);             // tree cover
+  if (cls < 15.0) return srgb(vec3(0.12, 0.17, 0.09)) * (0.75 + 0.5 * n1);             // tree cover
   if (cls < 25.0) return srgb(vec3(0.33, 0.33, 0.21)) * (0.8 + 0.4 * n1);              // shrubland
-  if (cls < 35.0) return srgb(vec3(0.34, 0.44, 0.20)) * (0.85 + 0.3 * n1);             // grassland / pasture
+  if (cls < 35.0) return srgb(vec3(0.26, 0.34, 0.16)) * (0.85 + 0.3 * n1);             // grassland / pasture
   if (cls < 45.0) {                                                                    // cropland: patchwork of fields
     vec2 w = en + 60.0 * vec2(texture2D(uDetail, en / 2300.0).r, texture2D(uDetail, en / 2300.0 + 0.5).g);
     float h = hash12(floor(w / 190.0));
@@ -401,9 +401,15 @@ float gWater; float gBuilt; float gPaved;
       vec2 w = en + 45.0 * (vec2(texture2D(uDetail, en / 900.0).r, texture2D(uDetail, en / 900.0 + 0.37).g) - 0.5) * 2.0;
       vec2 cell = w / 130.0; vec2 id = floor(cell); vec2 fc = fract(cell);
       float h1 = hash12(id), h2 = hash12(id + 7.7), h3 = hash12(id + 19.3);
-      // reference look: one lush, slightly olive grass green with soft large-scale variation (no strongly coloured parcels)
-      vec3 grass = mix(vec3(0.17, 0.27, 0.08), vec3(0.23, 0.34, 0.10), smoothstep(0.3, 0.7, texture2D(uDetail, en / 260.0).r));
-      grass *= mix(0.94, 1.06, h1) * (0.92 + 0.16 * n2);
+      // UK farmland patchwork: each parcel is one of a few muted, realistic field tints - pasture, dark meadow, cut hay, pale stubble/arable -
+      // instead of one saturated lime green. Desaturated and slightly olive, as grass looks under real daylight.
+      vec3 pasture = vec3(0.155, 0.205, 0.090);
+      vec3 meadow  = vec3(0.110, 0.165, 0.070);
+      vec3 hay     = vec3(0.260, 0.255, 0.115);
+      vec3 stubble = vec3(0.300, 0.280, 0.165);
+      vec3 grass = h2 < 0.42 ? pasture : h2 < 0.66 ? meadow : h2 < 0.84 ? hay : stubble;
+      grass = mix(grass, mix(pasture, meadow, 0.5), smoothstep(0.3, 0.7, texture2D(uDetail, en / 260.0).r) * 0.35);  // soft large-scale blend so borders are not hard
+      grass *= mix(0.92, 1.08, h1) * (0.90 + 0.18 * n2);
       // real grass photo (ambientCG Grass001, CC0), two scales so the repeat does not show, fading to flat colour with distance
       float dG = length(vWorldPos - cameraPosition);
       vec3 g1 = texture2D(uGrass, en / 3.0).rgb, g2 = texture2D(uGrass, en / 17.0 + 0.31).rgb;
@@ -485,6 +491,14 @@ float gWater; float gBuilt; float gPaved;
     }
   }
   col = mix(col, col * 0.55, uWet * (1.0 - gWater) * gPaved);
+  // aerial perspective (MSFS-style depth): distant ground loses saturation and reads as atmospheric haze, so the land has depth instead of one flat green sheet.
+  // The sky tint and brightness are added later by the fog; here we only bleed out the colour so far fields are muted grey-green, not lime.
+  {
+    float dA = length(vWorldPos - cameraPosition);
+    float aer = (1.0 - exp(-dA * 0.00010)) * (1.0 - 0.6 * uNight);
+    float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
+    col = mix(col, vec3(lum) * 1.02, clamp(aer * 0.6, 0.0, 0.62) * (1.0 - gWater * 0.5));
+  }
   diffuseColor.rgb = mix(col, srgb(vec3(0.015, 0.085, 0.17)), gWater * (1.0 - gPaved));
 }
 `)

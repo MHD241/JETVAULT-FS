@@ -111,7 +111,14 @@ if (vWall.z > 4.5) {
   diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.06, 0.07), win * 0.85);
 }`)
         .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.15, gWin);')
-        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(1.0, 0.78, 0.5) * gWin * uNight * 0.9;\ntotalEmissiveRadiance += vec3(1.0, 0.72, 0.4) * (1.0 - smoothstep(0.0, 14.0, vWall.y)) * step(0.5, vWall.z) * uNight * 0.12;   // street light on the ground floor');
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vec3(1.0, 0.78, 0.5) * gWin * uNight * 0.9;\ntotalEmissiveRadiance += vec3(1.0, 0.72, 0.4) * (1.0 - smoothstep(0.0, 14.0, vWall.y)) * step(0.5, vWall.z) * uNight * 0.12;   // street light on the ground floor')
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+{
+  float dB = length(vViewPosition);
+  float aerB = (1.0 - exp(-dB * 0.00011)) * 0.55 * (1.0 - uNight);
+  float lumB = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(lumB) * 1.02, clamp(aerB, 0.0, 0.55));
+}`);
     };
     return mat;
   }

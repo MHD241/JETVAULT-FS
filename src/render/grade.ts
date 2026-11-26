@@ -10,7 +10,7 @@ import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 const GradeShader = {
-  uniforms: { tDiffuse: { value: null as THREE.Texture | null }, uContrast: { value: 1.18 }, uSat: { value: 1.22 }, uWarm: { value: 0.07 }, uVig: { value: 0.22 }, uNight: { value: 0 }, uExp: { value: 1.0 }, uSunUv: { value: new THREE.Vector3(0.5, 0.5, 0) } },
+  uniforms: { tDiffuse: { value: null as THREE.Texture | null }, uContrast: { value: 1.14 }, uSat: { value: 1.06 }, uWarm: { value: 0.05 }, uVig: { value: 0.24 }, uNight: { value: 0 }, uExp: { value: 1.0 }, uSunUv: { value: new THREE.Vector3(0.5, 0.5, 0) } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `
     uniform sampler2D tDiffuse; uniform float uContrast, uSat, uWarm, uVig, uNight, uExp; uniform vec3 uSunUv; varying vec2 vUv;
@@ -81,7 +81,7 @@ export class Grade {
     if (sunUv) (u.uSunUv.value as THREE.Vector3).copy(sunUv);
     u.uExp.value = 1.0 - 0.2 * night;
     u.uNight.value = night;
-    u.uContrast.value = 1 + 0.07 * strength; u.uSat.value = 1 + 0.28 * strength; u.uWarm.value = 0.07 * strength; u.uVig.value = 0.22 * strength;
+    u.uContrast.value = 1 + 0.14 * strength; u.uSat.value = 1 + 0.06 * strength; u.uWarm.value = 0.05 * strength; u.uVig.value = 0.24 * strength;
   }
   render() { this.composer.render(); }
 }

@@ -31,9 +31,9 @@ export class TreeField {
   count = 0;
 
   constructor(world: World, centre: { e: number; n: number }, radius: number, buildings: Building[], runwaySegs: [number, number, number, number][], step = 16) {
-    const trunk = () => paint(nonIndexed(new THREE.CylinderGeometry(0.25, 0.4, 3, 5).translate(0, 1.5, 0)), 0.32, 0.22, 0.13);
-    const conifer = mergeGeometries([trunk(), paint(nonIndexed(new THREE.ConeGeometry(2.2, 9, 7).translate(0, 7.2, 0)), 0.12, 0.28, 0.14)])!;
-    const broad = mergeGeometries([trunk(), paint(nonIndexed(new THREE.IcosahedronGeometry(3.4, 0).scale(1, 0.9, 1).translate(0, 6.2, 0)), 0.2, 0.36, 0.13)])!;
+    const trunk = () => paint(nonIndexed(new THREE.CylinderGeometry(0.25, 0.4, 3, 5).translate(0, 1.5, 0)), 0.22, 0.16, 0.10);
+    const conifer = mergeGeometries([trunk(), paint(nonIndexed(new THREE.ConeGeometry(2.2, 9, 7).translate(0, 7.2, 0)), 0.06, 0.15, 0.09)])!;
+    const broad = mergeGeometries([trunk(), paint(nonIndexed(new THREE.IcosahedronGeometry(3.4, 0).scale(1, 0.9, 1).translate(0, 6.2, 0)), 0.11, 0.21, 0.07)])!;
     const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
     const cs: THREE.Matrix4[] = [], bs: THREE.Matrix4[] = [], cc: THREE.Color[] = [], bc: THREE.Color[] = [];
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), pos = new THREE.Vector3(), sc = new THREE.Vector3();

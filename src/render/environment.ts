@@ -385,9 +385,9 @@ export class EnvironmentRenderer {
     const starA = Math.max(this.space, 0.85 * this.night);
     this.stars.visible = starA > 0.01; (this.stars.material as THREE.PointsMaterial).opacity = starA; this.stars.position.copy(cam);
     const vis = Math.max(50, Math.min(w.visibility, 120000) * (1 - 0.97 * inCloud));
-    this.fog.density = Math.sqrt(3) / vis * 0.7 * (1 - 0.92 * this.space); // no thick haze in thin air
+    this.fog.density = Math.sqrt(3) / vis * 0.9 * (1 - 0.92 * this.space); // no thick haze in thin air
     const fogBright = 0.25 + 0.75 * dayLight;
-    this.fog.color.setRGB(0.56 * fogBright, 0.70 * fogBright, 0.90 * fogBright).lerp(new THREE.Color(0.95, 0.55, 0.38).multiplyScalar(fogBright * 0.9), twi * 0.65).lerp(new THREE.Color(0.8, 0.8, 0.82).multiplyScalar(fogBright), overcast * 0.6 + inCloud);
+    this.fog.color.setRGB(0.50 * fogBright, 0.63 * fogBright, 0.86 * fogBright).lerp(new THREE.Color(0.95, 0.55, 0.38).multiplyScalar(fogBright * 0.9), twi * 0.65).lerp(new THREE.Color(0.8, 0.8, 0.82).multiplyScalar(fogBright), overcast * 0.6 + inCloud);
     this.lightLevel = Math.max(this.night, w.visibility < 5000 ? 1 : 0, overcast * 0.4);
 
     // clouds: scattered 3D puff cumulus below overcast, flat noise layers for overcast
