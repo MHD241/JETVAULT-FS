@@ -617,7 +617,22 @@ export class B737Model {
         sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uFlex;')
           .replace('#include <begin_vertex>', '#include <begin_vertex>\nfloat flexT = clamp((abs(position.x) - 90.0) / 600.0, 0.0, 1.0);\ntransformed.y += uFlex * flexT * flexT;');
       };
-      r.customProgramCacheKey = () => 'b737flex';
+      const painted = lum > 0.6;
+      if (painted) {
+        const base0 = r.onBeforeCompile;
+        r.onBeforeCompile = (sh, rend) => {
+          base0.call(r, sh, rend);
+          sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vPanelP;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvPanelP = position;');
+          sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vPanelP;')
+            .replace('#include <color_fragment>', `#include <color_fragment>
+              vec2 pq = vec2(vPanelP.z / 60.0, vPanelP.x / 60.0);
+              vec2 pd = abs(fract(pq) - 0.5);
+              float pw = fwidth(pq.x) + fwidth(pq.y);
+              float pl = 1.0 - smoothstep(0.0, 0.015 + pw, 0.5 - max(pd.x, pd.y));
+              diffuseColor.rgb *= 1.0 - 0.10 * pl * (1.0 - smoothstep(0.0, 0.35, pw));`);
+        };
+      }
+      r.customProgramCacheKey = () => (painted ? 'b737flexpanel' : 'b737flex');
       r.userData.envI = lum > 0.6 ? 2.0 : lum < 0.07 ? 0.4 : 2.2;
       pbr.set(mat, r);
       return r;
