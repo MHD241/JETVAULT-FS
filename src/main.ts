@@ -34,7 +34,7 @@ import { bodyMatrix, nedToThree } from './render/coords';
 import { InputManager, loadInputSettings } from './input/input';
 import { Hud } from './ui/hud';
 import { Menu, MenuHost, GraphicsSettings, loadGraphics } from './ui/menu';
-import { Vec3, Quat, clamp, moveToward, KT } from './core/math';
+import { Vec3, Quat, clamp, KT } from './core/math';
 import { effectivePixelRatio, AutoScale } from './pixelBudget';
 import { RoadMarkings } from './render/roadMarkings';
 import { Traffic } from './render/traffic';
@@ -43,7 +43,7 @@ import { TerminalWalk } from './render/terminalWalk';
 import { Ambience } from './audio/ambience';
 import { ReplayRecorder, Replay, sampleReplay, parseReplay, weatherAt } from './replay';
 import type { FlightControls } from './sim/controls';
-import { AutoTrim, trimFor, stallGuardTrim } from './sim/assists';
+import { AutoTrim } from './sim/assists';
 import { advanceClock } from './sim/weather';
 import { SimpleControls, IS_TOUCH } from './input/simpleControls';
 import { Minimap } from './ui/minimap';
@@ -1276,12 +1276,8 @@ class App implements MenuHost {
     if (!this.menu.open) {
       if (!this.director && !this.rp && !this.riding && !this.walk) this.simple.update(dt, sim.controls, ac);
       if (sim.def.drone) { const sp = droneSpeed(sim.controls.throttle, sim.def.drone), k = Math.round(sp); if (k !== this.lastDroneSpeed) { this.lastDroneSpeed = k; this.hud.toast(sp ? `Drone speed ${Math.round(sp * 1.944)} kt (${k} m/s)` : 'Drone motor off (keys 2-9 set the speed)'); } }
-      if (!sim.paused && this.simple.assists && sim.def.profile.fixedTrim !== undefined && !sim.def.drone) {
-        sim.controls.trim = sim.def.profile.fixedTrim;   // the trim stays at the set value (0 = neutral), on the ground and in the air
-      } else if (!sim.paused && this.simple.assists && sim.def.profile.trimModel && !ac.onGround && !sim.def.drone) {
-        // neutral-stick trim for the flap setting, the speed and the thrust (the underslung engines pitch the nose up with power); it follows smoothly
-        const tgt = trimFor(sim.def.profile, sim.controls.flapLever, ac.cas / KT, sim.controls.throttle);
-        if (tgt !== null) { const guard = stallGuardTrim(ac); sim.controls.trim = moveToward(sim.controls.trim, clamp(tgt + (sim.def.profile.trimModel?.bias ?? 0) - guard, -1, 1), (guard > 0 ? 1.2 : 0.35) * dt * sim.timeScale); }
+      if (!sim.paused && this.simple.assists && sim.def.profile.fixedTrim !== undefined && ac.onGround && !sim.def.drone) {
+        sim.controls.trim = sim.def.profile.fixedTrim;   // neutral trim on the ground; in the air the auto-trim holds the flight path hands-off
       } else if (!sim.paused && this.simple.assists && !sim.def.drone) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
     }
     this.updateBuggy(dt);
