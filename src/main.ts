@@ -130,6 +130,9 @@ class App implements MenuHost {
   private retrieving = false;
   private winchFx = 0;
   private rollFx = 0;
+  private thump = 0;
+  private wasOnGround = false;
+  private lastVsDown = 0;
   private forest: Forest | null = null;
   private grassBlades: GrassBlades | null = null;
   private editor: WorldEditor | null = null;
@@ -1409,6 +1412,16 @@ class App implements MenuHost {
       cam.position.x += (Math.random() - 0.5) * k; cam.position.y += (Math.random() - 0.5) * k; cam.position.z += (Math.random() - 0.5) * k;
     } else if (this.rig.mode !== 'tower' && Math.abs(cam.fov - (this.rig.mode === 'cockpit' ? this.rig.fovCockpit : this.rig.fovExternal)) > 0.01) {
       cam.fov = this.rig.mode === 'cockpit' ? this.rig.fovCockpit : this.rig.fovExternal; cam.updateProjectionMatrix();
+    }
+    if (!sim.paused && this.rig.mode !== 'tower') {
+      const onGround = ac.gearStates.some((g) => g.contact);
+      if (onGround && !this.wasOnGround && this.lastVsDown > 0.4) this.thump = Math.min(1, this.lastVsDown / 3);
+      this.wasOnGround = onGround; this.lastVsDown = ac.vel.z;
+      this.thump *= Math.exp(-dt * 4);
+      const t = performance.now() / 1000;
+      const turb = onGround ? 0 : sim.weather.turbulence * Math.min(1, ac.cas / 60) * 0.5;
+      if (this.thump > 0.01) cam.position.y -= Math.sin(t * 22) * 0.06 * this.thump;
+      if (turb > 0.01) { cam.position.x += Math.sin(t * 7.1) * 0.012 * turb; cam.position.y += Math.sin(t * 9.3 + 1) * 0.02 * turb; cam.rotateZ(Math.sin(t * 5.3) * 0.0025 * turb); }
     }
     for (const r of this.patchRender.values()) r.scenery?.update(sim.weather.windDirection, sim.weather.windSpeed, sim.simTime);
     const inCockpit = this.rig.mode === 'cockpit' && !this.rig.tug.on;
