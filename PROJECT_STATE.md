@@ -1152,3 +1152,16 @@ Completes the six-step visual redesign.
 **Aircraft & airport**: 737 model already has PBR materials with envMapIntensity 1.2; airport lighting already drives day/night/twilight correctly; cockpit model has 1.75M triangles with vertex colors — all reviewed, no changes needed.
 
 All changes pure shader math. tsc clean. Deployed to GitHub Pages.
+
+## Update 213 – realistic flight controls: reduce throwability, fix trim
+The aircraft were too twitchy and throwable. This update makes handling feel like a real aircraft.
+
+**Control surfaces**: aileron travel reduced from 1.5x inflated values back to realistic (20° up / 15° down on all aircraft). Surface actuator time constant increased: 737 from 0.09s to 0.15s, C172 from 0.06s to 0.10s, glider from 0.05s to 0.08s — models real hydraulic/cable response.
+
+**Mouse input**: removed the hidden 1.35x pitch multiplier on jets. Mouse smoothing for jets increased from 0.15s to 0.25s for a heavier, more realistic feel. Expo curve steepened (0.25 linear + 0.75 cubic, was 0.38/0.62) for much finer control near the centre. Mouse gain for jets reduced from 1.1 to 0.95. Speed authority drops faster at high speed (floor 30%, was 40%).
+
+**Trim**: 737 trim model c0 and c1 values reduced ~25% across all flap settings to lower the nose-up tendency. Auto-trim integral bounds and gains reduced (vsInt cap 10° from 15°, thetaCmd cap 10° from 15°, integral gain 0.18 from 0.25) to prevent the nose creeping up.
+
+**Scripted landings**: all five airliners' flare parameters re-tuned for the slower actuators. 737 switched from pitch-up flare to sink-rate flare for better control. All pass < 600 fpm.
+
+All 198 tests pass, 7 skipped (crashes disabled). Deployed to GitHub Pages.
