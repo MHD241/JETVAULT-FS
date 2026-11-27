@@ -192,7 +192,7 @@ export class B737Cockpit {
       this.deckLight2 = new THREE.PointLight(0xb8d0ff, 0, 3.5, 1.6); this.deckLight2.position.set(14.9, 0.45, -0.55);   // cooler panel wash
       this.root.add(this.deckLight, this.deckLight2);
     }
-    this.deckLight.intensity = night * 5.5; this.deckLight2!.intensity = night * 3.0;
+    this.deckLight.intensity = night * 14; this.deckLight2!.intensity = night * 8;
     const c = this.sim.controls;
     const eff = this.sim.autopilot.effectiveControls(c);
     if (this.detail) this.detail.update(dt, c, eff);

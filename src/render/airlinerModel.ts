@@ -62,7 +62,7 @@ export class AirlinerCockpit {
   constructor(private id = '') {}
   update(_dt: number, night: number) {
     // the deck is lit by the game's blue sky light only; a texture-coloured self-light keeps its real colours (dimmer at night)
-    this.root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (m && m.userData?.deck) m.emissiveIntensity = 0.8 - 0.45 * night; });
+    this.root.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (m && m.userData?.deck) m.emissiveIntensity = 0.8 - 0.1 * night; });
     const at = DECK_AT[this.id]; if (this.started || !at) return;
     this.started = true;
     this.root.position.set(at[0], at[1], at[2]);
