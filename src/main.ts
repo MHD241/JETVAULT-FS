@@ -1278,7 +1278,7 @@ class App implements MenuHost {
       if (sim.def.drone) { const sp = droneSpeed(sim.controls.throttle, sim.def.drone), k = Math.round(sp); if (k !== this.lastDroneSpeed) { this.lastDroneSpeed = k; this.hud.toast(sp ? `Drone speed ${Math.round(sp * 1.944)} kt (${k} m/s)` : 'Drone motor off (keys 2-9 set the speed)'); } }
       if (!sim.paused && this.simple.assists && sim.def.profile.fixedTrim !== undefined && ac.onGround && !sim.def.drone) {
         sim.controls.trim = sim.def.profile.fixedTrim;   // neutral trim on the ground; in the air the auto-trim holds the flight path hands-off
-      } else if (!sim.paused && this.simple.assists && !sim.def.drone) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
+      } else if (!sim.paused && (this.simple.assists || sim.def.turbofans) && !sim.def.drone) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
       if (!sim.def.drone && !sim.def.glider) sim.controls.trim = Math.min(sim.controls.trim, 0.1);   // keep the nose-up trim low
     }
     this.updateBuggy(dt);
