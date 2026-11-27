@@ -401,11 +401,13 @@ export class B737Model {
       g.rotation.x = (i === 0 ? -1 : 1) * ret * (Math.PI / 2); // mains fold inboard
       const comp = ac.gearStates[i + 1]?.compression ?? 0;
       g.children.slice(1).forEach((w) => { w.position.z = 1.99 - comp; });
+      const st = g.children[0]; st.scale.y = (1.99 - comp) / 2.0; st.position.z = 1.0 * st.scale.y;
       g.visible = !this.fullLoaded && ac.gearExt > 0.02;
     });
     this.noseGear.rotation.y = ret * (Math.PI / 2); // nose gear folds forward
     this.noseGear.visible = !this.fullLoaded && ac.gearExt > 0.02;
     this.noseSteer.position.z = 1.7 - (ac.gearStates[0]?.compression ?? 0);
+    const ns = this.noseGear.children[0]; ns.scale.y = (1.7 - (ac.gearStates[0]?.compression ?? 0)) / 1.7; ns.position.z = 0.85 * ns.scale.y;
     this.noseSteer.rotation.z = ac.gearStates[0]?.steer ?? 0;
     const wa = [ac.gearStates[1]?.wheelAngle ?? 0, ac.gearStates[2]?.wheelAngle ?? 0, ac.gearStates[0]?.wheelAngle ?? 0];
     this.wheels.forEach((w, i) => { w.rotation.y = -wa[Math.floor(i / 2)]; });
