@@ -246,6 +246,11 @@ export class B737Model {
       const t = new THREE.Mesh(new THREE.CylinderGeometry(r, r, w, 24), rubber);
       const h = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.55, r * 0.55, w + 0.02, 16), grey);
       g.add(t, h);
+      const lugMat = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: 0.6 });
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2, lug = new THREE.Mesh(new THREE.BoxGeometry(r * 0.12, w + 0.04, r * 0.3), lugMat);
+        lug.position.set(Math.sin(a) * r * 0.78, 0, Math.cos(a) * r * 0.78); lug.rotation.y = a; g.add(lug);
+      }
       return g;
     };
     for (const side of [-1, 1]) {
@@ -402,6 +407,8 @@ export class B737Model {
     this.noseGear.visible = !this.fullLoaded && ac.gearExt > 0.02;
     this.noseSteer.position.z = 1.7 - (ac.gearStates[0]?.compression ?? 0);
     this.noseSteer.rotation.z = ac.gearStates[0]?.steer ?? 0;
+    const wa = [ac.gearStates[1]?.wheelAngle ?? 0, ac.gearStates[2]?.wheelAngle ?? 0, ac.gearStates[0]?.wheelAngle ?? 0];
+    this.wheels.forEach((w, i) => { w.rotation.y = -wa[Math.floor(i / 2)]; });
     const pow = c.masterBattery;
     const beacon = c.beacon && pow && (this.t % 1.0) < 0.1;
     for (const b of this.beacons) b.visible = beacon;
