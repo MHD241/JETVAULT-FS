@@ -53,7 +53,7 @@ export class Forest {
       paint(new THREE.IcosahedronGeometry(2.4, 1).translate(1.6, 8.6, 0.8), 0.12, 0.22, 0.07)])!;
     this.group.name = 'forest';
     // "Tree low poly lowpoly" by 00amza (CC BY 4.0): replaces the plain cone / blob trees once it has loaded
-    new GLTFLoader().load('./models/tree.glb', (g) => {
+    if (typeof document !== 'undefined') new GLTFLoader().load('./models/tree.glb', (g) => {
       g.scene.updateMatrixWorld(true);
       const geos: THREE.BufferGeometry[] = []; let map: THREE.Texture | null = null;
       g.scene.traverse((o) => {
