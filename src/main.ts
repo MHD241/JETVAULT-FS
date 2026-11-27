@@ -1279,6 +1279,7 @@ class App implements MenuHost {
       if (!sim.paused && this.simple.assists && sim.def.profile.fixedTrim !== undefined && ac.onGround && !sim.def.drone) {
         sim.controls.trim = sim.def.profile.fixedTrim;   // neutral trim on the ground; in the air the auto-trim holds the flight path hands-off
       } else if (!sim.paused && this.simple.assists && !sim.def.drone) sim.controls.pitch = clamp(sim.controls.pitch + this.autoTrim.update(dt * sim.timeScale, ac, sim.controls, this.simple.rawPitch), -1, 1);
+      if (!sim.def.drone && !sim.def.glider) sim.controls.trim = Math.min(sim.controls.trim, 0.1);   // keep the nose-up trim low
     }
     this.updateBuggy(dt);
     if (PRO) {
