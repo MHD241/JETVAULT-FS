@@ -108,13 +108,13 @@ export const GLIDER: AircraftDef = {
   surfaces,
   controls: {
     elevatorUp: 25 * DEG, elevatorDown: 22 * DEG,
-    aileronUp: 28 * DEG, aileronDown: 18 * DEG,
+    aileronUp: 22 * DEG, aileronDown: 15 * DEG,
     rudder: 25 * DEG,
     trimRange: 10 * DEG,
     aileronRig: 0,
     flapDetents: [0],
     flapRate: 3.5 * DEG,
-    surfaceTau: 0.05,
+    surfaceTau: 0.08,
   },
   fuselage: { pos: new Vec3(0.2, 0, 0), dragArea: 0.045, sideArea: 3.2, planArea: 2.4, munkVolume: 1.0, munkVolumeYaw: 1.2 },
   // inert placeholders (propulsion is skipped for gliders)

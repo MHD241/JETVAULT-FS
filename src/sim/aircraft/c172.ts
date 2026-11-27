@@ -129,13 +129,13 @@ export const C172: AircraftDef = {
   surfaces,
   controls: {
     elevatorUp: 28 * DEG, elevatorDown: 23 * DEG,
-    aileronUp: 30 * DEG, aileronDown: 22 * DEG, // 1.5x the nominal travel: livelier roll (owner request)
+    aileronUp: 20 * DEG, aileronDown: 15 * DEG,
     rudder: 17 * DEG,
     trimRange: 12 * DEG,
     aileronRig: 0.0165, // balances propeller torque at cruise power
     flapDetents: [0, 10 * DEG, 20 * DEG, 30 * DEG],
     flapRate: 3.5 * DEG,
-    surfaceTau: 0.06,
+    surfaceTau: 0.10,
   },
   fuselage: { pos: new Vec3(0.2, 0, -0.1), dragArea: 0.27, sideArea: 5.5, planArea: 4.0, munkVolume: 5.0, munkVolumeYaw: 4.8 },
   engine: {

@@ -19,7 +19,7 @@ export function saveStickSens() { try { localStorage.setItem(SENS_KEY, String(st
 /** Control authority against speed: full at the approach speed and below, falling to 40 % at about 2.2 times that (the controls of an airliner bite harder the faster it goes, so the same mouse movement must ask for less). */
 export function speedAuthority(casMs: number, approachMs: number): number {
   const ratio = casMs / Math.max(1, approachMs);
-  return ratio <= 1 ? 1 : clamp(1 - 0.5 * (ratio - 1), 0.4, 1);
+  return ratio <= 1 ? 1 : clamp(1 - 0.65 * (ratio - 1), 0.3, 1);
 }
 
 export type SimpleEvent = 'gear' | 'flaps' | 'spoilers' | 'camera' | 'menu' | 'bridge' | 'park' | 'push' | 'launch' | 'bungee';
@@ -134,7 +134,7 @@ export class SimpleControls {
     // stick: touch joystick, else mouse position (dead zone in the centre)
     const dz = (v: number, d: number) => (Math.abs(v) < d ? 0 : Math.sign(v) * (Math.abs(v) - d) / (1 - d));
     // response curve: much finer control near the centre, full deflection at the edge (0.3 linear + 0.7 cubic)
-    const expo = (v: number) => { const x = Math.max(-1, Math.min(1, v)); return 0.38 * x + 0.62 * x * x * x; };   // 0.38 linear + 0.62 cubic: a little finer in the middle
+    const expo = (v: number) => { const x = Math.max(-1, Math.min(1, v)); return 0.25 * x + 0.75 * x * x * x; };   // 0.25 linear + 0.75 cubic: much finer control near the centre, full authority at the edge
     let pitch = 0, roll = 0;
     if (IS_TOUCH) {
       // smooth the raw finger position (low-pass) and soften the centre with an expo curve
@@ -154,10 +154,10 @@ export class SimpleControls {
       // the pointer reaches full deflection about 60 % of the way to the screen edge (1.45x), so the wide middle of the screen is the stick (1.4x on the ground, where the roll axis steers the nosewheel)
       const sens = (ac.onGround ? 1.2 : 1.45) * stick.sens;
       const tx = this.mouse.active ? dz(clamp(this.mouse.x * sens, -1, 1), 0.06) : 0, ty = this.mouse.active ? dz(clamp(this.mouse.y * sens, -1, 1), 0.06) : 0;
-      const a = 1 - Math.exp(-dt / (jet ? 0.15 : 0.09));      // a jet's stick is smoothed over about 0.15 s: a flick of the mouse no longer throws it around
+      const a = 1 - Math.exp(-dt / (jet ? 0.25 : 0.10));      // a jet's stick is smoothed over ~0.25 s for heavier, more realistic feel
       this.mouseSmooth.x += (tx - this.mouseSmooth.x) * a; this.mouseSmooth.y += (ty - this.mouseSmooth.y) * a;
-      const g = jet ? 1.1 : 1.15, auth = ac.onGround ? 1 : speedAuthority(ac.cas, ac.def.profile.approachKias * KT);
-      pitch = expo(this.mouseSmooth.y * g) * Math.max(0.7, auth) * (jet ? 1.35 : 1); roll = expo(this.mouseSmooth.x * g) * auth;   // a jet's pitch stick is livelier than the roll stick: the 737 should not feel like a heavy airliner
+      const g = jet ? 0.95 : 1.1, auth = ac.onGround ? 1 : speedAuthority(ac.cas, ac.def.profile.approachKias * KT);
+      pitch = expo(this.mouseSmooth.y * g) * Math.max(0.6, auth); roll = expo(this.mouseSmooth.x * g) * auth;
     }
     // touch: with the stick released in the air, gently level the wings (aileron input only)
     const stickFree = IS_TOUCH ? Math.abs(this.joy.x) < 0.05 : Math.abs(roll) < 0.03;

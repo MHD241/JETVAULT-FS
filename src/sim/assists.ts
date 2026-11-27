@@ -42,9 +42,9 @@ export class AutoTrim {
     } else {
       if (this.holdVs === null) { this.holdVs = Math.abs(vs) < 1.5 ? 0 : vs; this.thetaRef = theta; this.vsInt = 0; }
       const errVs = this.holdVs - vs;
-      this.vsInt = clamp(this.vsInt + errVs * 0.25 * DEG * dt, -12 * DEG, 15 * DEG);
-      const thetaCmd = clamp(this.thetaRef + this.vsInt + errVs * 1.2 * DEG, -10 * DEG, 15 * DEG);
-      cmd = clamp(3.0 * (thetaCmd - theta) - 0.9 * ac.omega.y, -0.45, 0.45);
+      this.vsInt = clamp(this.vsInt + errVs * 0.18 * DEG * dt, -10 * DEG, 10 * DEG);
+      const thetaCmd = clamp(this.thetaRef + this.vsInt + errVs * 0.9 * DEG, -10 * DEG, 10 * DEG);
+      cmd = clamp(2.5 * (thetaCmd - theta) - 0.9 * ac.omega.y, -0.35, 0.35);
     }
     // The hold works like a servo that drives the elevator through the TRIM channel only: part of it is the transient servo
     // (reached at a limited rate, weighted by w so it fades out continuously as the stick leaves the centre), and the trim

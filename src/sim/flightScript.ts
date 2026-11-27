@@ -67,8 +67,8 @@ export class LandingPilot {
       if (this.flarePitchUp > 0 && this.flareTheta === null) { this.flareTheta = th + this.flarePitchUp * DEG; this.flareStick = c.pitch; }
       const thetaCmd = this.flareTheta !== null ? this.flareTheta : clamp(th + (vsCmd - vs) * 0.04, -2 * DEG, 11 * DEG);
       c.pitch = this.flareTheta !== null
-        ? clamp(this.flareStick + 1.2 * (thetaCmd - th) / DEG * 0.05 - 1.5 * ac.omega.y, -1, 1)
-        : clamp(4 * (thetaCmd - th) - 1.2 * ac.omega.y, -1, 1);
+        ? clamp(this.flareStick + 3.5 * (thetaCmd - th) / DEG * 0.05 - 1.5 * ac.omega.y, -1, 1)
+        : clamp(5 * (thetaCmd - th) - 1.2 * ac.omega.y, -1, 1);
       if (ac.gearStates[1].contact || ac.gearStates[2].contact) {
         this.phase = 'rollout';
         this.touchdown = {
@@ -94,8 +94,8 @@ export type ScriptKind = 'takeoff' | 'cruise' | 'landing';
 
 /** Flare technique per aircraft (found by sweeping the settings headless: flare height as a multiple of the gear height scale, nose-up angle, sink aim, speed offset). */
 const LANDING_TUNE: Record<string, { fh: number; fp: number; fs: number; va: number }> = {
-  b738: { fh: 16, fp: 6.5, fs: 0.4, va: 0 }, a320: { fh: 20, fp: 8, fs: 0.5, va: 0 }, a340: { fh: 14, fp: 10, fs: 0.4, va: 0 },
-  a350: { fh: 22, fp: 4, fs: 0.4, va: 0 }, c17: { fh: 14, fp: 10, fs: 0.4, va: 4 },
+  b738: { fh: 14, fp: 0, fs: 0.6, va: 0 }, a320: { fh: 22, fp: 8.5, fs: 0.4, va: 0 }, a340: { fh: 16, fp: 11, fs: 0.35, va: 0 },
+  a350: { fh: 20, fp: 8, fs: 0.3, va: 2 }, c17: { fh: 18, fp: 11, fs: 0.3, va: 4 },
 };
 
 /** Takeoff, climb-out and cruise: full thrust, steer down the runway, rotate at Vr, gear up, flaps up, level off at the chosen height and hold speed. */
