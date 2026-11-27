@@ -41,8 +41,9 @@ export class AutoTrim {
       cmd = clamp(3.0 * (thetaCmd - theta) - 1.0 * ac.omega.y, -0.5, 0.5);
     } else {
       if (this.holdVs === null) { this.holdVs = Math.abs(vs) < 1.5 ? 0 : vs; this.thetaRef = theta; this.vsInt = 0; }
+      if (!ac.def.drone) this.holdVs *= Math.exp(-dt / 20);   // a hands-off climb or descent relaxes towards level instead of pitching the nose up as the speed falls
       const errVs = this.holdVs - vs;
-      this.vsInt = clamp(this.vsInt + errVs * 0.18 * DEG * dt, -10 * DEG, 10 * DEG);
+      this.vsInt = clamp(this.vsInt + errVs * 0.18 * DEG * dt, -10 * DEG, 4 * DEG);
       const thetaCmd = clamp(this.thetaRef + this.vsInt + errVs * 0.9 * DEG, -10 * DEG, 10 * DEG);
       cmd = clamp(2.5 * (thetaCmd - theta) - 0.9 * ac.omega.y, -0.35, 0.35);
     }
