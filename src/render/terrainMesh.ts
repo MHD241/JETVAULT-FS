@@ -340,6 +340,8 @@ uniform vec3 uImgRect;
 uniform float uPro;
 uniform sampler2D uGrass;
 uniform sampler2D uGrassN;
+uniform sampler2D uCloudShadow;
+uniform vec3 uCloudShadowRect;
 float hash12(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 vec3 srgb(vec3 c) { return pow(c, vec3(2.2)); }
 // ESA WorldCover class -> albedo, with per-field variation for cropland
@@ -491,6 +493,14 @@ float gWater; float gBuilt; float gPaved;
     }
   }
   col = mix(col, col * 0.55, uWet * (1.0 - gWater) * gPaved);
+  // cloud shadows: dark patches on the ground under clouds, projected along the sun direction
+  if (uCloudShadowRect.z > 0.0) {
+    vec2 csUV = (vWorldPos.xz - uCloudShadowRect.xy + uCloudShadowRect.z) / (2.0 * uCloudShadowRect.z);
+    if (csUV.x > 0.0 && csUV.y > 0.0 && csUV.x < 1.0 && csUV.y < 1.0) {
+      float csh = texture2D(uCloudShadow, csUV).r;
+      col *= 1.0 - csh * 0.45 * (1.0 - gWater * 0.7);
+    }
+  }
   // aerial perspective (MSFS-style depth): distant ground loses saturation and reads as atmospheric haze, so the land has depth instead of one flat green sheet.
   // The sky tint and brightness are added later by the fog; here we only bleed out the colour so far fields are muted grey-green, not lime.
   {

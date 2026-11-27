@@ -101,6 +101,11 @@ export class CloudField {
     scene.add(this.mesh);
   }
 
+  /** Puff world positions (without drift) and sizes, for cloud shadow rendering. */
+  getPuffs() { return this.data; }
+  /** Current wind drift offset (x, z). */
+  getDrift() { return this.drift; }
+
   /** Is the camera inside a cloud (0..1)? CPU test against the puff spheres. */
   densityAt(p: THREE.Vector3): number {
     if (!this.mesh.visible) return 0;

@@ -571,6 +571,8 @@ class App implements MenuHost {
     });
     this.crashFx = new CrashFx(this.scene);
     this.env = new EnvironmentRenderer(this.scene, this.renderer, this.terrain.uniforms.uDetail.value as THREE.DataTexture);
+    this.terrain.uniforms.uCloudShadow = { value: this.env.cloudShadowTex };
+    this.terrain.uniforms.uCloudShadowRect = { value: this.env.cloudShadowRect };
     this.rig = new CameraRig(window.innerWidth / window.innerHeight);
     if (!new URLSearchParams(location.search).has('nograde')) this.grade = new Grade(this.renderer, this.scene, this.rig.camera);
     this.rig.eye.set(this.sim.def.eye.x, this.sim.def.eye.y, this.sim.def.eye.z);

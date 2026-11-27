@@ -98,6 +98,13 @@ export class EnvironmentRenderer {
   tune = { sun: 3.6, hemi: 0.3, env: 0.3, exposure: 0.45 };
   private noise: Uint8Array;
   private noiseSize: number;
+  /** Cloud shadow map: a DataTexture encoding cloud density projected onto the ground, sampled in the terrain shader. */
+  readonly cloudShadowTex: THREE.DataTexture;
+  private cloudShadowData: Uint8Array;
+  private static readonly CS_SIZE = 128;
+  private static readonly CS_HALF = 15000; // 15 km half-extent = 30 km total coverage
+  /** (centreX, centreZ, halfExtent) in three.js world coords — the terrain shader uses this to map world pos to UV. */
+  readonly cloudShadowRect = new THREE.Vector3(0, 0, EnvironmentRenderer.CS_HALF);
 
   constructor(private scene: THREE.Scene, renderer: THREE.WebGLRenderer, noiseTex: THREE.DataTexture) {
     this.sky = new Sky();
@@ -187,6 +194,14 @@ export class EnvironmentRenderer {
 
     this.noise = noiseTex.image.data as Uint8Array;
     this.noiseSize = noiseTex.image.width;
+    {
+      const S = EnvironmentRenderer.CS_SIZE;
+      this.cloudShadowData = new Uint8Array(S * S);
+      this.cloudShadowTex = new THREE.DataTexture(this.cloudShadowData, S, S, THREE.RedFormat);
+      this.cloudShadowTex.magFilter = THREE.LinearFilter;
+      this.cloudShadowTex.minFilter = THREE.LinearFilter;
+      this.cloudShadowTex.wrapS = this.cloudShadowTex.wrapT = THREE.ClampToEdgeWrapping;
+    }
     this.cloudMat = new THREE.ShaderMaterial({
       uniforms: {
         uNoise: { value: noiseTex }, uCover: { value: 0.4 }, uSun: { value: new THREE.Vector3() }, uSunCol: { value: new THREE.Color() },
@@ -262,6 +277,60 @@ export class EnvironmentRenderer {
     const t = THREE.MathUtils.clamp((n * 0.9 + 0.08 + layer * 0.02 - (th - 0.06)) / 0.18, 0, 1);
     return t * t * (3 - 2 * t);
   }
+
+  /** Renders cloud density into the shadow texture so the terrain darkens under clouds. */
+  private updateCloudShadow(cam: THREE.Vector3, simTime: number) {
+    const S = EnvironmentRenderer.CS_SIZE, H = EnvironmentRenderer.CS_HALF;
+    const data = this.cloudShadowData;
+    const cx = Math.round(cam.x / 200) * 200, cz = Math.round(cam.z / 200) * 200; // snap to avoid shimmer
+    this.cloudShadowRect.set(cx, cz, H);
+    const texel = (2 * H) / S;
+
+    if (this.coverage >= 0.9) {
+      // OVC flat clouds: sample the same FBM noise, projecting ground positions along sun to cloud base
+      const base = this.lastBase;
+      const offX = base * this.sunDir.x / Math.max(0.15, this.sunDir.y);
+      const offZ = base * this.sunDir.z / Math.max(0.15, this.sunDir.y);
+      for (let j = 0; j < S; j++) {
+        for (let i = 0; i < S; i++) {
+          const wx = cx - H + (i + 0.5) * texel + offX;
+          const wz = cz - H + (j + 0.5) * texel + offZ;
+          const d = Math.max(this.cloudDensityAt(wx, wz, simTime, 0), this.cloudDensityAt(wx, wz, simTime, 1));
+          data[j * S + i] = Math.min(255, d * 255) | 0;
+        }
+      }
+    } else if (this.coverage > 0.05 && this.field) {
+      // Scattered cumulus: rasterize puff shadow circles into the texture
+      data.fill(0);
+      const puffs = this.field.getPuffs(), drift = this.field.getDrift();
+      const sunY = Math.max(0.15, this.sunDir.y);
+      for (const p of puffs) {
+        const py = p.y;
+        const sx = p.x + drift.x - py * this.sunDir.x / sunY;
+        const sz = p.z + drift.y - py * this.sunDir.z / sunY;
+        const r = p.s * 0.4;
+        const ti = (sx - (cx - H)) / texel, tj = (sz - (cz - H)) / texel, tr = r / texel;
+        const i0 = Math.max(0, (ti - tr) | 0), i1 = Math.min(S - 1, (ti + tr + 1) | 0);
+        const j0 = Math.max(0, (tj - tr) | 0), j1 = Math.min(S - 1, (tj + tr + 1) | 0);
+        for (let j = j0; j <= j1; j++) {
+          for (let i = i0; i <= i1; i++) {
+            const dx = i + 0.5 - ti, dz = j + 0.5 - tj, d2 = dx * dx + dz * dz;
+            if (d2 < tr * tr) {
+              const f = 1 - Math.sqrt(d2) / tr;
+              const v = (f * 220) | 0;
+              const idx = j * S + i;
+              if (v > data[idx]) data[idx] = v;
+            }
+          }
+        }
+      }
+    } else {
+      data.fill(0);
+    }
+    this.cloudShadowTex.needsUpdate = true;
+  }
+
+  private lastBase = 0;
 
   /** Places and sizes the sun's shadow map (see farShadows). Near the ground: the tight, crisp 520 m window around the aircraft. Higher up it grows
    *  (smoothly) to about 11 km and is moved ahead along the view direction, snapped to the texel grid so the shadows do not crawl. */
@@ -407,6 +476,10 @@ export class EnvironmentRenderer {
       u.uFogCol.value.copy(this.fog.color);
       u.uFogD.value = this.fog.density;
     }
+
+    // cloud shadows on terrain
+    this.lastBase = base;
+    this.updateCloudShadow(cam, simTime);
 
     // rain below the cloud base
     this.rain.visible = w.rain > 0.05 && camAlt < base + 100;
