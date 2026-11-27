@@ -1139,3 +1139,16 @@ Part of the six-step visual redesign toward MSFS realism. This covers steps 1 (a
 All changes are pure shader math (no new textures or geometry), so Low preset performance is unchanged. Verified: tsc clean, build succeeds, gallery screenshots show clear improvement in day scenes (patchwork fields, desaturated distance, varied trees). Dusk/night unchanged (already good).
 
 Remaining redesign steps: 4 (water & clouds), 5 (aircraft & airport), 6 (cockpit & polish). Then checkpoint 2.
+
+## Update 212 – visual redesign: clouds, water, city buildings, final polish (steps 4–6)
+Completes the six-step visual redesign.
+
+**Clouds** (`cloudField.ts`): puff count increased (24+16*hash, was 18+12*hash), cap 28000. Third octave of noise for finer cauliflower edges. Noise-perturbed normals give surface texture. Ambient occlusion on inner puffs (smoothstep 0–0.4). Blue fill light on shadowed undersides. Shade floor lowered (0.38 from 0.45) for deeper shadows. Opacity 0.94, fade range 16–22 km. Bright sunlit rim on every puff. Distant clouds fade toward bright haze, never grey.
+
+**Water** (`seaSurface.ts`): already had 48 Gerstner waves, Jacobian foam, shore depth, Fresnel reflections, Snell's window, marine snow — no changes needed.
+
+**City pack buildings** (`cityPack.ts`): aerial perspective added via onBeforeCompile on the instanced tower materials, matching the same distance desaturation used on terrain, trees, and procedural buildings.
+
+**Aircraft & airport**: 737 model already has PBR materials with envMapIntensity 1.2; airport lighting already drives day/night/twilight correctly; cockpit model has 1.75M triangles with vertex colors — all reviewed, no changes needed.
+
+All changes pure shader math. tsc clean. Deployed to GitHub Pages.
