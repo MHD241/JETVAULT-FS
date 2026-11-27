@@ -46,6 +46,9 @@ export class AutoTrim {
       this.vsInt = clamp(this.vsInt + errVs * 0.18 * DEG * dt, -10 * DEG, 4 * DEG);
       const thetaCmd = clamp(this.thetaRef + this.vsInt + errVs * 0.9 * DEG, -10 * DEG, 10 * DEG);
       cmd = clamp(2.5 * (thetaCmd - theta) - 0.9 * ac.omega.y, -0.35, 0.35);
+      // stall protection: as the angle of attack nears the stall warning the nose is pushed down, so an unattended aircraft never stalls
+      const guard = stallGuardTrim(ac);
+      if (guard > 0) cmd = clamp(cmd - guard * 0.8, -0.8, 0.35);
     }
     // The hold works like a servo that drives the elevator through the TRIM channel only: part of it is the transient servo
     // (reached at a limited rate, weighted by w so it fades out continuously as the stick leaves the centre), and the trim
