@@ -49,6 +49,15 @@ export async function loadCityPack(world: World, base = './models/citypack/'): P
       g.setIndex(new THREE.BufferAttribute(new Uint32Array(bin, m.idx, m.ni), 1));
       g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, proto.size[1] / 2, 0), Math.hypot(proto.size[0], proto.size[1], proto.size[2]) / 2);
       const mat = new THREE.MeshStandardMaterial({ map: m.map ? tex(m.map) : null, color: m.map ? 0xffffff : m.color, roughness: 0.8, metalness: 0, side: THREE.DoubleSide });
+      mat.onBeforeCompile = (sh) => {
+        sh.fragmentShader = sh.fragmentShader.replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+{
+  float dC = length(vViewPosition);
+  float aerC = (1.0 - exp(-dC * 0.00011)) * 0.55;
+  float lumC = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(lumC) * 1.02, clamp(aerC, 0.0, 0.55));
+}`);
+      };
       const im = new THREE.InstancedMesh(g, mat, mine.length);
       mine.forEach((t, k) => {
         const h = world.heightAt(t.e, t.n);
